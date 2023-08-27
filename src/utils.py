@@ -41,7 +41,7 @@ def cast_type(precision):
 
 def get_autocast(precision):
     if precision == "fp16":
-        return torch.cuda.amp.autocast
+        return torch.cuda.amp.autocast(dtype=torch.float16)
     elif precision == "bf16":
         # amp_bfloat16 is more stable than amp float16 for clip training
         return lambda: torch.cuda.amp.autocast(dtype=torch.bfloat16)
@@ -113,7 +113,7 @@ def encode_dataset(
         tokenizer.padding_side = 'left'
 
     dataset_embeddings_map = {}
-    with autocast_context:
+    with autocast_context():
         for batch_data in more_itertools.chunked(tqdm(coco_dataset), batch_size):
             lang_x = [d['caption'] for d in batch_data]
             lang_x_input = tokenizer(lang_x, return_tensors='pt', padding=True).to(
@@ -202,4 +202,3 @@ def encode_image(
 
     final_image_feature = torch.cat(final_image_feature, dim=0)
     return final_image_feature.detach().cpu().numpy()
-

@@ -12,7 +12,7 @@ def get_input_token_num(tokenizer, inputs: str):
 def get_ppl(
     model, model_input, autocast_context, ice_token_length=None, pad_token_id=0
 ):
-    with autocast_context:
+    with autocast_context():
         outputs = model(**model_input)
 
         shift_logits = outputs.logits[..., :-1, :].contiguous()

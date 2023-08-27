@@ -1,1 +1,2 @@
 from .base_caption_iclm import BaseCaptionICLM
+from .sentence_caption_iclm import SenEncodeCaptionICLM
