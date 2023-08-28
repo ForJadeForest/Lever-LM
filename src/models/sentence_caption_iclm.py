@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from transformers import BertModel, GPT2LMHeadModel
+from transformers import BertModel, GPT2LMHeadModel, ViTFeatureExtractor
 
 
 class SenEncodeCaptionICLM(nn.Module):
@@ -17,16 +17,22 @@ class SenEncodeCaptionICLM(nn.Module):
             ice_input['attention_mask'] = ice_input['attention_mask'].view(
                 -1, ice_seq_len
             )
-            ice_features = self.sentence_encode(**ice_input)['pooler_output']
+            ice_features = self.sentence_encode(
+                input_ids=ice_input['input_ids'],
+                attention_mask=ice_input['attention_mask'],
+            )['pooler_output']
             ice_features = ice_features.view(bs, ice_num, -1)
 
-            x_features = self.sentence_encode(**x_input)['pooler_output']
+            x_features = self.sentence_encode(
+                input_ids=x_input['input_ids'],
+                attention_mask=x_input['attention_mask'],
+            )['pooler_output']
 
             lm_emb_input = torch.cat((x_features.unsqueeze(1), ice_features), dim=1)
 
         else:
             x_features = self.sentence_encode(**x_input)['pooler_output']
-            lm_emb_input = x_features
+            lm_emb_input = x_features.unsqueeze(0)
 
         if ice_seq_idx is not None:
             padding_labels = (
