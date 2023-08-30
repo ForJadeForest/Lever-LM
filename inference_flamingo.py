@@ -85,23 +85,31 @@ def get_cider(inferencer, retriever, ice_prompt, num_shot):
 if __name__ == '__main__':
     overwrite = False
     test_random = True
-    teat_zero_shot = True
-    test_topk_caption = True
-    test_iclm = True
+    teat_zero_shot = False
+    test_topk_caption = False
+    test_iclm = False
 
-    test_data_num = 5000
+    test_data_num = 500
     result_json_path = './res.json'
     data_root_dir = '/data/share/pyz/data/mscoco/mscoco2017/'
     iclm_model_path = '/home/pyz32/code/ICLM/open_flamingo_caption/result/model_cpk/train_ds_for_data/last-val_loss:11.5413.pth'
     test_emb_path = '/home/pyz32/code/ICLM/open_flamingo_caption/result/cache/coco_val_flamingo_mean_feature.pth'
-    lang_encoder_path = 'anas-awadalla/mpt-7b'
-    tokenizer_path = 'anas-awadalla/mpt-7b'
-    flamingo_checkpoint_path = (
-        '/data/share/pyz/checkpoint/openflamingo/OpenFlamingo-9B-vitl-mpt7b'
-    )
+    # lang_encoder_path = 'anas-awadalla/mpt-7b'
+    # tokenizer_path = 'anas-awadalla/mpt-7b'
+    # flamingo_checkpoint_path = (
+    #     '/data/share/pyz/checkpoint/openflamingo/OpenFlamingo-9B-vitl-mpt7b'
+    # )
+    # cross_attn_every_n_layers = 4
+    # hf_root = 'OpenFlamingo-9B-vitl-mpt7b'
 
-    cross_attn_every_n_layers = 4
-    hf_root = 'OpenFlamingo-9B-vitl-mpt7b'
+    lang_encoder_path = 'anas-awadalla/mpt-1b-redpajama-200b'
+    tokenizer_path = 'anas-awadalla/mpt-1b-redpajama-200b'
+    flamingo_checkpoint_path = (
+        '/data/share/pyz/checkpoint/openflamingo/OpenFlamingo-3B-vitl-mpt1b'
+    )
+    hf_root = 'OpenFlamingo-3B-vitl-mpt1b'
+    cross_attn_every_n_layers = 1
+
     precision = 'bf16'
     device = 'cuda'
     gen_args = {
@@ -152,7 +160,7 @@ if __name__ == '__main__':
         other_save_field=other_save_field,
         autocast_context=autocast_context,
         image_field="image",
-        batch_size=16,
+        batch_size=32,
         generation_kwargs=gen_args,
     )
 
