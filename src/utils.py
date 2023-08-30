@@ -17,7 +17,7 @@ from tqdm import tqdm
 from transformers import (
     AutoProcessor,
     AutoTokenizer,
-    CLIPTextModel,
+    CLIPTextModelWithProjection,
     CLIPVisionModelWithProjection,
     GPT2LMHeadModel,
 )
@@ -155,14 +155,14 @@ def encode_dataset(
 
 def recall_sim_feature(test_vec, train_vec, top_k=200):
     print(f'embedding shape: {train_vec.shape}')
-    train_vec = train_vec.astype(np.float32)
-    faiss.normalize_L2(train_vec)
+    # train_vec = train_vec.astype(np.float32)
+    # faiss.normalize_L2(train_vec)
     dim = train_vec.shape[-1]  # 向量维度
     index_feat = faiss.IndexFlatIP(dim)
     index_feat.add(train_vec)
 
-    test_vec = test_vec.astype(np.float32)
-    faiss.normalize_L2(test_vec)
+    # test_vec = test_vec.astype(np.float32)
+    # faiss.normalize_L2(test_vec)
     dist, index = index_feat.search(test_vec, top_k)
     return dist, index
 
@@ -171,14 +171,15 @@ def recall_sim_feature(test_vec, train_vec, top_k=200):
 def encode_text(
     text_list, device, model_type='openai/clip-vit-large-patch14', batch_size=128
 ):
-    model = CLIPTextModel.from_pretrained(model_type).to(device)
+    model = CLIPTextModelWithProjection.from_pretrained(model_type).to(device)
     model.eval()
     tokenizer = AutoTokenizer.from_pretrained(model_type)
     final_text_feature = []
 
     for batch in more_itertools.chunked(tqdm(text_list), batch_size):
         inputs = tokenizer(batch, padding=True, return_tensors="pt").to(device)
-        text_feature = model(**inputs).pooler_output
+        text_feature = model(**inputs).text_embeds
+        text_feature /= text_feature.norm(dim=-1, keepdim=True)
         final_text_feature.append(text_feature)
 
     final_text_feature = torch.cat(final_text_feature, dim=0)
@@ -198,6 +199,7 @@ def encode_image(
         images = [Image.open(image).convert('RGB') for image in batch]
         inputs = processor(images=images, return_tensors="pt").to(device)
         image_feature = model(**inputs).image_embeds
+        image_feature /= image_feature.norm(dim=-1, keepdim=True)
         final_image_feature.append(image_feature)
 
     final_image_feature = torch.cat(final_image_feature, dim=0)
