@@ -239,8 +239,6 @@ if __name__ == '__main__':
         mean_val_loss = total_val_loss / len(val_bar)
         fabric.log("val_loss", mean_val_loss, step)
 
-        val_bar.write(f'mean val loss: {total_val_loss / len(val_bar)}')
-
         if mean_val_loss < min_val_loss:
             min_val_loss = mean_val_loss
             new_save_path = os.path.join(
@@ -261,6 +259,5 @@ if __name__ == '__main__':
         "model": model,
     }
     fabric.save(
-        model,
-        os.path.join(save_dir, f'last-val_loss:{round(mean_val_loss, 4)}.pth'),
+        os.path.join(save_dir, f'last-val_loss:{round(mean_val_loss, 4)}.pth'), state
     )
