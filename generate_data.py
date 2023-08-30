@@ -138,13 +138,13 @@ def generate_single_sample_ice(
     batch_size=32,
     beam_size=5,
 ):
-    test_data_text = get_caption_prompt(test_data['caption'])
+    test_data_text = get_caption_prompt(test_data['single_caption'])
     test_data_image = Image.open(test_data['image']).convert('RGB')
     test_data_id = test_data['idx']
 
     candidateidx2data = {
         data['idx']: {
-            'caption': get_caption_prompt(data['caption']),
+            'caption': get_caption_prompt(data['single_caption']),
             'image': data['image'],
             'idx': data['idx'],
         }
@@ -175,31 +175,21 @@ def generate_single_sample_ice(
                 for idx in ice_id_seq
             ] + [test_data_image]
 
-            # 对于每一个候选计算InfoScore
-            info_score_list = []
-            filtered_idx_list = list(filtered_candidateidx2data.keys())
-            for batch in more_itertools.chunked(filtered_idx_list, batch_size):
-                batch_data = [filtered_candidateidx2data[i] for i in batch]
-                new_ice_lang_x = [data['caption'] for data in batch_data]
-                new_ice_image_x = [
-                    Image.open(data['image']).convert('RGB') for data in batch_data
-                ]
-
-                sub_info_score = get_info_score(
-                    model,
-                    tokenizer,
-                    image_processor,
-                    device=device,
-                    ice_join_char='',
-                    lang_x=lang_x,
-                    new_ice_lang_x=new_ice_lang_x,
-                    image_x=image_x,
-                    new_ice_image_x=new_ice_image_x,
-                    autocast_context=autocast_context,
-                )
-                info_score_list.extend(sub_info_score.cpu().numpy().tolist())
-
+            filtered_idx_list = sorted(list(filtered_candidateidx2data.keys()))
+            info_score_list = get_info_score(
+                model,
+                tokenizer,
+                image_processor,
+                device,
+                ice_join_char='',
+                lang_x=lang_x,
+                image_x=image_x,
+                candidate_set=filtered_candidateidx2data,
+                batch_size=batch_size,
+                autocast_context=autocast_context,
+            )
             score_array = torch.tensor(info_score_list)
+
             # 选出最高的InfoScore
             scores, indices = score_array.topk(beam_size)
             indices = indices.tolist()
@@ -236,10 +226,10 @@ def gen_data(
     train_dataset,
     sim_candidate_set_idx,
     save_path,
-    gpu_ids,
+    args,
 ):
-    world_size = len(gpu_ids)
-    process_device = f'cuda:{gpu_ids[rank]}'
+    world_size = len(args.gpu_ids)
+    process_device = f'cuda:{args.gpu_ids[rank]}'
 
     subset_size = len(sample_data) // world_size
     subset_start = rank * subset_size
@@ -248,7 +238,8 @@ def gen_data(
     )
     subset = [sample_data[i] for i in range(subset_start, subset_end)]
     sub_sim_set_idx = sim_candidate_set_idx[subset_start:subset_end]
-    sleep(180 * rank)
+
+    sleep(90 * rank)
     model, image_processor, tokenizer, autocast_context = init_flamingo(
         lang_encoder_path,
         tokenizer_path,
@@ -267,7 +258,7 @@ def gen_data(
     )
     save_path = save_path.replace(os.path.basename(save_path), sub_res_basename)
 
-    for i, test_data in enumerate(tqdm(subset)):
+    for i, test_data in enumerate(tqdm(subset, disable=(rank != 0))):
         candidate_set = [train_dataset[int(idx)] for idx in sub_sim_set_idx[i]]
         res = generate_single_sample_ice(
             model,
@@ -302,9 +293,9 @@ if __name__ == '__main__':
         os.makedirs(sub_proc_save_dir)
 
     save_file_name = (
-        f'{args.model_name}-coco-{args.sim_method}-'
+        f'{args.hf_root}-coco-{args.sim_method}-'
         f'beam_size:{args.beam_size}-few_shot:{args.few_shot_num}-'
-        f'query_top_k:{args.query_top_k}_by_train_ds.json'
+        f'query_top_k:{args.query_top_k}.json'
     )
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)
     save_path = os.path.join(save_dir, save_file_name)
@@ -318,8 +309,10 @@ if __name__ == '__main__':
     # 使用启发式获取小集合
     if args.sim_method == 'caption':
         encoding_method = encode_text
+        data_key = 'single_caption'
     elif args.sim_method == 'image':
         encoding_method = encode_image
+        data_key = 'image'
     else:
         raise ValueError('the sim_method error')
 
@@ -329,18 +322,17 @@ if __name__ == '__main__':
         cache_dir, f'train-coco-{args.sim_method}-{sim_model_name}-feature.pth'
     )
     train_feature = load_feature_cache(
-        args, train_cache_path, encoding_method, train_dataset, args.sim_method
+        args, train_cache_path, encoding_method, train_dataset, data_key
     )
+
+    sample_index = random.sample(list(range(0, len(train_dataset))), args.sample_num)
+    sample_data = [train_dataset[i] for i in sample_index]
+    test_feature = train_feature[sample_index]
     _, test_sim_query_set_idx = recall_sim_feature(
-        train_feature, train_feature, top_k=args.query_top_k + 1
+        test_feature, train_feature, top_k=args.query_top_k + 1
     )
 
     test_sim_query_set_idx = test_sim_query_set_idx[:, 1:]
-
-    sample_index = random.sample(
-        [i for i in range(0, len(train_dataset))], args.sample_num
-    )
-    sample_data = [train_dataset[i] for i in sample_index]
     result = spawn(
         gen_data,
         args=(
@@ -360,8 +352,8 @@ if __name__ == '__main__':
         join=True,
     )
 
-    final_res_dict = dict()
-    for res in result:
-        final_res_dict.update(res)
-    with open(save_path, 'w') as f:
-        json.dump(final_res_dict, f)
+    # final_res_dict = dict()
+    # for res in result:
+    #     final_res_dict.update(res)
+    # with open(save_path, 'w') as f:
+    #     json.dump(final_res_dict, f)
