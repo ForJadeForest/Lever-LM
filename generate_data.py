@@ -5,14 +5,17 @@ import random
 from time import sleep
 from typing import Dict, List
 
+import hydra
 import more_itertools
 import torch
+from dotenv import load_dotenv
+from omegaconf import DictConfig
 from PIL import Image
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
 from src.datasets import CocoDataset
-from src.info_score import get_info_score
+from src.metrics.info_score import get_info_score
 from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
 
 
@@ -20,100 +23,13 @@ def get_caption_prompt(caption=None) -> str:
     return f"<image>Output:{caption if caption is not None else ''}{'<|endofchunk|>' if caption is not None else ''}"
 
 
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--model_name",
-        type=str,
-        help="Model name. Currently only `OpenFlamingo` is supported.",
-        default="open_flamingo",
-    )
-    # coco dataset args
-    parser.add_argument(
-        '--train_coco_dataset_root', type=str, help='The train2017 coco dataset root'
-    )
-    parser.add_argument(
-        '--train_coco_annotation_file',
-        type=str,
-        help='The train2017 coco dataset annotation file',
-    )
-    # open_flamingo args
-    parser.add_argument("--lang_encoder_path", type=str, help="The lang_encoder_path")
-    parser.add_argument('--tokenizer_path', type=str, help='the tokenizer_path ')
-    parser.add_argument(
-        '--flamingo_checkpoint_path', type=str, help='The checkpoint of open_flamingo'
-    )
-    parser.add_argument('--cross_attn_every_n_layers', type=int, help='the ')
-    parser.add_argument('--hf_root', type=str, help='the flamingo version')
-
-    # get query_set args
-    parser.add_argument(
-        '--sim_method',
-        type=str,
-        default='caption',
-        help="the method of getting the small dataset",
-    )
-    parser.add_argument(
-        '--sim_model_type',
-        type=str,
-        default='openai/clip-vit-large-patch14',
-        help="the model type of encoding the dataset",
-    )
-    parser.add_argument(
-        '--query_set_batch_size',
-        type=int,
-        default=64,
-        help="the batch_size of encoding the dataset",
-    )
-    parser.add_argument(
-        '--query_top_k',
-        type=int,
-        default=200,
-        help='the topk nearest as the candidates',
-    )
-
-    # generation args
-    parser.add_argument(
-        '--beam_size',
-        type=int,
-        default=5,
-        help='the beam size generate the new dataset',
-    )
-    parser.add_argument(
-        '--few_shot_num',
-        type=int,
-        default=5,
-        help='the few-shot num of generated dataset ',
-    )
-    parser.add_argument(
-        '--batch_size', type=int, default=32, help='the batch size in inference'
-    )
-    parser.add_argument("--device", type=str, default='cuda', help="model device")
-    parser.add_argument("--precision", type=str, default='bf16', help="model device")
-    parser.add_argument(
-        '--sample_num',
-        type=int,
-        default=5000,
-        help="the random sample num from train dataset",
-    )
-    # Others
-    parser.add_argument(
-        '--result_dir', type=str, default=None, help="JSON file to save results"
-    )
-    parser.add_argument(
-        '--gpu_ids', nargs='+', help='The GPU ids you want to use', required=True
-    )
-
-    return parser.parse_args()
-
-
-def load_feature_cache(args, cache_path, encoding_method, coco_dataset, data_key):
+def load_feature_cache(cfg, cache_path, encoding_method, coco_dataset, data_key):
     if os.path.exists(cache_path):
         features = torch.load(cache_path)
     else:
         data_list = [d[data_key] for d in coco_dataset]
         features = encoding_method(
-            data_list, args.device, args.sim_model_type, args.query_set_batch_size
+            data_list, cfg.device, cfg.sim_model_type, cfg.candidate_set_encode_bs
         )
         torch.save(features, cache_path)
     return features
@@ -226,10 +142,10 @@ def gen_data(
     train_dataset,
     sim_candidate_set_idx,
     save_path,
-    args,
+    cfg,
 ):
-    world_size = len(args.gpu_ids)
-    process_device = f'cuda:{args.gpu_ids[rank]}'
+    world_size = len(cfg.gpu_ids)
+    process_device = f'cuda:{cfg.gpu_ids[rank]}'
 
     subset_size = len(sample_data) // world_size
     subset_start = rank * subset_size
@@ -267,10 +183,10 @@ def gen_data(
             test_data,
             candidate_set,
             device=process_device,
-            few_shot_num=args.few_shot_num,
+            few_shot_num=cfg.few_shot_num,
             autocast_context=autocast_context,
-            batch_size=args.batch_size,
-            beam_size=args.beam_size,
+            batch_size=cfg.bs,
+            beam_size=cfg.beam_size,
         )
         final_res.update(res)
         with open(save_path, 'w') as f:
@@ -278,14 +194,16 @@ def gen_data(
     return final_res
 
 
-if __name__ == '__main__':
-    args = get_args()
-    if not os.path.exists(args.result_dir):
-        os.makedirs(args.result_dir)
-    cache_dir = os.path.join(args.result_dir, 'cache')
+@hydra.main(
+    version_base=None, config_path="./configs", config_name="generate_data.yaml"
+)
+def main(cfg: DictConfig):
+    if not os.path.exists(cfg.result_dir):
+        os.makedirs(cfg.result_dir)
+    cache_dir = os.path.join(cfg.result_dir, 'cache')
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
-    save_dir = os.path.join(args.result_dir, 'generated_data')
+    save_dir = os.path.join(cfg.result_dir, 'generated_data')
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     sub_proc_save_dir = os.path.join(save_dir, 'sub_proc_data')
@@ -293,67 +211,66 @@ if __name__ == '__main__':
         os.makedirs(sub_proc_save_dir)
 
     save_file_name = (
-        f'{args.hf_root}-coco-{args.sim_method}-'
-        f'beam_size:{args.beam_size}-few_shot:{args.few_shot_num}-'
-        f'query_top_k:{args.query_top_k}.json'
+        f'{cfg.flamingo.hf_root}-coco-{cfg.sim_method}-'
+        f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
+        f'candidate_top_k:{cfg.candidate_top_k}.json'
     )
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)
     save_path = os.path.join(save_dir, save_file_name)
 
-    for k, v in sorted(vars(args).items()):
-        print(k, '=', v)
+    print(cfg)
+
     # 加载数据集
     train_dataset = CocoDataset(
-        args.train_coco_dataset_root, args.train_coco_annotation_file
+        cfg.train_coco_dataset_root, cfg.train_coco_annotation_file
     )
     # 使用启发式获取小集合
-    if args.sim_method == 'caption':
+    if cfg.sim_method == 'caption':
         encoding_method = encode_text
         data_key = 'single_caption'
-    elif args.sim_method == 'image':
+    elif cfg.sim_method == 'image':
         encoding_method = encode_image
         data_key = 'image'
     else:
         raise ValueError('the sim_method error')
 
     # pre-calculate the cache feature for knn search
-    sim_model_name = args.sim_model_type.split('/')[-1]
+    sim_model_name = cfg.sim_model_type.split('/')[-1]
     train_cache_path = os.path.join(
-        cache_dir, f'train-coco-{args.sim_method}-{sim_model_name}-feature.pth'
+        cache_dir, f'train-coco-{cfg.sim_method}-{sim_model_name}-feature.pth'
     )
     train_feature = load_feature_cache(
-        args, train_cache_path, encoding_method, train_dataset, data_key
+        cfg, train_cache_path, encoding_method, train_dataset, data_key
     )
 
-    sample_index = random.sample(list(range(0, len(train_dataset))), args.sample_num)
+    sample_index = random.sample(list(range(0, len(train_dataset))), cfg.sample_num)
     sample_data = [train_dataset[i] for i in sample_index]
     test_feature = train_feature[sample_index]
-    _, test_sim_query_set_idx = recall_sim_feature(
-        test_feature, train_feature, top_k=args.query_top_k + 1
+    _, test_sim_candidate_set_idx = recall_sim_feature(
+        test_feature, train_feature, top_k=cfg.candidate_top_k + 1
     )
 
-    test_sim_query_set_idx = test_sim_query_set_idx[:, 1:]
-    result = spawn(
+    test_sim_candidate_set_idx = test_sim_candidate_set_idx[:, 1:]
+    spawn(
         gen_data,
-        args=(
-            args.lang_encoder_path,
-            args.tokenizer_path,
-            args.flamingo_checkpoint_path,
-            args.cross_attn_every_n_layers,
-            args.hf_root,
-            args.precision,
+        cfg=(
+            cfg.flamingo.lang_encoder_path,
+            cfg.flamingo.tokenizer_path,
+            cfg.flamingo.flamingo_checkpoint_path,
+            cfg.flamingo.cross_attn_every_n_layers,
+            cfg.flamingo.hf_root,
+            cfg.precision,
             sample_data,
             train_dataset,
-            test_sim_query_set_idx,
+            test_sim_candidate_set_idx,
             sub_save_path,
-            args,
+            cfg,
         ),
-        nprocs=len(args.gpu_ids),
+        nprocs=len(cfg.gpu_ids),
         join=True,
     )
 
-    # final_res_dict = dict()
-    # for res in result:
-    #     final_res_dict.update(res)
-    # with open(save_path, 'w') as f:
-    #     json.dump(final_res_dict, f)
+
+if __name__ == '__main__':
+    load_dotenv()
+    main()
