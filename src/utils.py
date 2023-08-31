@@ -204,3 +204,66 @@ def encode_image(
 
     final_image_feature = torch.cat(final_image_feature, dim=0)
     return final_image_feature.detach().cpu().numpy()
+
+
+def data_split(generated_data, train_ratio):
+    # 获得有多少条test数据
+    test_dataset_id_set = {
+        v[-1] for d in generated_data for v in generated_data[d]['id_list']
+    }
+    test_dataset_len = len(test_dataset_id_set)
+
+    # 计算多少test数据用于训练 剩下部分用于监督val loss
+    train_data_len = int(train_ratio * test_dataset_len)
+    train_idx_set = set(sorted(list(test_dataset_id_set))[:train_data_len])
+    val_idx_set = test_dataset_id_set - train_idx_set
+
+    train_data_list = list()
+    val_data_list = list()
+    for d in generated_data:
+        for i in generated_data[d]['id_list']:
+            if int(i[-1]) in train_idx_set:
+                train_data_list.append(i)
+            elif int(i[-1]) in val_idx_set:
+                val_data_list.append(i)
+            else:
+                raise ValueError()
+
+    print(f'the train size {len(train_data_list)}, the test size {len(val_data_list)}')
+    return train_data_list, val_data_list
+
+
+def collate_fn(batch):
+    bs = len(batch)
+    sample_data = batch[0]
+    if 'ice_input' in sample_data:
+        ice_num = batch[0]['ice_input'].input_ids.size(0)
+        ice_input_ids = [item['ice_input']['input_ids'] for item in batch]
+        ice_attn_masks = [item['ice_input']['attention_mask'] for item in batch]
+
+        # padding ice text
+        ice_max_len = max([i.size(1) for i in ice_input_ids])
+        padded_ice_input_ids = torch.zeros(
+            (bs, ice_num, ice_max_len), dtype=ice_input_ids[0].dtype
+        )
+        padded_ice_attn_masks = torch.zeros(
+            (bs, ice_num, ice_max_len), dtype=ice_input_ids[0].dtype
+        )
+        for i in range(bs):
+            seq_len = ice_input_ids[i].size(1)
+            padded_ice_input_ids[i, :, :seq_len] = ice_input_ids[i]
+            padded_ice_attn_masks[i, :, :seq_len] = ice_attn_masks[i]
+
+        return {
+            'ice_input': {
+                'input_ids': padded_ice_input_ids,
+                'attention_mask': padded_ice_attn_masks,
+            },
+            'img_input': torch.cat([item['img_input'] for item in batch], dim=0),
+            'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
+        }
+    else:
+        return {
+            'img_input': torch.cat([item['img_input'] for item in batch], dim=0),
+            'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
+        }
