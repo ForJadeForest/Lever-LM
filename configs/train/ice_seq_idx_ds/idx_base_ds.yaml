@@ -1,0 +1,3 @@
+_target_: src.datasets.idx_base_caption_iclm.IdxBaseCaptionICLMDataset
+
+processor_name: "openai/clip-vit-base-patch32"

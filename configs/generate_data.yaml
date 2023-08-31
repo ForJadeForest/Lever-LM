@@ -1,0 +1,31 @@
+# @package _global_
+
+# specify here default configuration
+# order of defaults determines the order in which configs override each other
+defaults:
+  - _self_
+  - flamingo: flamingo_9B
+  - dataset: coco_dataset
+
+
+# get candidate_set args
+sim_method: "caption"
+sim_model_type: "openai/clip-vit-large-patch14"
+candidate_set_encode_bs: 64
+candidate_top_k: 64
+
+# generation args:
+beam_size: 5
+few_shot_num: 2
+bs: 32
+device: "cuda"
+precision: bf16
+sample_num: 10000
+
+# Others
+result_dir: "./result"
+gpu_ids: [0, 1, 2, 3]
+
+hydra:
+  hydra_logging:
+    log_dir: ${result_dir}/hydra_logs

@@ -1,0 +1,12 @@
+_target_: src.models.idx_base_caption_iclm.IdxBaseCaptionICLM
+
+lm_config: 
+  vocab_size: 118287
+  n_embd: 512
+  n_head: 8
+  n_layer: 2
+init_with_vlm_logits: false
+emb_dim: null
+clip_name: openai/clip-vit-base-patch32
+
+
