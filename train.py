@@ -17,18 +17,22 @@ from src.utils import collate_fn, data_split
 
 
 @torch.no_grad()
-def validation(model, val_dataloader):
+def validation(model, val_dataloader, fabric: Fabric):
     model.eval()
-    val_bar = tqdm(val_dataloader, desc=f'val Loss: xx.xxxx')
-    for val_data in tqdm(val_bar):
+    val_bar = tqdm(
+        val_dataloader, desc=f'val Loss: xx.xxxx', disable=(fabric.local_rank != 0)
+    )
+    total_val_loss = 0.0
+    for val_data in val_bar:
         output = model(
-            x_input=val_data['x_input'],
+            img_input=val_data['img_input'],
             ice_input=val_data['ice_input'],
             ice_seq_idx=val_data['ice_seq_idx'],
         )
-        loss = output.loss
+        loss = output['loss']
         val_bar.set_description(f'val Loss: {round(loss.item(), 4)}')
-        total_val_loss += loss.item()
+        reduced_loss = fabric.all_reduce(loss, reduce_op='mean')
+        total_val_loss += reduced_loss.item()
 
     mean_val_loss = total_val_loss / len(val_bar)
     return mean_val_loss
@@ -37,15 +41,22 @@ def validation(model, val_dataloader):
 def train(
     cfg, train_dataloader, val_dataloader, model, fabric, optimizer, scheduler, save_dir
 ):
+    step = 0
+    min_val_loss = float('inf')
+    old_save_path = None
     for epoch in range(cfg.epochs):
-        bar = tqdm(train_dataloader, desc=f'epoch:{epoch}-Loss: xx.xxxx')
+        bar = tqdm(
+            train_dataloader,
+            desc=f'epoch:{epoch}-Loss: xx.xxxx',
+            disable=(fabric.local_rank != 0),
+        )
         for data in bar:
             output = model(
-                x_input=data['x_input'],
+                img_input=data['img_input'],
                 ice_input=data['ice_input'],
                 ice_seq_idx=data['ice_seq_idx'],
             )
-            loss = output.loss
+            loss = output['loss']
             fabric.backward(loss)
             optimizer.step()
             scheduler.step()
@@ -56,7 +67,7 @@ def train(
             fabric.log('lr', scheduler.get_last_lr()[0], step)
             step += 1
 
-        val_loss = validation(model, val_dataloader)
+        val_loss = validation(model, val_dataloader, fabric)
         fabric.log("val_loss", val_loss, step)
         if val_loss < min_val_loss:
             min_val_loss = val_loss
@@ -101,20 +112,24 @@ def main(cfg: DictConfig):
     )
 
     iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
+    print(f'model: {type(iclm_model)} load succese')
 
     train_ds = hydra.utils.instantiate(
         cfg.train.ice_seq_idx_ds,
         data_list=train_data_list,
         coco_dataset=train_coco_dataset,
     )
+    print('train_ds load success')
     val_ds = hydra.utils.instantiate(
         cfg.train.ice_seq_idx_ds,
         data_list=val_data_list,
         coco_dataset=train_coco_dataset,
     )
+    print('val_ds load success')
     logger = TensorBoardLogger(
         root_dir=os.path.join(cfg.result_dir, "logs"), name=cfg.ex_name
     )
+
     fabric = Fabric(
         loggers=logger,
         accelerator=cfg.device,
@@ -139,7 +154,9 @@ def main(cfg: DictConfig):
     )
     optimizer = AdamW(iclm_model.parameters(), cfg.lr)
     model, optimizer = fabric.setup(iclm_model, optimizer)
-    dataloader, val_dataloader = fabric.setup_dataloaders(dataloader, val_dataloader)
+    train_dataloader, val_dataloader = fabric.setup_dataloaders(
+        train_dataloader, val_dataloader
+    )
     total_steps = cfg.epochs * len(train_ds) // cfg.batch_size // cfg.device_num
     scheduler = get_cosine_schedule_with_warmup(
         optimizer,
