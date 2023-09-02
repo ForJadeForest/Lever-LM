@@ -7,57 +7,46 @@ class IdxBaseCaptionICLM(nn.Module):
     def __init__(
         self,
         lm_config,
+        index_ds_size,
         init_with_vlm_logits=False,
         emb_dim=None,
         clip_name="openai/clip-vit-base-patch32",
     ) -> None:
         super().__init__()
+        vocab_size = index_ds_size + 3
         conifg = GPT2Config(
-            vocab_size=lm_config.vocab_size,
-            n_embd=lm_config.n_embd,
-            n_head=lm_config.n_head,
-            n_layer=lm_config.n_layer,
+            vocab_size=vocab_size,
+            n_embd=lm_config['n_embd'],
+            n_head=lm_config['n_head'],
+            n_layer=lm_config['n_layer'],
+            eos_token_id=vocab_size,
+            bos_token_id=vocab_size + 1,
         )
         self.lm_model = GPT2LMHeadModel(conifg)
         self.img_model = CLIPVisionModelWithProjection.from_pretrained(clip_name)
 
         if init_with_vlm_logits:
-            self.lm_model.transformer.wte = nn.Embedding(lm_config.vocab_size, emb_dim)
-            self.emb_proj = nn.Linear(emb_dim, lm_config.n_embd)
+            self.lm_model.transformer.wte = nn.Embedding(vocab_size, emb_dim)
+            self.emb_proj = nn.Linear(emb_dim, lm_config['n_embd'])
             self.img_proj = nn.Linear(
-                self.img_model.config.projection_dim, lm_config.n_embd
+                self.img_model.config.projection_dim, lm_config['n_embd']
             )
         else:
-            self.emb_proj = nn.Identity(lm_config.n_embd)
+            self.emb_proj = nn.Identity(lm_config['n_embd'])
             self.img_proj = nn.Identity(self.img_model.config.projection_dim)
 
-    def forward(self, img_input, ice_input=None, ice_seq_idx=None):
-        image_embedding = self.img_model(**img_input)['image_embeds']
+    def forward(self, img_input, ice_input, ice_seq_idx=None):
+        image_embedding = self.img_model(img_input)['image_embeds']
         image_embedding = self.img_proj(image_embedding)
-        bs = len(image_embedding)
 
-        if ice_input is None:
-            inputs_embeds = image_embedding.unsqueeze(dim=1)
-        else:
-            dataset_embedding = self.lm_model.transformer.wte(ice_input)
-            dataset_embedding = self.emb_proj(dataset_embedding)
+        dataset_embedding = self.lm_model.transformer.wte(ice_input)
+        dataset_embedding = self.emb_proj(dataset_embedding)
+        dataset_embedding[:, 1] += image_embedding
+        inputs_embeds = dataset_embedding
 
-            inputs_embeds = torch.cat(
-                [image_embedding.unsqueeze(dim=1), dataset_embedding], dim=1
-            )
-
-        if ice_seq_idx is not None:
-            padding_labels = (
-                torch.ones(
-                    (bs, 1),
-                    device=ice_seq_idx.device,
-                    dtype=torch.long,
-                )
-                * -100
-            )
-            labels = torch.cat([padding_labels, ice_seq_idx], dim=1)
-        else:
-            labels = None
+        labels = ice_seq_idx
+        # if labels is not None:
+        #     labels[:, 1] = -100
 
         lm_output = self.lm_model(
             inputs_embeds=inputs_embeds,
@@ -75,3 +64,45 @@ class IdxBaseCaptionICLM(nn.Module):
             print('freeze dataset embedding')
             for p in self.lm_model.transformer.wte.parameters():
                 p.requires_grad = False
+
+    @torch.inference_mode()
+    def generation(self, img_input, ice_input, **kwargs):
+        image_embedding = self.img_model(img_input)['image_embeds']
+        image_embedding = self.img_proj(image_embedding)
+
+        dataset_embedding = self.lm_model.transformer.wte(ice_input)
+        dataset_embedding = self.emb_proj(dataset_embedding)
+        dataset_embedding[:, 1] += image_embedding
+        inputs_embeds = dataset_embedding
+        generated_ids = self.lm_model.generate(
+            input_ids=ice_input, inputs_embeds=inputs_embeds, **kwargs
+        )
+
+        return generated_ids.cpu().detach().tolist()
+
+
+if __name__ == '__main__':
+    from transformers import AutoProcessor
+
+    from datasets import load_dataset
+
+    lm_config = {
+        'vocab_size': 118287,
+        'n_embd': 512,
+        'n_head': 8,
+        'n_layer': 2,
+    }
+    model = IdxBaseCaptionICLM(lm_config)
+    model.load_state_dict(
+        torch.load(
+            '/home/pyz32/code/iclm/result/model_cpk/idx_base_iclm_2shot/epoch:25-min_loss:10.2237.pth'
+        )['model']
+    )
+    model = model.to('cuda:2')
+    model.eval()
+    ds = load_dataset("imagefolder", data_dir='/data/share/pyz/data/mscoco/mscoco2017')
+    temp = ds['validation'][0]
+    img = temp['image']
+    img_processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
+    img = img_processor(images=img, return_tensors='pt').to('cuda:2')['pixel_values']
+    model.generation(img)

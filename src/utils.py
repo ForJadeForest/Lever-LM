@@ -236,7 +236,7 @@ def data_split(generated_data, train_ratio):
 def collate_fn(batch):
     bs = len(batch)
     sample_data = batch[0]
-    if 'ice_input' in sample_data:
+    if not isinstance(sample_data['ice_input'], torch.Tensor):
         ice_num = batch[0]['ice_input'].input_ids.size(0)
         ice_input_ids = [item['ice_input']['input_ids'] for item in batch]
         ice_attn_masks = [item['ice_input']['attention_mask'] for item in batch]
@@ -265,5 +265,6 @@ def collate_fn(batch):
     else:
         return {
             'img_input': torch.cat([item['img_input'] for item in batch], dim=0),
+            'ice_input': torch.stack([item['ice_seq_idx'] for item in batch]),
             'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
         }
