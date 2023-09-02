@@ -5,16 +5,19 @@ import os
 import hydra
 import pandas as pd
 import torch
+from dotenv import load_dotenv
 from omegaconf import DictConfig
 from openicl import (
     DatasetReader,
+    DirRetriever,
     FlamingoGenInferencer,
-    ICLMRetriever,
     PromptTemplate,
     RandomRetriever,
     TopkRetriever,
     ZeroRetriever,
 )
+from tqdm import tqdm
+from transformers import AutoProcessor, AutoTokenizer
 
 from datasets import load_dataset
 from src.datasets import CocoDataset
@@ -78,7 +81,7 @@ def inference_cider(
     return cider_score
 
 
-@hydra.main(version_base=None, config_path="./configs", config_name="train.yaml")
+@hydra.main(version_base=None, config_path="./configs", config_name="inference.yaml")
 def main(cfg: DictConfig):
     construct_coco_dict(cfg.dataset.coco_root, cfg.overwrite_metainfo)
     model, image_processor, tokenizer, autocast_context = init_flamingo(
@@ -172,22 +175,31 @@ def main(cfg: DictConfig):
     # ICLM sample test
     if cfg.test_iclm:
         single_retriever_res = {}
-        iclm_model = torch.load(
-            cfg.iclm_model_path,
-            map_location='cpu',
-        )
-        test_emb_map = torch.load(cfg.test_emb_path)
-        retriever = ICLMRetriever(
-            dr,
-            iclm_model=iclm_model,
-            test_emb_map=test_emb_map,
-            ice_separator='<|endofchunk|>',
-            ice_eos_token='<|endofchunk|>',
-            prompt_eos_token='',
-            test_split='validation',
-        )
+        iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
+        iclm_model.load_state_dict(torch.load(cfg.iclm_path)['model'])
+
+        image_processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+
         for shot_num in cfg.shot_num_list:
-            output_files = f'{str(datetime.datetime.now())}-{type(inferencer).__name__}-{type(retriever).__name__}-{shot_num=}-{test_data_num=}'
+            # TODO: 生成ICE列表
+            ice_idx_list = iclm_gene_ice(
+                iclm_model,
+                ds['validation'],
+                image_processor,
+                shot_num,
+                cfg.device,
+                cfg.eos_token_id,
+            )
+            retriever = DirRetriever(
+                dr,
+                ice_idx_list,
+                ice_separator='<|endofchunk|>',
+                ice_eos_token='<|endofchunk|>',
+                prompt_eos_token='',
+                test_split='validation',
+            )
+            output_files = f'{str(datetime.datetime.now())}-{type(inferencer).__name__}-ICLMRetriver-{shot_num=}-{test_data_num=}'
             retriever.ice_num = shot_num
             cider_score = inference_cider(
                 inferencer,
@@ -210,5 +222,36 @@ def main(cfg: DictConfig):
         json.dump(total_cider_res, f, indent=4)
 
 
+@torch.inference_mode()
+def iclm_gene_ice(iclm_model, ds, img_processor, shot_num, device, eos_token_id):
+    iclm_model = iclm_model.to(device)
+    ice_idx_list = []
+
+    for data in tqdm(ds):
+        img = data['image']
+        img = img_processor(images=img, return_tensors='pt').to(device)['pixel_values']
+        ice_input = torch.tensor([[118288, 118289]]).to(device)
+
+        num_beams = 10
+        if shot_num == 1:
+            num_beams = 1
+
+        res = iclm_model.generation(
+            img,
+            ice_input=ice_input,
+            repetition_penalty=2.0,
+            max_new_tokens=shot_num,
+            num_beams=num_beams,
+            min_length=shot_num,
+            pad_token_id=eos_token_id,
+            eos_token_id=eos_token_id,
+        )[0]
+        res = res[2:]
+        assert len(res) == shot_num, f'{len(res)=}'
+        ice_idx_list.append(res)
+    return ice_idx_list
+
+
 if __name__ == '__main__':
+    load_dotenv()
     main()
