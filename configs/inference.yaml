@@ -1,0 +1,33 @@
+defaults:
+  - _self_
+  - dataset: coco_dataset
+  - flamingo: flamingo_9B
+  - train: idx_base
+
+
+overwrite_metainfo: false
+precision: bf16
+device: cuda
+test_data_num: -1
+other_save_field: ['single_caption', 'captions', 'image_id']
+inference_bs: 1
+gen_args:
+  max_new_tokens: 20
+  num_beams: 3
+  length_penalty: 0.0
+  min_new_tokens: 0
+
+eos_token_id: 118287
+bos_token_id: 118288
+query_token_id: 118289
+
+
+result_dir: "./result"
+ex_name: "flamingo-idx-base-test(5000)"
+iclm_path: "result/model_cpk/idx_base_iclm_2shot/epoch:19-min_loss:7.2433.pth"
+
+teat_zero_shot: false
+test_topk_caption: false
+
+test_iclm: true
+shot_num_list: [1, 2, 4]

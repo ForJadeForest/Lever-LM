@@ -5,13 +5,12 @@
 defaults:
   - _self_
 
-  - train/ice_seq_idx_ds: clip_encode_base_ds
-  - train/iclm_model: clip_encode_base_iclm
+  - train: idx_base
   - dataset: coco_dataset
 
 
 # data args
-data_files: open_flamingo-coco-caption-beam_size:8-few_shot:4-query_top_k:50_by_train_ds.json
+data_files: OpenFlamingo-9B-vitl-mpt7b-coco-caption-beam_size:16-few_shot:2-query_top_k:64.json
 
 # train args:
 epochs: 50
@@ -26,7 +25,7 @@ warm_up_ratio: 0.05
 result_dir: "./result"
 ex_name: "default"
 device: "cuda"
-device_num: 4
+device_num: 1
 precision: 16
 seed: 42
 
