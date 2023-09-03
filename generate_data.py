@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 import random
@@ -6,7 +5,6 @@ from time import sleep
 from typing import Dict, List
 
 import hydra
-import more_itertools
 import torch
 from dotenv import load_dotenv
 from omegaconf import DictConfig
@@ -14,9 +12,16 @@ from PIL import Image
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
+from datasets import load_dataset
 from src.datasets import CocoDataset
 from src.metrics.info_score import get_info_score
-from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
+from src.utils import (
+    encode_image,
+    encode_text,
+    init_flamingo,
+    load_coco_train_ds,
+    recall_sim_feature,
+)
 
 
 def get_caption_prompt(caption=None) -> str:
@@ -216,14 +221,11 @@ def main(cfg: DictConfig):
         f'candidate_top_k:{cfg.candidate_top_k}.json'
     )
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)
-    save_path = os.path.join(save_dir, save_file_name)
 
     print(cfg)
-
     # 加载数据集
-    train_dataset = CocoDataset(
-        cfg.dataset.train_coco_dataset_root, cfg.dataset.train_coco_annotation_file
-    )
+    train_ds = load_coco_train_ds(cfg)
+
     # 使用启发式获取小集合
     if cfg.sim_method == 'caption':
         encoding_method = encode_text
@@ -238,14 +240,14 @@ def main(cfg: DictConfig):
     sim_model_name = cfg.sim_model_type.split('/')[-1]
     train_cache_path = os.path.join(
         cache_dir,
-        f'train-coco{cfg.dataset.version}-{cfg.sim_method}-{sim_model_name}-feature.pth',
+        f'train-coco{cfg.dataset.version}-{cfg.use_karpathy_split=}-{cfg.sim_method}-{sim_model_name}-feature.pth',
     )
     train_feature = load_feature_cache(
-        cfg, train_cache_path, encoding_method, train_dataset, data_key
+        cfg, train_cache_path, encoding_method, train_ds, data_key
     )
 
-    sample_index = random.sample(list(range(0, len(train_dataset))), cfg.sample_num)
-    sample_data = [train_dataset[i] for i in sample_index]
+    sample_index = random.sample(list(range(0, len(train_ds))), cfg.sample_num)
+    sample_data = [train_ds[i] for i in sample_index]
     test_feature = train_feature[sample_index]
     _, test_sim_candidate_set_idx = recall_sim_feature(
         test_feature, train_feature, top_k=cfg.candidate_top_k + 1
@@ -262,7 +264,7 @@ def main(cfg: DictConfig):
             cfg.flamingo.hf_root,
             cfg.precision,
             sample_data,
-            train_dataset,
+            train_ds,
             test_sim_candidate_set_idx,
             sub_save_path,
             cfg,

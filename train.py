@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 import hydra
@@ -12,8 +13,11 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import get_cosine_schedule_with_warmup
 
+from datasets import load_dataset
 from src.datasets import CocoDataset
-from src.utils import collate_fn, data_split
+from src.utils import collate_fn, data_split, load_coco_train_ds
+
+logger = logging.getLogger(__name__)
 
 
 @torch.no_grad()
@@ -79,18 +83,23 @@ def train(
             }
 
             fabric.save(new_save_path, state)
+            if fabric.local_rank == 0:
+                logger.info(f'new model has been saved in {new_save_path}')
+
             if old_save_path is None:
                 old_save_path = new_save_path
             else:
                 if fabric.local_rank == 0:
                     os.remove(old_save_path)
+                    logger.info(f'old model has been deleted: {old_save_path}')
                 old_save_path = new_save_path
     state = {
         "model": model,
     }
-    fabric.save(
-        os.path.join(save_dir, f'last-val_loss:{round(val_loss, 4)}.pth'), state
-    )
+    last_model_path = os.path.join(save_dir, f'last-val_loss:{round(val_loss, 4)}.pth')
+    fabric.save(last_model_path, state)
+    if fabric.local_rank == 0:
+        logger.info(f'last model has been saved: {last_model_path}')
 
 
 @hydra.main(version_base=None, config_path="./configs", config_name="train.yaml")
@@ -107,25 +116,25 @@ def main(cfg: DictConfig):
     with open(data_files_path, 'r') as f:
         data = json.load(f)
     train_data_list, val_data_list = data_split(data, cfg.train_ratio)
-    train_coco_dataset = CocoDataset(
-        cfg.dataset.train_coco_dataset_root, cfg.dataset.train_coco_annotation_file
-    )
+
+    # 加载数据集
+    train_ds = load_coco_train_ds(cfg)
 
     iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
-    print(f'model: {type(iclm_model)} load succese')
+    logger.info(f'model: {type(iclm_model)} load succese')
 
     train_ds = hydra.utils.instantiate(
         cfg.train.ice_seq_idx_ds,
         data_list=train_data_list,
-        coco_dataset=train_coco_dataset,
+        coco_dataset=train_ds,
     )
-    print('train_ds load success')
+    logger.info('train_ds load success')
     val_ds = hydra.utils.instantiate(
         cfg.train.ice_seq_idx_ds,
         data_list=val_data_list,
-        coco_dataset=train_coco_dataset,
+        coco_dataset=train_ds,
     )
-    print('val_ds load success')
+    logger.info('val_ds load success')
     logger = TensorBoardLogger(
         root_dir=os.path.join(cfg.result_dir, "tensorboard-logs"), name=cfg.ex_name
     )
