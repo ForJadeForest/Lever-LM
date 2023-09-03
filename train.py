@@ -127,7 +127,7 @@ def main(cfg: DictConfig):
     )
     print('val_ds load success')
     logger = TensorBoardLogger(
-        root_dir=os.path.join(cfg.result_dir, "logs"), name=cfg.ex_name
+        root_dir=os.path.join(cfg.result_dir, "tensorboard-logs"), name=cfg.ex_name
     )
 
     fabric = Fabric(
