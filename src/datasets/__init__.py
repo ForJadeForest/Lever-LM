@@ -1,6 +1,3 @@
-# from .base_caption_iclm_ds import BaseCaptionICLMDatasets
-
-# from .sentence_caption_iclm_ds import SentenceEncodeCaptionICLMDataset
 from .coco_ds import CocoDataset
 from .idx_base_caption_iclm_ds import IdxBaseCaptionICLMDataset
 from .sen_img_caption_iclm_ds import SenImgEncodeCaptionICLMDataset
