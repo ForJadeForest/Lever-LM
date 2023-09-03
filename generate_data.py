@@ -155,7 +155,7 @@ def gen_data(
     subset = [sample_data[i] for i in range(subset_start, subset_end)]
     sub_sim_set_idx = sim_candidate_set_idx[subset_start:subset_end]
 
-    sleep(90 * rank)
+    sleep(180 * rank)
     model, image_processor, tokenizer, autocast_context = init_flamingo(
         lang_encoder_path,
         tokenizer_path,
@@ -222,7 +222,7 @@ def main(cfg: DictConfig):
 
     # 加载数据集
     train_dataset = CocoDataset(
-        cfg.train_coco_dataset_root, cfg.train_coco_annotation_file
+        cfg.dataset.train_coco_dataset_root, cfg.dataset.train_coco_annotation_file
     )
     # 使用启发式获取小集合
     if cfg.sim_method == 'caption':
@@ -253,7 +253,7 @@ def main(cfg: DictConfig):
     test_sim_candidate_set_idx = test_sim_candidate_set_idx[:, 1:]
     spawn(
         gen_data,
-        cfg=(
+        args=(
             cfg.flamingo.lang_encoder_path,
             cfg.flamingo.tokenizer_path,
             cfg.flamingo.flamingo_checkpoint_path,
