@@ -41,4 +41,4 @@ shot_num_list: [1, 2]
 
 hydra:
   run:
-    dir: ${result_dir}/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${result_dir}/hydra_output/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}

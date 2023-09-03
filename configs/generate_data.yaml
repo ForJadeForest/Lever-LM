@@ -5,7 +5,7 @@
 defaults:
   - _self_
   - flamingo: flamingo_9B
-  - dataset: coco2017
+  - dataset: coco2014
 
 
 # get candidate_set args
@@ -24,9 +24,10 @@ sample_num: 10000
 
 # Others
 result_dir: "./result"
+use_karpathy_split: true
 gpu_ids: [0, 1, 2, 3]
 
 # hydra
 hydra:
   run:
-    dir: ${result_dir}/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${result_dir}/hydra_output/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}

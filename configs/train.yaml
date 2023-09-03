@@ -6,11 +6,12 @@ defaults:
   - _self_
 
   - train: idx_base
-  - dataset: coco_dataset
+  - dataset: coco2014
 
 
 # data args
 data_files: OpenFlamingo-9B-vitl-mpt7b-coco-caption-beam_size:16-few_shot:2-query_top_k:64.json
+use_karpathy_split: true
 
 # train args:
 epochs: 50
@@ -32,4 +33,4 @@ seed: 42
 
 hydra:
   run:
-    dir: ${result_dir}/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${result_dir}/hydra_output/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
