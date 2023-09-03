@@ -211,7 +211,7 @@ def main(cfg: DictConfig):
         os.makedirs(sub_proc_save_dir)
 
     save_file_name = (
-        f'{cfg.flamingo.hf_root}-coco-{cfg.sim_method}-'
+        f'{cfg.flamingo.hf_root}-coco{cfg.dataset.version}-{cfg.sim_method}-'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
         f'candidate_top_k:{cfg.candidate_top_k}.json'
     )
@@ -222,7 +222,7 @@ def main(cfg: DictConfig):
 
     # 加载数据集
     train_dataset = CocoDataset(
-        cfg.train_coco_dataset_root, cfg.train_coco_annotation_file
+        cfg.dataset.train_coco_dataset_root, cfg.dataset.train_coco_annotation_file
     )
     # 使用启发式获取小集合
     if cfg.sim_method == 'caption':
@@ -237,7 +237,8 @@ def main(cfg: DictConfig):
     # pre-calculate the cache feature for knn search
     sim_model_name = cfg.sim_model_type.split('/')[-1]
     train_cache_path = os.path.join(
-        cache_dir, f'train-coco-{cfg.sim_method}-{sim_model_name}-feature.pth'
+        cache_dir,
+        f'train-coco{cfg.dataset.version}-{cfg.sim_method}-{sim_model_name}-feature.pth',
     )
     train_feature = load_feature_cache(
         cfg, train_cache_path, encoding_method, train_dataset, data_key
@@ -253,7 +254,7 @@ def main(cfg: DictConfig):
     test_sim_candidate_set_idx = test_sim_candidate_set_idx[:, 1:]
     spawn(
         gen_data,
-        cfg=(
+        args=(
             cfg.flamingo.lang_encoder_path,
             cfg.flamingo.tokenizer_path,
             cfg.flamingo.flamingo_checkpoint_path,
