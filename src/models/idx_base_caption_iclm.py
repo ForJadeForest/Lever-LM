@@ -87,22 +87,21 @@ if __name__ == '__main__':
     from datasets import load_dataset
 
     lm_config = {
-        'vocab_size': 118287,
         'n_embd': 512,
         'n_head': 8,
         'n_layer': 2,
     }
-    model = IdxBaseCaptionICLM(lm_config)
+    model = IdxBaseCaptionICLM(lm_config, 118287)
     model.load_state_dict(
-        torch.load(
-            '/home/pyz32/code/iclm/result/model_cpk/idx_base_iclm_2shot/epoch:25-min_loss:10.2237.pth'
-        )['model']
+        torch.load('result/model_cpk/idx_base_iclm_2shot2/last-val_loss:5.5326.pth')[
+            'model'
+        ]
     )
-    model = model.to('cuda:2')
+    model = model.to('cuda:6')
     model.eval()
     ds = load_dataset("imagefolder", data_dir='/data/share/pyz/data/mscoco/mscoco2017')
-    temp = ds['validation'][0]
+    temp = ds['validation'][399]
     img = temp['image']
     img_processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
-    img = img_processor(images=img, return_tensors='pt').to('cuda:2')['pixel_values']
+    img = img_processor(images=img, return_tensors='pt').to('cuda:6')['pixel_values']
     model.generation(img)
