@@ -211,7 +211,7 @@ def main(cfg: DictConfig):
         os.makedirs(sub_proc_save_dir)
 
     save_file_name = (
-        f'{cfg.flamingo.hf_root}-coco-{cfg.sim_method}-'
+        f'{cfg.flamingo.hf_root}-coco{cfg.dataset.version}-{cfg.sim_method}-'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
         f'candidate_top_k:{cfg.candidate_top_k}.json'
     )
@@ -237,7 +237,8 @@ def main(cfg: DictConfig):
     # pre-calculate the cache feature for knn search
     sim_model_name = cfg.sim_model_type.split('/')[-1]
     train_cache_path = os.path.join(
-        cache_dir, f'train-coco-{cfg.sim_method}-{sim_model_name}-feature.pth'
+        cache_dir,
+        f'train-coco{cfg.dataset.version}-{cfg.sim_method}-{sim_model_name}-feature.pth',
     )
     train_feature = load_feature_cache(
         cfg, train_cache_path, encoding_method, train_dataset, data_key

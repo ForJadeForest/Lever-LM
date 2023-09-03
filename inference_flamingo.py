@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import os
 
 import hydra
@@ -11,6 +12,7 @@ from openicl import (
     DatasetReader,
     DirRetriever,
     FlamingoGenInferencer,
+    MMTopkRetriever,
     PromptTemplate,
     RandomRetriever,
     TopkRetriever,
@@ -23,6 +25,8 @@ from datasets import load_dataset
 from src.datasets import CocoDataset
 from src.metrics.cider_utils import compute_cider
 from src.utils import init_flamingo
+
+logger = logging.getLogger(__name__)
 
 
 def construct_coco_dict(coco_root, overwrite=False):
@@ -93,7 +97,22 @@ def main(cfg: DictConfig):
         precision=cfg.precision,
         device=cfg.device,
     )
-
+    inferencer = FlamingoGenInferencer(
+        model,
+        tokenizer,
+        image_processor,
+        other_save_field=cfg.other_save_field,
+        autocast_context=autocast_context,
+        image_field="image",
+        batch_size=cfg.inference_bs,
+        generation_kwargs=cfg.gen_args,
+        output_json_filepath=os.path.join(
+            cfg.result_dir, 'flamingo_inference', cfg.ex_name, 'generation_metainfo'
+        ),
+    )
+    result_json_path = os.path.join(
+        cfg.result_dir, 'flamingo_inference', cfg.ex_name, 'total_cider_res.json'
+    )
     ice_prompt = PromptTemplate(
         template='</E><image>Output:<X>',
         ice_token='</E>',
@@ -110,24 +129,9 @@ def main(cfg: DictConfig):
         ds, input_columns=['single_caption'], output_column='single_caption'
     )
 
-    inferencer = FlamingoGenInferencer(
-        model,
-        tokenizer,
-        image_processor,
-        other_save_field=cfg.other_save_field,
-        autocast_context=autocast_context,
-        image_field="image",
-        batch_size=cfg.inference_bs,
-        generation_kwargs=cfg.gen_args,
-        output_json_filepath=os.path.join(
-            cfg.result_dir, 'flamingo_inference', cfg.ex_name, 'generation_metainfo'
-        ),
-    )
-
     total_cider_res = {}
 
     # zero-shot test
-
     if cfg.teat_zero_shot:
         retriever = ZeroRetriever(
             dr,
@@ -146,7 +150,80 @@ def main(cfg: DictConfig):
         )
         total_cider_res[f'{type(retriever).__name__}'] = cider_score
 
-        print(total_cider_res)
+        logger.info(
+            f'{type(retriever).__name__}-{shot_num=}-{test_data_num=}-{cider_score=}'
+        )
+        logger.debug(total_cider_res)
+
+        with open(result_json_path, 'w') as f:
+            json.dump(total_cider_res, f, indent=4)
+
+    if cfg.test_random:
+        single_retriever_res = {}
+        retriever = RandomRetriever(
+            dr,
+            ice_separator='<|endofchunk|>',
+            ice_eos_token='<|endofchunk|>',
+            test_split='validation',
+        )
+        for shot_num in cfg.shot_num_list:
+            output_files = f'{str(datetime.datetime.now())}-\
+                             {type(inferencer).__name__}-\
+                             {type(retriever).__name__}-\
+                             {shot_num=}-{test_data_num=}'
+            retriever.ice_num = shot_num
+            cider_score = inference_cider(
+                inferencer,
+                retriever,
+                ice_prompt,
+                cfg.dataset.val_coco_annotation_file,
+                output_files,
+            )
+            single_retriever_res[f'{shot_num=}'] = cider_score
+            logger.info(f'{type(retriever).__name__}-{shot_num=}-{cider_score=}')
+        total_cider_res[f'{type(retriever).__name__}'] = single_retriever_res
+        logger.debug(total_cider_res)
+
+        with open(result_json_path, 'w') as f:
+            json.dump(total_cider_res, f, indent=4)
+
+    if cfg.test_mm_topk:
+        single_retriever_res = {}
+        retriever = MMTopkRetriever(
+            dr,
+            ice_separator='<|endofchunk|>',
+            ice_eos_token='<|endofchunk|>',
+            test_split='validation',
+            batch_size=32,
+            mode=cfg.mm_topk_mode,
+            index_field=cfg.mm_topk_index_field,
+            test_field=cfg.mm_topk_test_field,
+            clip_model_name=cfg.mmtopk_clip_name,
+        )
+
+        for shot_num in cfg.shot_num_list:
+            output_files = f'{str(datetime.datetime.now())}-{type(inferencer).__name__}-\
+                             {type(retriever).__name__}-{shot_num=}-{test_data_num=}-\
+                             {cfg.mmtopk_clip_name.replace("/", "-")}-{cfg.mm_topk_mode}'
+
+            retriever.ice_num = shot_num
+            cider_score = inference_cider(
+                inferencer,
+                retriever,
+                ice_prompt,
+                cfg.dataset.val_coco_annotation_file,
+                output_files,
+            )
+            single_retriever_res[f'{shot_num=}'] = cider_score
+            logger.info(f'{type(retriever).__name__}-{shot_num=}-{cider_score=}')
+            
+        total_cider_res[
+            f'{type(retriever).__name__}-{cfg.mm_topk_mode}-{cfg.mmtopk_clip_name}'
+        ] = single_retriever_res
+        
+        logger.debug(total_cider_res)
+        with open(result_json_path, 'w') as f:
+            json.dump(total_cider_res, f, indent=4)
 
     if cfg.test_topk_caption:
         single_retriever_res = {}
@@ -168,9 +245,11 @@ def main(cfg: DictConfig):
                 output_files,
             )
             single_retriever_res[f'{shot_num=}'] = cider_score
-            print(single_retriever_res)
+            logger.info(f'{type(retriever).__name__}-{shot_num=}-{cider_score=}')
         total_cider_res[f'{type(retriever).__name__}'] = single_retriever_res
-        print(total_cider_res)
+        logger.debug(total_cider_res)
+        with open(result_json_path, 'w') as f:
+            json.dump(total_cider_res, f, indent=4)
 
     # ICLM sample test
     if cfg.test_iclm:
@@ -182,7 +261,6 @@ def main(cfg: DictConfig):
         tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-base-patch32")
 
         for shot_num in cfg.shot_num_list:
-            # TODO: 生成ICE列表
             ice_idx_list = iclm_gene_ice(
                 iclm_model,
                 ds['validation'],
@@ -209,22 +287,18 @@ def main(cfg: DictConfig):
                 output_files,
             )
             single_retriever_res[f'{shot_num=}'] = cider_score
-            print(single_retriever_res)
-        total_cider_res[f'{type(retriever).__name__}'] = single_retriever_res
-        print(total_cider_res)
+            logger.info(f'{type(retriever).__name__}-{shot_num=}-{cider_score=}')
+        total_cider_res['ICLMRetriver'] = single_retriever_res
+        logger.debug(total_cider_res)
 
-    result_json_path = (
-        os.path.join(
-            cfg.result_dir, 'flamingo_inference', cfg.ex_name, 'total_cider_res.json'
-        ),
-    )
-    with open(result_json_path, 'w') as f:
-        json.dump(total_cider_res, f, indent=4)
+        with open(result_json_path, 'w') as f:
+            json.dump(total_cider_res, f, indent=4)
 
 
 @torch.inference_mode()
 def iclm_gene_ice(iclm_model, ds, img_processor, shot_num, device, eos_token_id):
     iclm_model = iclm_model.to(device)
+    iclm_model.eval()
     ice_idx_list = []
 
     for data in tqdm(ds):
@@ -246,8 +320,21 @@ def iclm_gene_ice(iclm_model, ds, img_processor, shot_num, device, eos_token_id)
             pad_token_id=eos_token_id,
             eos_token_id=eos_token_id,
         )[0]
-        res = res[2:]
+        res = res[2 : 2 + shot_num]
+        if eos_token_id in res:
+            res = iclm_model.generation(
+                img,
+                ice_input=ice_input,
+                repetition_penalty=2.0,
+                max_new_tokens=shot_num,
+                num_beams=num_beams,
+                bad_words_ids=[[eos_token_id]],
+                min_length=shot_num,
+            )[0]
+            res = res[2 : 2 + shot_num]
+
         assert len(res) == shot_num, f'{len(res)=}'
+        assert eos_token_id not in res, f'{res=}'
         ice_idx_list.append(res)
     return ice_idx_list
 

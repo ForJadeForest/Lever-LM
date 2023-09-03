@@ -5,7 +5,7 @@
 defaults:
   - _self_
   - flamingo: flamingo_9B
-  - dataset: coco_dataset
+  - dataset: coco2017
 
 
 # get candidate_set args
@@ -26,6 +26,7 @@ sample_num: 10000
 result_dir: "./result"
 gpu_ids: [0, 1, 2, 3]
 
+# hydra
 hydra:
-  hydra_logging:
-    log_dir: ${result_dir}/hydra_logs
+  run:
+    dir: ${result_dir}/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}

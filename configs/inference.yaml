@@ -10,7 +10,7 @@ precision: bf16
 device: cuda
 test_data_num: -1
 other_save_field: ['single_caption', 'captions', 'image_id']
-inference_bs: 1
+inference_bs: 32
 gen_args:
   max_new_tokens: 20
   num_beams: 3
@@ -24,10 +24,21 @@ query_token_id: 118289
 
 result_dir: "./result"
 ex_name: "flamingo-idx-base-test(5000)"
-iclm_path: "result/model_cpk/idx_base_iclm_2shot/epoch:19-min_loss:7.2433.pth"
+iclm_path: "result/model_cpk/idx_base_iclm_2shot_with_imgToken_loss/last-val_loss:5.5326.pth"
 
 teat_zero_shot: false
 test_topk_caption: false
+test_random: false
+test_iclm: false
+test_mm_topk: false
 
-test_iclm: true
-shot_num_list: [1, 2, 4]
+
+mmtopk_clip_name: openai/clip-vit-large-patch14
+mm_topk_mode: i2t
+mm_topk_index_field: single_caption
+mm_topk_test_field: image
+shot_num_list: [1, 2]
+
+hydra:
+  run:
+    dir: ${result_dir}/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}

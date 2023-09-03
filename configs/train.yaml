@@ -30,7 +30,6 @@ precision: 16
 seed: 42
 
 
-
 hydra:
-  hydra_logging:
-    log_dir: ${result_dir}/hydra_logs
+  run:
+    dir: ${result_dir}/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
