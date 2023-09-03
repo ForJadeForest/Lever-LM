@@ -9,13 +9,18 @@ from transformers import (
 
 
 class SenImgEncodeCaptionICLM(nn.Module):
-    def __init__(self, lm_config, clip_name="openai/clip-vit-base-patch32"):
+    def __init__(
+        self, lm_config, index_ds_size, clip_name="openai/clip-vit-base-patch32"
+    ):
         super().__init__()
+        vocab_size = index_ds_size + 3
         conifg = GPT2Config(
-            vocab_size=lm_config.vocab_size,
-            n_embd=lm_config.n_embd,
-            n_head=lm_config.n_head,
-            n_layer=lm_config.n_layer,
+            vocab_size=vocab_size,
+            n_embd=lm_config['n_embd'],
+            n_head=lm_config['n_head'],
+            n_layer=lm_config['n_layer'],
+            eos_token_id=vocab_size,
+            bos_token_id=vocab_size + 1,
         )
         self.lm_model = GPT2LMHeadModel(conifg)
         self.sen_model = CLIPTextModelWithProjection.from_pretrained(clip_name)
