@@ -22,7 +22,9 @@ from transformers import (
     GPT2LMHeadModel,
 )
 
+from datasets import load_dataset
 from open_flamingo import create_model_and_transforms
+from src.datasets import CocoDataset
 
 
 def cast_type(precision):
@@ -204,6 +206,29 @@ def encode_image(
 
     final_image_feature = torch.cat(final_image_feature, dim=0)
     return final_image_feature.detach().cpu().numpy()
+
+
+def load_coco_train_ds(cfg):
+    if cfg.use_karpathy_split:
+        assert '2014' in cfg.dataset.train_coco_dataset_root
+        train_ds = load_dataset("yerevann/coco-karpathy", split='train')
+        train_ds = train_ds.sort("imgid")
+
+        def transform(example, idx):
+            example['single_caption'] = example['sentences'][0]
+            example['image'] = os.path.join(
+                cfg.dataset.train_coco_dataset_root, example['filename']
+            )
+            example['idx'] = idx
+            return example
+
+        train_ds = train_ds.map(transform, with_indices=True)
+
+    else:
+        train_ds = CocoDataset(
+            cfg.dataset.train_coco_dataset_root, cfg.dataset.train_coco_annotation_file
+        )
+    return train_ds
 
 
 def data_split(generated_data, train_ratio):
