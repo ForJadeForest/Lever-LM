@@ -1,1 +1,3 @@
-
+defaults:
+  - ice_seq_idx_ds: clip_encode_base_ds
+  - iclm_model: clip_encode_base_iclm
