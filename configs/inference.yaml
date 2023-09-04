@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - dataset: coco2014
+  - dataset: karpathy_local
   - flamingo: flamingo_9B
   - train: idx_base
 
@@ -29,11 +29,11 @@ iclm_path: "result/model_cpk/idx_base_iclm_2shot_with_imgToken_loss/last-val_los
 
 
 
-teat_zero_shot: true
+test_zero_shot: false
 test_topk_caption: false
-test_random: true
+test_random: false
 test_iclm: false
-test_mm_topk: true
+test_mm_topk: false
 
 
 mmtopk_clip_name: openai/clip-vit-large-patch14
