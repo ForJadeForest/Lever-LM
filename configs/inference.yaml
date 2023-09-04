@@ -1,9 +1,10 @@
 defaults:
   - _self_
-  - dataset: coco_dataset
+  - dataset: coco2014
   - flamingo: flamingo_9B
   - train: idx_base
 
+use_karpathy_split: true
 
 overwrite_metainfo: false
 precision: bf16
@@ -23,21 +24,23 @@ query_token_id: 118289
 
 
 result_dir: "./result"
-ex_name: "flamingo-idx-base-test(5000)"
+ex_name: "karpathy_split"
 iclm_path: "result/model_cpk/idx_base_iclm_2shot_with_imgToken_loss/last-val_loss:5.5326.pth"
 
-teat_zero_shot: false
+
+
+teat_zero_shot: true
 test_topk_caption: false
-test_random: false
+test_random: true
 test_iclm: false
-test_mm_topk: false
+test_mm_topk: true
 
 
 mmtopk_clip_name: openai/clip-vit-large-patch14
 mm_topk_mode: i2t
 mm_topk_index_field: single_caption
 mm_topk_test_field: image
-shot_num_list: [1, 2]
+shot_num_list: [2, 4, 8]
 
 hydra:
   run:
