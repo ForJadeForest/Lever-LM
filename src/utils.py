@@ -210,7 +210,7 @@ def encode_image(
 
 def load_coco_train_ds(cfg):
     if cfg.use_karpathy_split:
-        load_karpathy_split(cfg, 'train')
+        train_ds = load_karpathy_split(cfg, 'train')
     else:
         train_ds = CocoDataset(
             cfg.dataset.train_coco_dataset_root, cfg.dataset.train_coco_annotation_file
@@ -220,6 +220,8 @@ def load_coco_train_ds(cfg):
 
 def load_karpathy_split(cfg, split=None):
     ds = load_dataset(cfg.dataset.karpathy_path, split=split)
+    ds.pop('validation', None)
+    ds.pop('restval', None)
     ds = ds.sort("cocoid")
     ds = ds.rename_columns({'sentences': 'captions', 'cocoid': 'image_id'})
 
