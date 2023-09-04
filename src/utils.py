@@ -220,8 +220,9 @@ def load_coco_train_ds(cfg):
 
 def load_karpathy_split(cfg, split=None):
     ds = load_dataset(cfg.dataset.karpathy_path, split=split)
-    ds.pop('validation', None)
-    ds.pop('restval', None)
+    if split is None:
+        ds.pop('validation', None)
+        ds.pop('restval', None)
     ds = ds.sort("cocoid")
     ds = ds.rename_columns({'sentences': 'captions', 'cocoid': 'image_id'})
 
