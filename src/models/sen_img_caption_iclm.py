@@ -26,41 +26,32 @@ class SenImgEncodeCaptionICLM(nn.Module):
         self.sen_model = CLIPTextModelWithProjection.from_pretrained(clip_name)
         self.img_model = CLIPVisionModelWithProjection.from_pretrained(clip_name)
 
-    def forward(self, img_input, ice_input=None, ice_seq_idx=None):
-        if ice_input is not None:
-            bs, ice_num, ice_seq_len = ice_input['input_ids'].shape
+    def forward(self, img_input, ice_input, ice_seq_idx):
+        bs, ice_num, ice_seq_len = ice_input['input_ids'].shape
+        dataset_embedding = self.lm_model.transformer.wte(ice_seq_idx)
 
-            ice_input['input_ids'] = ice_input['input_ids'].view(-1, ice_seq_len)
-            ice_input['attention_mask'] = ice_input['attention_mask'].view(
-                -1, ice_seq_len
-            )
-            ice_features = self.sen_model(
-                input_ids=ice_input['input_ids'],
-                attention_mask=ice_input['attention_mask'],
-            )['text_embeds']
-            ice_features = ice_features.view(bs, ice_num, -1)
+        ice_input['input_ids'] = ice_input['input_ids'].view(-1, ice_seq_len)
+        ice_input['attention_mask'] = ice_input['attention_mask'].view(-1, ice_seq_len)
+        ice_features = self.sen_model(
+            input_ids=ice_input['input_ids'],
+            attention_mask=ice_input['attention_mask'],
+        )['text_embeds']
+        ice_features = ice_features.view(bs, ice_num, -1)
+        img_features = self.img_model(img_input)['image_embeds']
+        dataset_embedding[:, 1] += img_features
+        dataset_embedding[:, 2:-1] += ice_features
+        
+        output = self.lm_model(inputs_embeds=dataset_embedding, labels=ice_seq_idx)
+        return output
+        
 
-            x_features = self.img_model(img_input)['image_embeds']
+    @torch.inference_mode()
+    def generation(self, img_input, ice_input, **kwargs):
+        image_embedding = self.img_model(img_input)['image_embeds']
+        dataset_embedding = self.lm_model.transformer.wte(ice_input)
+        dataset_embedding[:, 1] += image_embedding
+        generated_ids = self.lm_model.generate(
+            input_ids=ice_input, inputs_embeds=dataset_embedding, **kwargs
+        )
 
-            lm_emb_input = torch.cat((x_features.unsqueeze(1), ice_features), dim=1)
-
-        else:
-            x_features = self.img_model(img_input)['image_embeds']
-            lm_emb_input = x_features.unsqueeze(0)
-
-        if ice_seq_idx is not None:
-            padding_labels = (
-                torch.ones(
-                    (bs, 1),
-                    device=ice_seq_idx.device,
-                    dtype=torch.long,
-                )
-                * -100
-            )
-            labels = torch.cat([padding_labels, ice_seq_idx], dim=1)
-        else:
-            labels = None
-
-        lm_output = self.lm_model(inputs_embeds=lm_emb_input, labels=labels)
-
-        return lm_output
+        return generated_ids.cpu().detach().tolist()
