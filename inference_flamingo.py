@@ -24,7 +24,7 @@ from transformers import AutoProcessor, AutoTokenizer
 from datasets import load_dataset
 from src.datasets import CocoDataset
 from src.metrics.cider_utils import compute_cider
-from src.utils import init_flamingo
+from src.utils import init_flamingo, load_karpathy_split
 
 logger = logging.getLogger(__name__)
 
@@ -103,28 +103,7 @@ def main(cfg: DictConfig):
 
     test_data_num = cfg.test_data_num
     if cfg.use_karpathy_split:
-        ds = load_dataset("yerevann/coco-karpathy")
-        ds.pop('validation')
-        ds.pop('restval')
-        ds = ds.sort("cocoid")
-        ds = ds.rename_columns({'sentences': 'captions', 'cocoid': 'image_id'})
-
-        def transform(example, idx):
-            example['single_caption'] = example['captions'][0]
-            if 'train' in example['filepath']:
-                coco_dir = cfg.dataset.train_coco_dataset_root
-            elif 'val' in example['filepath']:
-                coco_dir = cfg.dataset.val_coco_dataset_root
-            example['image'] = os.path.join(coco_dir, example['filename'])
-            example['idx'] = idx
-            return example
-
-        ds = ds.map(
-            transform,
-            with_indices=True,
-            remove_columns=['sentids', 'imgid', 'url', 'filename', 'split'],
-        )
-
+        ds = load_karpathy_split(cfg)
         if test_data_num != -1:
             ds['test'] = ds['test'].select(range(test_data_num))
         test_split = 'test'

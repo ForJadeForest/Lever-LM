@@ -210,30 +210,36 @@ def encode_image(
 
 def load_coco_train_ds(cfg):
     if cfg.use_karpathy_split:
-        assert '2014' in cfg.dataset.train_coco_dataset_root
-        train_ds = load_dataset("yerevann/coco-karpathy", split='train')
-        train_ds = train_ds.sort("cocoid")
-        ds = ds.rename_columns({'sentences': 'captions', 'cocoid': 'image_id'})
-
-        def transform(example, idx):
-            example['single_caption'] = example['captions'][0]
-            example['image'] = os.path.join(
-                cfg.dataset.train_coco_dataset_root, example['filename']
-            )
-            example['idx'] = idx
-            return example
-
-        train_ds = train_ds.map(
-            transform,
-            with_indices=True,
-            remove_columns=['sentids', 'imgid', 'url', 'filename', 'split'],
-        )
-
+        load_karpathy_split(cfg, 'train')
     else:
         train_ds = CocoDataset(
             cfg.dataset.train_coco_dataset_root, cfg.dataset.train_coco_annotation_file
         )
     return train_ds
+
+
+def load_karpathy_split(cfg, split=None):
+    ds = load_dataset(cfg.dataset.karpathy_path, split=split)
+    ds = ds.sort("cocoid")
+    ds = ds.rename_columns({'sentences': 'captions', 'cocoid': 'image_id'})
+
+    def transform(example, idx):
+        example['single_caption'] = example['captions'][0]
+        if 'train' in example['filepath']:
+            coco_dir = cfg.dataset.train_coco_dataset_root
+        elif 'val' in example['filepath']:
+            coco_dir = cfg.dataset.val_coco_dataset_root
+
+        example['image'] = os.path.join(coco_dir, example['filename'])
+        example['idx'] = idx
+        return example
+
+    ds = ds.map(
+        transform,
+        with_indices=True,
+        remove_columns=['sentids', 'imgid', 'filename', 'split'],
+    )
+    return ds
 
 
 def data_split(generated_data, train_ratio):
