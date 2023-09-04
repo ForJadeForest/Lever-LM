@@ -29,13 +29,14 @@ from src.utils import init_flamingo
 logger = logging.getLogger(__name__)
 
 
-def construct_coco_dict(coco_root, overwrite=False):
+def construct_coco_dict(coco_root, version=2014, overwrite=False):
+    version_coco_root = os.path.join(coco_root, f'mscoco{version}')
     for data_split in ['train', 'val']:
-        split_image_path = os.path.join(coco_root, f'{data_split}2017')
+        split_image_path = os.path.join(version_coco_root, f'{data_split}{version}')
         meta_info_path = os.path.join(split_image_path, 'metadata.csv')
         if not os.path.exists(meta_info_path) or overwrite:
             ann_path = os.path.join(
-                coco_root, 'annotations', f'captions_{data_split}2017.json'
+                version_coco_root, 'annotations', f'captions_{data_split}{version}.json'
             )
             dataset = CocoDataset(split_image_path, ann_path)
 
@@ -87,7 +88,57 @@ def inference_cider(
 
 @hydra.main(version_base=None, config_path="./configs", config_name="inference.yaml")
 def main(cfg: DictConfig):
-    construct_coco_dict(cfg.dataset.coco_root, cfg.overwrite_metainfo)
+    construct_coco_dict(
+        cfg.dataset.coco_root, cfg.dataset.version, cfg.overwrite_metainfo
+    )
+
+    result_json_path = os.path.join(
+        cfg.result_dir, 'flamingo_inference', cfg.ex_name, 'total_cider_res.json'
+    )
+    ice_prompt = PromptTemplate(
+        template='</E><image>Output:<X>',
+        ice_token='</E>',
+        column_token_map={'single_caption': '<X>'},
+    )
+
+    test_data_num = cfg.test_data_num
+    if cfg.use_karpathy_split:
+        ds = load_dataset("yerevann/coco-karpathy")
+        ds.pop('validation')
+        ds.pop('restval')
+        ds = ds.sort("cocoid")
+        ds = ds.rename_columns({'sentences': 'captions', 'cocoid': 'image_id'})
+
+        def transform(example, idx):
+            example['single_caption'] = example['captions'][0]
+            if 'train' in example['filepath']:
+                coco_dir = cfg.dataset.train_coco_dataset_root
+            elif 'val' in example['filepath']:
+                coco_dir = cfg.dataset.val_coco_dataset_root
+            example['image'] = os.path.join(coco_dir, example['filename'])
+            example['idx'] = idx
+            return example
+
+        ds = ds.map(
+            transform,
+            with_indices=True,
+            remove_columns=['sentids', 'imgid', 'url', 'filename', 'split'],
+        )
+
+        if test_data_num != -1:
+            ds['test'] = ds['test'].select(range(test_data_num))
+        test_split = 'test'
+    else:
+        ds = load_dataset("imagefolder", data_dir=cfg.dataset.coco_root)
+        if test_data_num != -1:
+            ds['validation'] = ds['validation'].select(range(test_data_num))
+        test_split = 'validation'
+
+    dr = DatasetReader(
+        ds, input_columns=['single_caption'], output_column='single_caption'
+    )
+
+    total_cider_res = {}
     model, image_processor, tokenizer, autocast_context = init_flamingo(
         lang_encoder_path=cfg.flamingo.lang_encoder_path,
         tokenizer_path=cfg.flamingo.tokenizer_path,
@@ -110,33 +161,12 @@ def main(cfg: DictConfig):
             cfg.result_dir, 'flamingo_inference', cfg.ex_name, 'generation_metainfo'
         ),
     )
-    result_json_path = os.path.join(
-        cfg.result_dir, 'flamingo_inference', cfg.ex_name, 'total_cider_res.json'
-    )
-    ice_prompt = PromptTemplate(
-        template='</E><image>Output:<X>',
-        ice_token='</E>',
-        column_token_map={'single_caption': '<X>'},
-    )
-
-    test_data_num = cfg.test_data_num
-
-    ds = load_dataset("imagefolder", data_dir=cfg.dataset.coco_root)
-    if test_data_num != -1:
-        ds['validation'] = ds['validation'].select(range(test_data_num))
-
-    dr = DatasetReader(
-        ds, input_columns=['single_caption'], output_column='single_caption'
-    )
-
-    total_cider_res = {}
-
     # zero-shot test
     if cfg.teat_zero_shot:
         retriever = ZeroRetriever(
             dr,
             prompt_eos_token='',
-            test_split='validation',
+            test_split=test_split,
         )
         shot_num = 0
         output_files = f'{str(datetime.datetime.now())}-{type(inferencer).__name__}-{type(retriever).__name__}-{shot_num=}-{test_data_num=}'
@@ -164,7 +194,7 @@ def main(cfg: DictConfig):
             dr,
             ice_separator='<|endofchunk|>',
             ice_eos_token='<|endofchunk|>',
-            test_split='validation',
+            test_split=test_split,
         )
         for shot_num in cfg.shot_num_list:
             output_files = f'{str(datetime.datetime.now())}-\
@@ -193,7 +223,7 @@ def main(cfg: DictConfig):
             dr,
             ice_separator='<|endofchunk|>',
             ice_eos_token='<|endofchunk|>',
-            test_split='validation',
+            test_split=test_split,
             batch_size=32,
             mode=cfg.mm_topk_mode,
             index_field=cfg.mm_topk_index_field,
@@ -216,11 +246,11 @@ def main(cfg: DictConfig):
             )
             single_retriever_res[f'{shot_num=}'] = cider_score
             logger.info(f'{type(retriever).__name__}-{shot_num=}-{cider_score=}')
-            
+
         total_cider_res[
             f'{type(retriever).__name__}-{cfg.mm_topk_mode}-{cfg.mmtopk_clip_name}'
         ] = single_retriever_res
-        
+
         logger.debug(total_cider_res)
         with open(result_json_path, 'w') as f:
             json.dump(total_cider_res, f, indent=4)
@@ -231,7 +261,7 @@ def main(cfg: DictConfig):
             dr,
             ice_separator='<|endofchunk|>',
             ice_eos_token='<|endofchunk|>',
-            test_split='validation',
+            test_split=test_split,
             batch_size=512,
         )
         for shot_num in cfg.shot_num_list:
@@ -263,7 +293,7 @@ def main(cfg: DictConfig):
         for shot_num in cfg.shot_num_list:
             ice_idx_list = iclm_gene_ice(
                 iclm_model,
-                ds['validation'],
+                ds[test_split],
                 image_processor,
                 shot_num,
                 cfg.device,
@@ -275,7 +305,7 @@ def main(cfg: DictConfig):
                 ice_separator='<|endofchunk|>',
                 ice_eos_token='<|endofchunk|>',
                 prompt_eos_token='',
-                test_split='validation',
+                test_split=test_split,
             )
             output_files = f'{str(datetime.datetime.now())}-{type(inferencer).__name__}-ICLMRetriver-{shot_num=}-{test_data_num=}'
             retriever.ice_num = shot_num
