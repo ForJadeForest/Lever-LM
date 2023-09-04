@@ -212,17 +212,22 @@ def load_coco_train_ds(cfg):
     if cfg.use_karpathy_split:
         assert '2014' in cfg.dataset.train_coco_dataset_root
         train_ds = load_dataset("yerevann/coco-karpathy", split='train')
-        train_ds = train_ds.sort("imgid")
+        train_ds = train_ds.sort("cocoid")
+        ds = ds.rename_columns({'sentences': 'captions', 'cocoid': 'image_id'})
 
         def transform(example, idx):
-            example['single_caption'] = example['sentences'][0]
+            example['single_caption'] = example['captions'][0]
             example['image'] = os.path.join(
                 cfg.dataset.train_coco_dataset_root, example['filename']
             )
             example['idx'] = idx
             return example
 
-        train_ds = train_ds.map(transform, with_indices=True)
+        train_ds = train_ds.map(
+            transform,
+            with_indices=True,
+            remove_columns=['sentids', 'imgid', 'url', 'filename', 'split'],
+        )
 
     else:
         train_ds = CocoDataset(
