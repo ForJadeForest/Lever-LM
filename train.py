@@ -14,10 +14,10 @@ from tqdm import tqdm
 from transformers import get_cosine_schedule_with_warmup
 
 from datasets import load_dataset
-from src.datasets import CocoDataset
 from src.utils import collate_fn, data_split, load_coco_train_ds
 
 logger = logging.getLogger(__name__)
+# os.environ['CUDA_VISIBLE_DEVICES'] = "2"
 
 
 @torch.no_grad()
@@ -104,6 +104,8 @@ def train(
 
 @hydra.main(version_base=None, config_path="./configs", config_name="train.yaml")
 def main(cfg: DictConfig):
+    global logger
+    
     save_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.ex_name)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -118,21 +120,20 @@ def main(cfg: DictConfig):
     train_data_list, val_data_list = data_split(data, cfg.train_ratio)
 
     # 加载数据集
-    train_ds = load_coco_train_ds(cfg)
+    coco_train_ds = load_coco_train_ds(cfg)
 
     iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
     logger.info(f'model: {type(iclm_model)} load succese')
+    ds_factory = hydra.utils.instantiate(cfg.train.ice_seq_idx_ds, _partial_=True)
 
-    train_ds = hydra.utils.instantiate(
-        cfg.train.ice_seq_idx_ds,
+    train_ds = ds_factory(
         data_list=train_data_list,
-        coco_dataset=train_ds,
+        coco_dataset=coco_train_ds
     )
     logger.info('train_ds load success')
-    val_ds = hydra.utils.instantiate(
-        cfg.train.ice_seq_idx_ds,
+    val_ds = ds_factory(
         data_list=val_data_list,
-        coco_dataset=train_ds,
+        coco_dataset=coco_train_ds
     )
     logger.info('val_ds load success')
     logger = TensorBoardLogger(
