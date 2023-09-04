@@ -160,7 +160,7 @@ def gen_data(
     subset = [sample_data[i] for i in range(subset_start, subset_end)]
     sub_sim_set_idx = sim_candidate_set_idx[subset_start:subset_end]
 
-    sleep(180 * rank)
+    sleep(90 * rank)
     model, image_processor, tokenizer, autocast_context = init_flamingo(
         lang_encoder_path,
         tokenizer_path,
@@ -214,15 +214,15 @@ def main(cfg: DictConfig):
     sub_proc_save_dir = os.path.join(save_dir, 'sub_proc_data')
     if not os.path.exists(sub_proc_save_dir):
         os.makedirs(sub_proc_save_dir)
-
+    use_karpathy_split = cfg.use_karpathy_split
     save_file_name = (
-        f'{cfg.flamingo.hf_root}-coco{cfg.dataset.version}-{cfg.sim_method}-'
+        f'{cfg.flamingo.hf_root}-coco{cfg.dataset.version}-{use_karpathy_split=}-{cfg.sim_method}-'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
         f'candidate_top_k:{cfg.candidate_top_k}.json'
     )
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)
+    save_path = os.path.join(save_dir, save_file_name)
 
-    print(cfg)
     # 加载数据集
     train_ds = load_coco_train_ds(cfg)
 
@@ -240,7 +240,8 @@ def main(cfg: DictConfig):
     sim_model_name = cfg.sim_model_type.split('/')[-1]
     train_cache_path = os.path.join(
         cache_dir,
-        f'train-coco{cfg.dataset.version}-{cfg.use_karpathy_split=}-{cfg.sim_method}-{sim_model_name}-feature.pth',
+        f'train-coco{cfg.dataset.version}-{use_karpathy_split=}-'
+        f'{cfg.sim_method}-{sim_model_name}-feature.pth',
     )
     train_feature = load_feature_cache(
         cfg, train_cache_path, encoding_method, train_ds, data_key
@@ -272,6 +273,25 @@ def main(cfg: DictConfig):
         nprocs=len(cfg.gpu_ids),
         join=True,
     )
+
+    world_size = len(cfg.gpu_ids)
+    subset_size = subset_size = len(sample_data) // world_size
+    total_data = {}
+    for rank in range(world_size):
+        subset_start = rank * subset_size
+        subset_end = (
+            subset_start + subset_size if rank != world_size - 1 else len(sample_data)
+        )
+        sub_res_basename = (
+            os.path.basename(sub_save_path).split('.')[0]
+            + f'_rank:{rank}_({subset_start}, {subset_end}).json'
+        )
+        with open(sub_res_basename, 'r') as f:
+            data = json.load(f)
+        total_data.update(data)
+
+    with open(save_path, 'w') as f:
+        json.dump(total_data, f)
 
 
 if __name__ == '__main__':
