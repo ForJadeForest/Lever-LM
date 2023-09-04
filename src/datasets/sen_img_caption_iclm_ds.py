@@ -8,12 +8,24 @@ from transformers import AutoProcessor
 
 
 class SenImgEncodeCaptionICLMDataset(Dataset):
-    def __init__(self, data_list: List, coco_dataset, processor_name):
+    def __init__(
+        self,
+        data_list: List,
+        coco_dataset: Dataset,
+        processor_name,
+        eos_token_id,
+        bos_token_id,
+        query_token_id,
+    ):
         super().__init__()
         self.ice_idx_seq_list = []
         self.x_id_list = []
         self.test_sample_text_input_list = []
         self.coco_train_dataset = coco_dataset
+        self.eos_token_id = eos_token_id
+        self.bos_token_id = bos_token_id
+        self.query_token_id = query_token_id
+
         self.processor = AutoProcessor.from_pretrained(processor_name)
         for idx_seq in data_list:
             idx_list = idx_seq[:-1]
@@ -35,11 +47,13 @@ class SenImgEncodeCaptionICLMDataset(Dataset):
             images=img,
             return_tensors='pt',
         )
-
+        add_sp_token_seq_idx = (
+            [self.bos_token_id, self.query_token_id] + ice_seq_idx + [self.eos_token_id]
+        )
         return {
             'ice_input': ice_text_input,
             'img_input': test_img_input['pixel_values'],
-            'ice_seq_idx': torch.tensor(ice_seq_idx, dtype=torch.long),
+            'ice_seq_idx': torch.tensor(add_sp_token_seq_idx, dtype=torch.long),
         }
 
     def __len__(self):
