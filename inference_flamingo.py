@@ -141,14 +141,17 @@ def main(cfg: DictConfig):
         ),
     )
     # zero-shot test
-    if cfg.teat_zero_shot:
+    if cfg.test_zero_shot:
         retriever = ZeroRetriever(
             dr,
             prompt_eos_token='',
             test_split=test_split,
         )
         shot_num = 0
-        output_files = f'{str(datetime.datetime.now())}-{type(inferencer).__name__}-{type(retriever).__name__}-{shot_num=}-{test_data_num=}'
+        output_files = (
+            f'{str(datetime.datetime.now())}-{type(inferencer).__name__}-'
+            f'{type(retriever).__name__}-{shot_num=}-{test_data_num=}'
+        )
 
         cider_score = inference_cider(
             inferencer,
@@ -176,10 +179,10 @@ def main(cfg: DictConfig):
             test_split=test_split,
         )
         for shot_num in cfg.shot_num_list:
-            output_files = f'{str(datetime.datetime.now())}-\
-                             {type(inferencer).__name__}-\
-                             {type(retriever).__name__}-\
-                             {shot_num=}-{test_data_num=}'
+            output_files = (
+                f'{str(datetime.datetime.now())}-{type(inferencer).__name__}-'
+                f'{type(retriever).__name__}-{shot_num=}-{test_data_num=}'
+            )
             retriever.ice_num = shot_num
             cider_score = inference_cider(
                 inferencer,
@@ -211,9 +214,11 @@ def main(cfg: DictConfig):
         )
 
         for shot_num in cfg.shot_num_list:
-            output_files = f'{str(datetime.datetime.now())}-{type(inferencer).__name__}-\
-                             {type(retriever).__name__}-{shot_num=}-{test_data_num=}-\
-                             {cfg.mmtopk_clip_name.replace("/", "-")}-{cfg.mm_topk_mode}'
+            output_files = (
+                f'{str(datetime.datetime.now())}-{type(inferencer).__name__}-'
+                f'{type(retriever).__name__}-{shot_num=}-{test_data_num=}-'
+                f'{cfg.mmtopk_clip_name.replace("/", "-")}-{cfg.mm_topk_mode}'
+            )
 
             retriever.ice_num = shot_num
             cider_score = inference_cider(
