@@ -27,6 +27,13 @@ class SenImgEncodeCaptionICLM(nn.Module):
         self.img_model = CLIPVisionModelWithProjection.from_pretrained(clip_name)
 
     def forward(self, img_input, ice_input, ice_seq_idx):
+        if ice_input is None:
+            image_embedding = self.img_model(img_input)['image_embeds']
+            dataset_embedding = self.lm_model.transformer.wte(ice_seq_idx)
+            dataset_embedding[:, 1] += image_embedding
+            lm_output = self.lm_model(inputs_embeds=dataset_embedding)
+            return lm_output
+
         bs, ice_num, ice_seq_len = ice_input['input_ids'].shape
         dataset_embedding = self.lm_model.transformer.wte(ice_seq_idx)
 
@@ -40,18 +47,36 @@ class SenImgEncodeCaptionICLM(nn.Module):
         img_features = self.img_model(img_input)['image_embeds']
         dataset_embedding[:, 1] += img_features
         dataset_embedding[:, 2:-1] += ice_features
-        
+
         output = self.lm_model(inputs_embeds=dataset_embedding, labels=ice_seq_idx)
         return output
-        
 
     @torch.inference_mode()
-    def generation(self, img_input, ice_input, **kwargs):
-        image_embedding = self.img_model(img_input)['image_embeds']
-        dataset_embedding = self.lm_model.transformer.wte(ice_input)
-        dataset_embedding[:, 1] += image_embedding
-        generated_ids = self.lm_model.generate(
-            input_ids=ice_input, inputs_embeds=dataset_embedding, **kwargs
-        )
+    def generation(self, img_input, shot_num, coco_ds, tokenizer, repetition_penalty=2.0):
+        """
+        Generate for one batch
+        """
+        ice_input = None
+        device = next(self.lm_model.parameters()).device
+        ice_seq_idx = torch.tensor([[118288, 118289]]).to(device)
 
-        return generated_ids.cpu().detach().tolist()
+        for _ in range(shot_num):
+            out = self.forward(img_input, ice_input, ice_seq_idx).logits
+            # set the eos token prob to 0
+            out[:, :, 118287] = - torch.inf
+            for ice_idx in ice_seq_idx:
+                out[:, :, ice_idx] /= repetition_penalty
+            
+                
+            next_token_idx = torch.softmax(out[:, -1, :], dim=-1).argmax(dim=-1)
+            
+            ice_seq_idx = torch.cat(
+                [ice_seq_idx, torch.tensor([[next_token_idx]], device=device)],
+                dim=1,
+            )
+
+            ice_text_list = [coco_ds[i]['single_caption'] for i in ice_seq_idx.tolist()[0][2:]]
+            ice_input = tokenizer(ice_text_list, padding=True, return_tensors='pt').to(device)
+            ice_input = {k: v.unqueeze() for k, v in ice_input.items()}
+            
+        return ice_seq_idx.detach().cpu().tolist()
