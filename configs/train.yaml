@@ -19,7 +19,7 @@ lr: 1e-4
 batch_size: 64
 num_workers: 8
 warm_up_ratio: 0.05
-
+val_step: 200
 
 # Others
 result_dir: "./result"

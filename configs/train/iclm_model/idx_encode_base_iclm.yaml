@@ -9,5 +9,3 @@ index_ds_size: ${dataset.train_ds_len}
 init_with_vlm_logits: false
 emb_dim: null
 clip_name: openai/clip-vit-base-patch32
-
-
