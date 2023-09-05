@@ -55,6 +55,7 @@ def train(
             disable=(fabric.local_rank != 0),
         )
         for data in bar:
+            model.train()
             output = model(
                 img_input=data['img_input'],
                 ice_input=data['ice_input'],
@@ -70,32 +71,32 @@ def train(
             fabric.log("train_loss", loss.item(), step)
             fabric.log('lr', scheduler.get_last_lr()[0], step)
             step += 1
+            if step % cfg.val_step == 0:
+                val_loss = validation(model, val_dataloader, fabric)
+                fabric.log("val_loss", val_loss, step)
+                if val_loss < min_val_loss:
+                    min_val_loss = val_loss
+                    new_save_path = os.path.join(
+                        save_dir,
+                        f'{epoch=}-{step=}-min_loss:{round(min_val_loss, 4)}.pth',
+                    )
+                    state = {"model": model}
 
-        val_loss = validation(model, val_dataloader, fabric)
-        fabric.log("val_loss", val_loss, step)
-        if val_loss < min_val_loss:
-            min_val_loss = val_loss
-            new_save_path = os.path.join(
-                save_dir, f'epoch:{epoch}-min_loss:{round(min_val_loss, 4)}.pth'
-            )
-            state = {
-                "model": model,
-            }
+                    fabric.save(new_save_path, state)
+                    if fabric.local_rank == 0:
+                        logger.info(f'new model has been saved in {new_save_path}')
 
-            fabric.save(new_save_path, state)
-            if fabric.local_rank == 0:
-                logger.info(f'new model has been saved in {new_save_path}')
+                    if old_save_path is None:
+                        old_save_path = new_save_path
+                    else:
+                        if fabric.local_rank == 0:
+                            os.remove(old_save_path)
+                            logger.info(f'old model has been deleted: {old_save_path}')
+                        old_save_path = new_save_path
 
-            if old_save_path is None:
-                old_save_path = new_save_path
-            else:
-                if fabric.local_rank == 0:
-                    os.remove(old_save_path)
-                    logger.info(f'old model has been deleted: {old_save_path}')
-                old_save_path = new_save_path
-    state = {
-        "model": model,
-    }
+    val_loss = validation(model, val_dataloader, fabric)
+    fabric.log("val_loss", val_loss, step)
+    state = {"model": model}
     last_model_path = os.path.join(save_dir, f'last-val_loss:{round(val_loss, 4)}.pth')
     fabric.save(last_model_path, state)
     if fabric.local_rank == 0:
@@ -104,8 +105,6 @@ def train(
 
 @hydra.main(version_base=None, config_path="./configs", config_name="train.yaml")
 def main(cfg: DictConfig):
-    global logger
-    
     save_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.ex_name)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -126,22 +125,16 @@ def main(cfg: DictConfig):
     logger.info(f'model: {type(iclm_model)} load succese')
     ds_factory = hydra.utils.instantiate(cfg.train.ice_seq_idx_ds, _partial_=True)
 
-    train_ds = ds_factory(
-        data_list=train_data_list,
-        coco_dataset=coco_train_ds
-    )
+    train_ds = ds_factory(data_list=train_data_list, coco_dataset=coco_train_ds)
     logger.info('train_ds load success')
-    val_ds = ds_factory(
-        data_list=val_data_list,
-        coco_dataset=coco_train_ds
-    )
+    val_ds = ds_factory(data_list=val_data_list, coco_dataset=coco_train_ds)
     logger.info('val_ds load success')
-    logger = TensorBoardLogger(
+    tensorboard_logger = TensorBoardLogger(
         root_dir=os.path.join(cfg.result_dir, "tensorboard-logs"), name=cfg.ex_name
     )
 
     fabric = Fabric(
-        loggers=logger,
+        loggers=tensorboard_logger,
         accelerator=cfg.device,
         devices=cfg.device_num,
         precision=cfg.precision,
