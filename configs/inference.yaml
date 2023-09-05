@@ -24,7 +24,7 @@ query_token_id: 118289
 
 
 result_dir: "./result"
-ex_name: "karpathy_split"
+ex_name: "default"
 iclm_path: "result/model_cpk/idx_base_iclm_2shot_with_imgToken_loss/last-val_loss:5.5326.pth"
 
 
@@ -33,13 +33,11 @@ test_zero_shot: false
 test_topk_caption: false
 test_random: false
 test_iclm: false
-test_mm_topk: false
+test_i2t: false
+test_i2i: false
 
 
 mmtopk_clip_name: openai/clip-vit-large-patch14
-mm_topk_mode: i2t
-mm_topk_index_field: single_caption
-mm_topk_test_field: image
 shot_num_list: [2, 4, 8]
 
 hydra:
