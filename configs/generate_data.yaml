@@ -5,9 +5,9 @@
 defaults:
   - _self_
   - flamingo: flamingo_9B
-  - dataset: coco2014
+  - dataset: coco2017
 
-
+use_karpathy_split: false
 # get candidate_set args
 sim_method: "caption"
 sim_model_type: "openai/clip-vit-large-patch14"
@@ -24,7 +24,6 @@ sample_num: 10000
 
 # Others
 result_dir: "./result"
-use_karpathy_split: true
 gpu_ids: [0, 1, 2, 3]
 
 # hydra

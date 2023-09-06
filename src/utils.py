@@ -1,25 +1,18 @@
 import os
 import os.path
 from contextlib import suppress
-from typing import Dict, List
 
 import faiss
 import more_itertools
-import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
-from pycocotools.coco import COCO
-from torch import nn
-from torch.utils.data import Dataset
-from torchvision.datasets import VisionDataset
 from tqdm import tqdm
 from transformers import (
     AutoProcessor,
     AutoTokenizer,
     CLIPTextModelWithProjection,
     CLIPVisionModelWithProjection,
-    GPT2LMHeadModel,
 )
 
 from datasets import load_dataset
