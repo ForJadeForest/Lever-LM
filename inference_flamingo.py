@@ -22,7 +22,7 @@ from tqdm import tqdm
 from transformers import AutoProcessor, AutoTokenizer
 
 from datasets import load_dataset
-from src.datasets import CocoDataset
+from src.dataset_module import CocoDataset
 from src.metrics.cider_utils import compute_cider
 from src.utils import init_flamingo, load_karpathy_split
 from src.models import SenImgEncodeCaptionICLM, IdxBaseCaptionICLM
