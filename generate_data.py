@@ -12,8 +12,6 @@ from PIL import Image
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from datasets import load_dataset
-from src.datasets import CocoDataset
 from src.metrics.info_score import get_info_score
 from src.utils import (
     encode_image,
@@ -159,7 +157,9 @@ def gen_data(
     )
     subset = [sample_data[i] for i in range(subset_start, subset_end)]
     sub_sim_set_idx = sim_candidate_set_idx[subset_start:subset_end]
-
+    
+    # load several models will cost large memory at the same time.
+    # use sleep to load one by one.
     sleep(90 * rank)
     model, image_processor, tokenizer, autocast_context = init_flamingo(
         lang_encoder_path,
@@ -275,7 +275,7 @@ def main(cfg: DictConfig):
     )
 
     world_size = len(cfg.gpu_ids)
-    subset_size = subset_size = len(sample_data) // world_size
+    subset_size = len(sample_data) // world_size
     total_data = {}
     for rank in range(world_size):
         subset_start = rank * subset_size
@@ -283,10 +283,11 @@ def main(cfg: DictConfig):
             subset_start + subset_size if rank != world_size - 1 else len(sample_data)
         )
         sub_res_basename = (
-            os.path.basename(sub_save_path).split('.')[0]
+            os.path.basename(save_path).split('.')[0]
             + f'_rank:{rank}_({subset_start}, {subset_end}).json'
         )
-        with open(sub_res_basename, 'r') as f:
+        sub_save_path = sub_save_path.replace(os.path.basename(sub_save_path), sub_res_basename)
+        with open(sub_save_path, 'r') as f:
             data = json.load(f)
         total_data.update(data)
 
