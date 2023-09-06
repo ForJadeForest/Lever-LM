@@ -1,4 +1,4 @@
-_target_: src.datasets.idx_base_caption_iclm_ds.IdxBaseCaptionICLMDataset
+_target_: src.dataset_module.idx_base_caption_iclm_ds.IdxBaseCaptionICLMDataset
 
 processor_name: "openai/clip-vit-base-patch32"
 eos_token_id: 118287
