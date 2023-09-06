@@ -9,10 +9,11 @@ defaults:
 
 use_karpathy_split: false
 # get candidate_set args
+random_sample_candidate_set: false
 sim_method: "caption"
 sim_model_type: "openai/clip-vit-large-patch14"
 candidate_set_encode_bs: 64
-candidate_top_k: 64
+candidate_set_num: 64
 
 # generation args:
 beam_size: 5

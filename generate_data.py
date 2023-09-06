@@ -157,7 +157,7 @@ def gen_data(
     )
     subset = [sample_data[i] for i in range(subset_start, subset_end)]
     sub_sim_set_idx = sim_candidate_set_idx[subset_start:subset_end]
-    
+
     # load several models will cost large memory at the same time.
     # use sleep to load one by one.
     sleep(90 * rank)
@@ -215,11 +215,18 @@ def main(cfg: DictConfig):
     if not os.path.exists(sub_proc_save_dir):
         os.makedirs(sub_proc_save_dir)
     use_karpathy_split = cfg.use_karpathy_split
-    save_file_name = (
-        f'{cfg.flamingo.hf_root}-coco{cfg.dataset.version}-{use_karpathy_split=}-{cfg.sim_method}-'
-        f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
-        f'candidate_top_k:{cfg.candidate_top_k}.json'
-    )
+    if cfg.random_sample_candidate_set:
+        save_file_name = (
+            f'{cfg.flamingo.hf_root}-coco{cfg.dataset.version}-{use_karpathy_split=}-random_sample_candidate-'
+            f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
+            f'candidate_set_num:{cfg.candidate_set_num}.json'
+        )
+    else:
+        save_file_name = (
+            f'{cfg.flamingo.hf_root}-coco{cfg.dataset.version}-{use_karpathy_split=}-{cfg.sim_method}-'
+            f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
+            f'candidate_set_num:{cfg.candidate_set_num}.json'
+        )
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)
     save_path = os.path.join(save_dir, save_file_name)
 
@@ -236,25 +243,42 @@ def main(cfg: DictConfig):
     else:
         raise ValueError('the sim_method error')
 
-    # pre-calculate the cache feature for knn search
-    sim_model_name = cfg.sim_model_type.split('/')[-1]
-    train_cache_path = os.path.join(
-        cache_dir,
-        f'train-coco{cfg.dataset.version}-{use_karpathy_split=}-'
-        f'{cfg.sim_method}-{sim_model_name}-feature.pth',
-    )
-    train_feature = load_feature_cache(
-        cfg, train_cache_path, encoding_method, train_ds, data_key
-    )
-
+    # sample from train idx
     sample_index = random.sample(list(range(0, len(train_ds))), cfg.sample_num)
     sample_data = [train_ds[i] for i in sample_index]
-    test_feature = train_feature[sample_index]
-    _, test_sim_candidate_set_idx = recall_sim_feature(
-        test_feature, train_feature, top_k=cfg.candidate_top_k + 1
-    )
 
-    test_sim_candidate_set_idx = test_sim_candidate_set_idx[:, 1:]
+    if cfg.random_sample_candidate_set:
+        candidate_set_idx = []
+
+        for s_idx in sample_index:
+            random_candidate_set = random.sample(
+                list(range(0, len(train_ds))), cfg.candidate_set_num
+            )
+            while s_idx in random_candidate_set:
+                random_candidate_set = random.sample(
+                    list(range(0, len(train_ds))), cfg.candidate_set_num
+                )
+            candidate_set_idx.append(random_candidate_set)
+
+    else:
+        # pre-calculate the cache feature for knn search
+        sim_model_name = cfg.sim_model_type.split('/')[-1]
+        train_cache_path = os.path.join(
+            cache_dir,
+            f'train-coco{cfg.dataset.version}-{use_karpathy_split=}-'
+            f'{cfg.sim_method}-{sim_model_name}-feature.pth',
+        )
+        train_feature = load_feature_cache(
+            cfg, train_cache_path, encoding_method, train_ds, data_key
+        )
+
+        test_feature = train_feature[sample_index]
+        _, candidate_set_idx = recall_sim_feature(
+            test_feature, train_feature, top_k=cfg.candidate_set_num + 1
+        )
+
+        candidate_set_idx = candidate_set_idx[:, 1:]
+
     spawn(
         gen_data,
         args=(
@@ -266,7 +290,7 @@ def main(cfg: DictConfig):
             cfg.precision,
             sample_data,
             train_ds,
-            test_sim_candidate_set_idx,
+            candidate_set_idx,
             sub_save_path,
             cfg,
         ),
@@ -286,7 +310,9 @@ def main(cfg: DictConfig):
             os.path.basename(save_path).split('.')[0]
             + f'_rank:{rank}_({subset_start}, {subset_end}).json'
         )
-        sub_save_path = sub_save_path.replace(os.path.basename(sub_save_path), sub_res_basename)
+        sub_save_path = sub_save_path.replace(
+            os.path.basename(sub_save_path), sub_res_basename
+        )
         with open(sub_save_path, 'r') as f:
             data = json.load(f)
         total_data.update(data)
