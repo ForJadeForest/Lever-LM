@@ -61,14 +61,14 @@ class SenImgEncodeCaptionICLM(nn.Module):
         ice_seq_idx = torch.tensor([[118288, 118289]]).to(device)
 
         for _ in range(shot_num):
-            out = self.forward(img_input, ice_input, ice_seq_idx).logits
+            out = self.forward(img_input, ice_input, ice_seq_idx).logits[:, -1, :]
             # set the eos token prob to 0
-            out[:, :, 118287] = - torch.inf
+            out[:, 118287:] = - torch.inf
             for ice_idx in ice_seq_idx:
-                out[:, :, ice_idx] /= repetition_penalty
+                out[:, ice_idx] /= repetition_penalty
             
                 
-            next_token_idx = torch.softmax(out[:, -1, :], dim=-1).argmax(dim=-1)
+            next_token_idx = torch.softmax(out, dim=-1).argmax(dim=-1)
             
             ice_seq_idx = torch.cat(
                 [ice_seq_idx, torch.tensor([[next_token_idx]], device=device)],
@@ -77,6 +77,6 @@ class SenImgEncodeCaptionICLM(nn.Module):
 
             ice_text_list = [coco_ds[i]['single_caption'] for i in ice_seq_idx.tolist()[0][2:]]
             ice_input = tokenizer(ice_text_list, padding=True, return_tensors='pt').to(device)
-            ice_input = {k: v.unqueeze() for k, v in ice_input.items()}
+            ice_input = {k: v.unsqueeze(dim=0) for k, v in ice_input.items()}
             
         return ice_seq_idx.detach().cpu().tolist()
