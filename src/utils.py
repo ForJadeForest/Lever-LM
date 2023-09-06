@@ -17,7 +17,7 @@ from transformers import (
 
 from datasets import load_dataset
 from open_flamingo import create_model_and_transforms
-from src.datasets import CocoDataset
+from src.dataset_module import CocoDataset
 
 
 def cast_type(precision):
@@ -290,6 +290,7 @@ def collate_fn(batch):
             'ice_input': {
                 'input_ids': padded_ice_input_ids,
                 'attention_mask': padded_ice_attn_masks,
+                'pixel_values': torch.stack([item['ice_input']['pixel_values'] for item in batch], dim=0)
             },
             'img_input': torch.cat([item['img_input'] for item in batch], dim=0),
             'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
