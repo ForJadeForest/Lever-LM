@@ -143,7 +143,7 @@ def gen_data(
     precision,
     sample_data,
     train_dataset,
-    sim_candidate_set_idx,
+    candidate_set_idx,
     save_path,
     cfg,
 ):
@@ -156,11 +156,11 @@ def gen_data(
         subset_start + subset_size if rank != world_size - 1 else len(sample_data)
     )
     subset = [sample_data[i] for i in range(subset_start, subset_end)]
-    sub_sim_set_idx = sim_candidate_set_idx[subset_start:subset_end]
+    sub_cand_set_idx = candidate_set_idx[subset_start:subset_end]
 
     # load several models will cost large memory at the same time.
     # use sleep to load one by one.
-    sleep(90 * rank)
+    sleep(cfg.sleep_time * rank)
     model, image_processor, tokenizer, autocast_context = init_flamingo(
         lang_encoder_path,
         tokenizer_path,
@@ -180,7 +180,7 @@ def gen_data(
     save_path = save_path.replace(os.path.basename(save_path), sub_res_basename)
 
     for i, test_data in enumerate(tqdm(subset, disable=(rank != 0))):
-        candidate_set = [train_dataset[int(idx)] for idx in sub_sim_set_idx[i]]
+        candidate_set = [train_dataset[int(idx)] for idx in sub_cand_set_idx[i]]
         res = generate_single_sample_ice(
             model,
             tokenizer,
