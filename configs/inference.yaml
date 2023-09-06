@@ -1,10 +1,10 @@
 defaults:
   - _self_
-  - dataset: karpathy_local
+  - dataset: coco2017
   - flamingo: flamingo_9B
   - train: idx_base
 
-use_karpathy_split: true
+use_karpathy_split: false
 
 overwrite_metainfo: false
 precision: bf16

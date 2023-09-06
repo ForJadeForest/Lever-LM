@@ -26,6 +26,9 @@ sample_num: 10000
 # Others
 result_dir: "./result"
 gpu_ids: [0, 1, 2, 3]
+# load several models at the same time will cost large memory.
+# use sleep to load one by one.
+sleep_time: 90
 
 # hydra
 hydra:
