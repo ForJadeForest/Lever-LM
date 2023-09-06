@@ -46,7 +46,7 @@ class SenImgEncodeCaptionICLM(nn.Module):
         ice_features = ice_features.view(bs, ice_num, -1)
         img_features = self.img_model(img_input)['image_embeds']
         dataset_embedding[:, 1] += img_features
-        dataset_embedding[:, 2:-1] += ice_features
+        dataset_embedding[:, 2:2+ice_num] += ice_features
 
         output = self.lm_model(inputs_embeds=dataset_embedding, labels=ice_seq_idx)
         return output
