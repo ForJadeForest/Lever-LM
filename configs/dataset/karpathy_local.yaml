@@ -1,3 +1,4 @@
+name: coco_karpathy_split
 coco_root: ${oc.env:COCO_PATH}
 coco_version_root: ${dataset.coco_root}/mscoco2014
 version: 2014
