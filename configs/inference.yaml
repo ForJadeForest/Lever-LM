@@ -43,3 +43,5 @@ shot_num_list: [2, 4, 8]
 hydra:
   run:
     dir: ${result_dir}/hydra_output/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${result_dir}/hydra_output/multirun/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}

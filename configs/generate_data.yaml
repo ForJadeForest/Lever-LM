@@ -6,6 +6,7 @@ defaults:
   - _self_
   - flamingo: flamingo_9B
   - dataset: coco2017
+  - task: caption
 
 use_karpathy_split: false
 # get candidate_set args
@@ -33,4 +34,4 @@ sleep_time: 90
 # hydra
 hydra:
   run:
-    dir: ${result_dir}/hydra_output/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${result_dir}/hydra_output/${hydra.job.name}/${task}/${now:%Y-%m-%d_%H-%M-%S}
