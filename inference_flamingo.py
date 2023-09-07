@@ -103,7 +103,7 @@ def main(cfg: DictConfig):
     )
 
     test_data_num = cfg.test_data_num
-    if cfg.use_karpathy_split:
+    if cfg.dataset.name == 'coco_karpathy_split':
         ds = load_karpathy_split(cfg)
         if test_data_num != -1:
             ds['test'] = ds['test'].select(range(test_data_num))
