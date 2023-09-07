@@ -97,7 +97,7 @@ def get_info_score(
     cand_idx = sorted(list(candidate_set.keys()))
     for batch in more_itertools.chunked(cand_idx, batch_size):
         batch_data = [candidate_set[i] for i in batch]
-        new_ice_lang_x = [data['caption'] for data in batch_data]
+        new_ice_lang_x = [data['text_input'] for data in batch_data]
         new_ice_image_x = [
             Image.open(data['image']).convert('RGB') for data in batch_data
         ]
