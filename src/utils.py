@@ -216,42 +216,55 @@ def load_vqa_train_ds(cfg):
     if cfg.dataset.name == 'vqav2':
         ds = load_vqav2_ds(cfg, split='train')
     else:
-        raise ValueError(f'{cfg.dataset.name=} do not exits, now only support ["vqav2"]')
+        raise ValueError(
+            f'{cfg.dataset.name=} do not exits, now only support ["vqav2"]'
+        )
     return ds
 
 
 def load_vqav2_ds(cfg, split=None):
     if cfg.dataset.version == 'local':
         data_files = {
-            'train': cfg.dataset.train_ann_path,
-            'val': cfg.dataset.val_ann_path,
+            'train': cfg.dataset.train_path,
+            'validation': cfg.dataset.val_path,
         }
         ds = load_dataset(
             'json', data_files=data_files, field='annotations', split=split
         )
-        ds.sort('image_id')
+        ds = ds.sort('question_id')
 
-        def train_trans(x):
-            coco_img_id = x['image_id']
-            filename = f"COCO_train2014_{coco_img_id:012d}.jpg"
-            img_path = os.path.join(cfg.dataset.coco_train_root, filename)
-            x['image'] = Image.open(img_path).convert('RGB')
+        def train_trans(x, idx):
+            filename = [f"COCO_train2014_{idx:012d}.jpg" for idx in x['image_id']]
+            img_path = [
+                os.path.join(cfg.dataset.train_coco_dataset_root, f_n)
+                for f_n in filename
+            ]
+            x['image'] = img_path
+            x['idx'] = idx
             return x
 
-        def val_trans(x):
-            coco_img_id = x['image_id']
-            filename = f"COCO_val2014_{coco_img_id:012d}.jpg"
-            img_path = os.path.join(cfg.dataset.coco_val_root, filename)
-            x['image'] = Image.open(img_path).convert('RGB')
+        def val_trans(x, idx):
+            filename = [f"COCO_val2014_{idx:012d}.jpg" for idx in x['image_id']]
+            img_path = [
+                os.path.join(cfg.dataset.val_coco_dataset_root, f_n) for f_n in filename
+            ]
+            x['image'] = img_path
+            x['idx'] = idx
             return x
 
-        ds['train'] = ds['train'].map(train_trans)
-        ds['val'] = ds['val'].map(val_trans)
+        if split is None:
+            ds['train'] = ds['train'].map(train_trans)
+            ds['validation'] = ds['validation'].map(val_trans)
+        elif split == 'train':
+            ds = ds.map(train_trans, batched=True, with_indices=True, num_proc=12)
+        elif split == 'validation':
+            ds = ds.map(val_trans, batched=True, with_indices=True, num_proc=12)
 
     elif cfg.dataset.version == 'hub':
-        ds = load_dataset('HuggingFaceM4/VQAv2')
+        ds = load_dataset('HuggingFaceM4/VQAv2', split=split)
         ds.pop('test', None)
         ds.pop('testdev', None)
+        ds = ds.sort('question_id')
 
     def find_most_common_answer(data):
         # Use list comprehension to filter out answers with answer_confidence = "yes"
@@ -263,11 +276,21 @@ def load_vqav2_ds(cfg, split=None):
         answer_counts = Counter(yes_answers)
 
         # Find the most common answer
-        most_common_answer = answer_counts.most_common(1)[0][0]
+        most_common_answer = answer_counts.most_common(1)
 
-        return most_common_answer
+        if most_common_answer:
+            return most_common_answer[0][0]
 
-    ds = ds.map(lambda x: find_most_common_answer(x['answers']))
+        maybe_answers = [
+            item['answer'] for item in data if item['answer_confidence'] == 'maybe'
+        ]
+        answer_counts = Counter(maybe_answers)
+        most_common_answer = answer_counts.most_common(1)
+        if most_common_answer:
+            return most_common_answer[0][0]
+        return data[0]['answer']
+
+    ds = ds.map(lambda x: {'answer': find_most_common_answer(x['answers'])})
     return ds
 
 
@@ -280,7 +303,7 @@ def load_karpathy_split(cfg, split=None):
     ds = ds.rename_columns({'sentences': 'captions', 'cocoid': 'image_id'})
 
     def transform(example, idx):
-        example['single_caption'] = example['captions'][0]
+        example['single_caption'] = [e[0] for e in example['captions']]
         if 'train' in example['filepath']:
             coco_dir = cfg.dataset.train_coco_dataset_root
         elif 'val' in example['filepath']:
@@ -294,6 +317,8 @@ def load_karpathy_split(cfg, split=None):
         transform,
         with_indices=True,
         remove_columns=['sentids', 'imgid', 'filename', 'split'],
+        batched=True,
+        num_proc=12,
     )
     return ds
 
