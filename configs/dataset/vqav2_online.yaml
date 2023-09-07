@@ -1,0 +1,3 @@
+version: hub
+name: vqav2
+train_ds_len: 443757

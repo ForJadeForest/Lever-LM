@@ -11,7 +11,7 @@ defaults:
 use_karpathy_split: false
 # get candidate_set args
 random_sample_candidate_set: false
-sim_method: "caption"
+sim_method: "text"
 sim_model_type: "openai/clip-vit-large-patch14"
 candidate_set_encode_bs: 64
 candidate_set_num: 64
@@ -26,7 +26,7 @@ sample_num: 10000
 
 # Others
 result_dir: "./result"
-gpu_ids: [0, 1, 2, 3]
+gpu_ids: [0]
 # load several models at the same time will cost large memory.
 # use sleep to load one by one.
 sleep_time: 90
