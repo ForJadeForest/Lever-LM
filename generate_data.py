@@ -18,8 +18,8 @@ from src.utils import (
     encode_text,
     init_flamingo,
     load_coco_train_ds,
-    recall_sim_feature,
     load_vqa_train_ds,
+    recall_sim_feature,
 )
 
 
@@ -121,6 +121,8 @@ def generate_single_sample_ice(
                 candidate_set=filtered_candidateidx2data,
                 batch_size=batch_size,
                 autocast_context=autocast_context,
+                only_y_loss=cfg.only_y_loss,
+                split_token=cfg.split_token,
             )
             score_array = torch.tensor(info_score_list)
 
@@ -236,7 +238,8 @@ def main(cfg: DictConfig):
     )
 
     save_file_name = (
-        f'{cfg.task.task_name}-{cfg.flamingo.hf_root}-{cfg.dataset.name}-{candidate_method}-'
+        f'{cfg.task.task_name}-{cfg.dataset.name}-{"only_y_loss" if cfg.only_y_loss else ""}-'
+        f'{cfg.flamingo.hf_root}-{candidate_method}-'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
         f'candidate_set_num:{cfg.candidate_set_num}.json'
     )
@@ -290,8 +293,10 @@ def main(cfg: DictConfig):
             cfg, train_cache_path, encoding_method, train_ds, data_key
         )
         test_feature = train_feature[sample_index]
-        _, candidate_set_idx = recall_sim_feature(
-            test_feature, train_feature, top_k=cfg.candidate_set_num + 1
+        candidate_set_idx = recall_sim_feature(
+            test_feature,
+            train_feature,
+            top_k=cfg.candidate_set_num + 1,
         )
 
         candidate_set_idx = candidate_set_idx[:, 1:]

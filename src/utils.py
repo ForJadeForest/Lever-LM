@@ -1,9 +1,11 @@
+import logging
 import os
-import os.path
+from collections import Counter
 from contextlib import suppress
 
 import faiss
 import more_itertools
+import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
@@ -18,7 +20,8 @@ from transformers import (
 from datasets import load_dataset
 from open_flamingo import create_model_and_transforms
 from src.dataset_module import CocoDataset
-from collections import Counter
+
+logger = logging.getLogger(__name__)
 
 
 def cast_type(precision):
@@ -150,17 +153,12 @@ def encode_dataset(
 
 
 def recall_sim_feature(test_vec, train_vec, top_k=200):
-    print(f'embedding shape: {train_vec.shape}')
-    # train_vec = train_vec.astype(np.float32)
-    # faiss.normalize_L2(train_vec)
-    dim = train_vec.shape[-1]  # 向量维度
+    logger.info(f'{train_vec.shape=}; {test_vec.shape=}')
+    dim = train_vec.shape[-1]
     index_feat = faiss.IndexFlatIP(dim)
     index_feat.add(train_vec)
-
-    # test_vec = test_vec.astype(np.float32)
-    # faiss.normalize_L2(test_vec)
     dist, index = index_feat.search(test_vec, top_k)
-    return dist, index
+    return index
 
 
 @torch.inference_mode()
