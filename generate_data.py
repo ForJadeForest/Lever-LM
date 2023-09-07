@@ -201,6 +201,7 @@ def gen_data(
             tokenizer,
             image_processor,
             test_data,
+            cfg,
             candidate_set,
             device=process_device,
             few_shot_num=cfg.few_shot_num,
@@ -235,7 +236,7 @@ def main(cfg: DictConfig):
     )
 
     save_file_name = (
-        f'{cfg.task_name}-{cfg.flamingo.hf_root}-{cfg.dataset.name}-{candidate_method=}-'
+        f'{cfg.task.task_name}-{cfg.flamingo.hf_root}-{cfg.dataset.name}-{candidate_method}-'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
         f'candidate_set_num:{cfg.candidate_set_num}.json'
     )
@@ -248,6 +249,8 @@ def main(cfg: DictConfig):
         train_ds = load_coco_train_ds(cfg)
     elif cfg.task.task_name == 'vqa':
         train_ds = load_vqa_train_ds(cfg)
+    else:
+        raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
 
     # sample from train idx
     sample_index = random.sample(list(range(0, len(train_ds))), cfg.sample_num)
@@ -286,7 +289,6 @@ def main(cfg: DictConfig):
         train_feature = load_feature_cache(
             cfg, train_cache_path, encoding_method, train_ds, data_key
         )
-
         test_feature = train_feature[sample_index]
         _, candidate_set_idx = recall_sim_feature(
             test_feature, train_feature, top_k=cfg.candidate_set_num + 1
