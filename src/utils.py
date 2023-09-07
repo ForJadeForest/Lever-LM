@@ -18,6 +18,7 @@ from transformers import (
 from datasets import load_dataset
 from open_flamingo import create_model_and_transforms
 from src.dataset_module import CocoDataset
+from collections import Counter
 
 
 def cast_type(precision):
@@ -202,13 +203,72 @@ def encode_image(
 
 
 def load_coco_train_ds(cfg):
-    if cfg.use_karpathy_split:
+    if cfg.dataset.name == 'coco_karpathy_split':
         train_ds = load_karpathy_split(cfg, 'train')
     else:
         train_ds = CocoDataset(
             cfg.dataset.train_coco_dataset_root, cfg.dataset.train_coco_annotation_file
         )
     return train_ds
+
+
+def load_vqa_train_ds(cfg):
+    if cfg.dataset.name == 'vqav2':
+        ds = load_vqav2_ds(cfg, split='train')
+    else:
+        raise ValueError(f'{cfg.dataset.name=} do not exits, now only support ["vqav2"]')
+    return ds
+
+
+def load_vqav2_ds(cfg, split=None):
+    if cfg.dataset.version == 'local':
+        data_files = {
+            'train': cfg.dataset.train_ann_path,
+            'val': cfg.dataset.val_ann_path,
+        }
+        ds = load_dataset(
+            'json', data_files=data_files, field='annotations', split=split
+        )
+        ds.sort('image_id')
+
+        def train_trans(x):
+            coco_img_id = x['image_id']
+            filename = f"COCO_train2014_{coco_img_id:012d}.jpg"
+            img_path = os.path.join(cfg.dataset.coco_train_root, filename)
+            x['image'] = Image.open(img_path).convert('RGB')
+            return x
+
+        def val_trans(x):
+            coco_img_id = x['image_id']
+            filename = f"COCO_val2014_{coco_img_id:012d}.jpg"
+            img_path = os.path.join(cfg.dataset.coco_val_root, filename)
+            x['image'] = Image.open(img_path).convert('RGB')
+            return x
+
+        ds['train'] = ds['train'].map(train_trans)
+        ds['val'] = ds['val'].map(val_trans)
+
+    elif cfg.dataset.version == 'hub':
+        ds = load_dataset('HuggingFaceM4/VQAv2')
+        ds.pop('test', None)
+        ds.pop('testdev', None)
+
+    def find_most_common_answer(data):
+        # Use list comprehension to filter out answers with answer_confidence = "yes"
+        yes_answers = [
+            item['answer'] for item in data if item['answer_confidence'] == 'yes'
+        ]
+
+        # Use Counter to count the occurrences of each answer
+        answer_counts = Counter(yes_answers)
+
+        # Find the most common answer
+        most_common_answer = answer_counts.most_common(1)[0][0]
+
+        return most_common_answer
+
+    ds = ds.map(lambda x: find_most_common_answer(x['answers']))
+    return ds
 
 
 def load_karpathy_split(cfg, split=None):
@@ -290,7 +350,9 @@ def collate_fn(batch):
             'ice_input': {
                 'input_ids': padded_ice_input_ids,
                 'attention_mask': padded_ice_attn_masks,
-                'pixel_values': torch.stack([item['ice_input']['pixel_values'] for item in batch], dim=0)
+                'pixel_values': torch.stack(
+                    [item['ice_input']['pixel_values'] for item in batch], dim=0
+                ),
             },
             'img_input': torch.cat([item['img_input'] for item in batch], dim=0),
             'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),

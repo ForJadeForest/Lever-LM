@@ -19,11 +19,16 @@ from src.utils import (
     init_flamingo,
     load_coco_train_ds,
     recall_sim_feature,
+    load_vqa_train_ds,
 )
 
 
-def get_caption_prompt(caption=None) -> str:
-    return f"<image>Output:{caption if caption is not None else ''}{'<|endofchunk|>' if caption is not None else ''}"
+def get_caption_prompt(single_caption=None) -> str:
+    return f"<image>Output:{single_caption if single_caption is not None else ''}{'<|endofchunk|>' if single_caption is not None else ''}"
+
+
+def get_vqa_prompt(question, answer=None) -> str:
+    return f"<image>Question:{question} Short answer:{answer if answer is not None else ''}{'<|endofchunk|>' if answer is not None else ''}"
 
 
 def load_feature_cache(cfg, cache_path, encoding_method, coco_dataset, data_key):
@@ -50,6 +55,7 @@ def generate_single_sample_ice(
     tokenizer,
     image_processor,
     test_data: Dict,
+    cfg: DictConfig,
     candidate_set: List[Dict],
     autocast_context,
     device,
@@ -57,14 +63,23 @@ def generate_single_sample_ice(
     batch_size=32,
     beam_size=5,
 ):
-    test_data_text = get_caption_prompt(test_data['single_caption'])
-    test_data_image = Image.open(test_data['image']).convert('RGB')
+    # 构建test sample prompt
+    if cfg.task.task_name == 'vqa':
+        prompt_method = get_vqa_prompt
+    elif cfg.task.task_name == 'caption':
+        prompt_method = get_caption_prompt
+
+    test_text_input = {k: test_data[k] for k in cfg.task.text_fields}
+    test_data_text = prompt_method(**test_text_input)
+
+    test_data_image = Image.open(test_data[cfg.task.img_field]).convert('RGB')
     test_data_id = test_data['idx']
 
+    # 构建candidate set
     candidateidx2data = {
         data['idx']: {
-            'caption': get_caption_prompt(data['single_caption']),
-            'image': data['image'],
+            'text_input': prompt_method(**{k: data[k] for k in cfg.task.text_fields}),
+            'image': data[cfg.task.img_field],
             'idx': data['idx'],
         }
         for data in candidate_set
@@ -86,7 +101,7 @@ def generate_single_sample_ice(
 
             # 构建已经选好的ice + 测试样本的输入
             ice_id_seq = test_data_id_seq[:-1]
-            lang_x = [candidateidx2data[idx]['caption'] for idx in ice_id_seq] + [
+            lang_x = [candidateidx2data[idx]['text_input'] for idx in ice_id_seq] + [
                 test_data_text
             ]
             image_x = [
@@ -100,7 +115,7 @@ def generate_single_sample_ice(
                 tokenizer,
                 image_processor,
                 device,
-                ice_join_char='',
+                ice_join_char=cfg.task.ice_join_char,
                 lang_x=lang_x,
                 image_x=image_x,
                 candidate_set=filtered_candidateidx2data,
@@ -214,39 +229,31 @@ def main(cfg: DictConfig):
     sub_proc_save_dir = os.path.join(save_dir, 'sub_proc_data')
     if not os.path.exists(sub_proc_save_dir):
         os.makedirs(sub_proc_save_dir)
-    use_karpathy_split = cfg.use_karpathy_split
-    if cfg.random_sample_candidate_set:
-        save_file_name = (
-            f'{cfg.flamingo.hf_root}-coco{cfg.dataset.version}-{use_karpathy_split=}-random_sample_candidate-'
-            f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
-            f'candidate_set_num:{cfg.candidate_set_num}.json'
-        )
-    else:
-        save_file_name = (
-            f'{cfg.flamingo.hf_root}-coco{cfg.dataset.version}-{use_karpathy_split=}-{cfg.sim_method}-'
-            f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
-            f'candidate_set_num:{cfg.candidate_set_num}.json'
-        )
+
+    candidate_method = (
+        'random_sample_candidate' if cfg.random_sample_candidate_set else cfg.sim_method
+    )
+
+    save_file_name = (
+        f'{cfg.task_name}-{cfg.flamingo.hf_root}-{cfg.dataset.name}-{candidate_method=}-'
+        f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
+        f'candidate_set_num:{cfg.candidate_set_num}.json'
+    )
+
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)
     save_path = os.path.join(save_dir, save_file_name)
 
     # 加载数据集
-    train_ds = load_coco_train_ds(cfg)
-
-    # 使用启发式获取小集合
-    if cfg.sim_method == 'caption':
-        encoding_method = encode_text
-        data_key = 'single_caption'
-    elif cfg.sim_method == 'image':
-        encoding_method = encode_image
-        data_key = 'image'
-    else:
-        raise ValueError('the sim_method error')
+    if cfg.task.task_name == 'caption':
+        train_ds = load_coco_train_ds(cfg)
+    elif cfg.task.task_name == 'vqa':
+        train_ds = load_vqa_train_ds(cfg)
 
     # sample from train idx
     sample_index = random.sample(list(range(0, len(train_ds))), cfg.sample_num)
     sample_data = [train_ds[i] for i in sample_index]
 
+    # get the candidate set
     if cfg.random_sample_candidate_set:
         candidate_set_idx = []
 
@@ -262,10 +269,18 @@ def main(cfg: DictConfig):
 
     else:
         # pre-calculate the cache feature for knn search
+        if cfg.sim_method == 'text':
+            encoding_method = encode_text
+            data_key = cfg.task.sim_text_field
+        elif cfg.sim_method == 'image':
+            encoding_method = encode_image
+            data_key = cfg.task.sim_img_field
+        else:
+            raise ValueError('the sim_method error')
         sim_model_name = cfg.sim_model_type.split('/')[-1]
         train_cache_path = os.path.join(
             cache_dir,
-            f'train-coco{cfg.dataset.version}-{use_karpathy_split=}-'
+            f'{cfg.task.task_name}-{cfg.dataset.name}-'
             f'{cfg.sim_method}-{sim_model_name}-feature.pth',
         )
         train_feature = load_feature_cache(
