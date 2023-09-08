@@ -23,7 +23,7 @@ from transformers import AutoProcessor, AutoTokenizer
 from src.dataset_module import CocoDataset
 from src.load_ds_utils import load_coco_ds
 from src.metrics.cider_calculator import compute_cider
-from src.models import IdxBaseCaptionICLM, SenImgEncodeCaptionICLM
+from src.models import ICETextICLM, IdxBaseICLM
 from src.utils import init_flamingo
 
 logger = logging.getLogger(__name__)
@@ -300,7 +300,7 @@ def main(cfg: DictConfig):
         for shot_num in cfg.shot_num_list:
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
             output_files = info + f'-{shot_num=}'
-            if isinstance(iclm_model, SenImgEncodeCaptionICLM):
+            if isinstance(iclm_model, ICETextICLM):
                 ice_idx_list = clip_base_iclm_gene_ice(
                     iclm_model,
                     ds[test_split],
@@ -310,7 +310,7 @@ def main(cfg: DictConfig):
                     shot_num,
                     cfg.device,
                 )
-            elif isinstance(iclm_model, IdxBaseCaptionICLM):
+            elif isinstance(iclm_model, IdxBaseICLM):
                 ice_idx_list = idx_base_iclm_gene_ice(
                     iclm_model,
                     ds[test_split],
@@ -399,7 +399,7 @@ def clip_base_iclm_gene_ice(
         img = data['image']
         img = img_processor(images=img, return_tensors='pt').to(device)['pixel_values']
         res = iclm_model.generation(
-            img, shot_num, train_ds, tokenizer, repetition_penalty=2.0
+            img, shot_num, train_ds, tokenizer, text_field='single_caption', repetition_penalty=2.0
         )[0]
         res = res[2 : 2 + shot_num]
         assert len(res) == shot_num, f'{len(res)=}'
