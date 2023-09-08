@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 from time import sleep
@@ -16,6 +17,8 @@ from tqdm import tqdm
 from src.load_ds_utils import load_coco_ds, load_vqa_train_ds
 from src.metrics.info_score import get_info_score
 from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
+
+logger = logging.getLogger(__name__)
 
 
 def get_caption_prompt(single_caption=None) -> str:
@@ -171,13 +174,23 @@ def gen_data(
     tokenizer.pad_token = tokenizer.eos_token
 
     final_res = {}
+    cur_idx = 0
     sub_res_basename = (
         os.path.basename(save_path).split('.')[0]
         + f'_rank:{rank}_({subset_start}, {subset_end}).json'
     )
     save_path = save_path.replace(os.path.basename(save_path), sub_res_basename)
+    if os.path.exists(save_path):
+        final_res.update(json.load(open(save_path)))
+        cur_idx = final_res['cur_idx']
+        logger.info(
+            f'Rank: {rank} reloading data from {save_path}, begin from {cur_idx + 1}'
+        )
 
-    for i, test_data in enumerate(tqdm(subset, disable=(rank != 0))):
+    subset = subset.select(range(cur_idx + 1, len(subset)))
+    for i, test_data in enumerate(
+        tqdm(subset, disable=(rank != 0)), initial=cur_idx + 1
+    ):
         candidate_set = train_ds.select(sub_cand_set_idx[i])
         res = generate_single_sample_ice(
             model=model,
@@ -190,8 +203,9 @@ def gen_data(
             autocast_context=autocast_context,
         )
         final_res.update(res)
-    with open(save_path, 'w') as f:
-        json.dump(final_res, f)
+        final_res['cur_idx'] = i
+        with open(save_path, 'w') as f:
+            json.dump(final_res, f)
     return final_res
 
 
@@ -233,47 +247,63 @@ def main(cfg: DictConfig):
         raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
 
     # sample from train idx
-    sample_index = random.sample(range(0, len(train_ds)), cfg.sample_num)
-    sample_data = train_ds.select(sample_index)
+    idx_cache_filename = (
+        f'{cfg.dataset.name}-{cfg.sample_num}-'
+        f'{cfg.candidate_set_num}-{candidate_method}.json'
+    )
 
-    # get the candidate set
-    if cfg.random_sample_candidate_set:
-        candidate_set_idx = []
-        for s_idx in sample_index:
-            random_candidate_set = random.sample(
-                range(0, len(train_ds)), cfg.candidate_set_num
-            )
-            while s_idx in random_candidate_set:
-                random_candidate_set = random.sample(
-                    list(range(0, len(train_ds))), cfg.candidate_set_num
-                )
-            candidate_set_idx.append(random_candidate_set)
-
+    sample_data_idx_cache = os.path.join(cache_dir, idx_cache_filename)
+    if os.path.exists(sample_data_idx_cache):
+        sample_cache_metainfo = json.load(open(sample_data_idx_cache, 'r'))
+        sample_index = sample_cache_metainfo['sample_index']
+        candidate_set_idx = sample_cache_metainfo['candidate_set_idx']
     else:
-        # pre-calculate the cache feature for knn search
-        if cfg.sim_method == 'text':
-            encoding_method = encode_text
-            data_key = cfg.task.sim_text_field
-        elif cfg.sim_method == 'image':
-            encoding_method = encode_image
-            data_key = cfg.task.sim_img_field
-        else:
-            raise ValueError('the sim_method error')
-        sim_model_name = cfg.sim_model_type.split('/')[-1]
-        train_cache_path = os.path.join(
-            cache_dir,
-            f'{cfg.task.task_name}-{cfg.dataset.name}-'
-            f'{cfg.sim_method}-{sim_model_name}-feature.pth',
-        )
-        train_feature = load_feature_cache(
-            cfg, train_cache_path, encoding_method, train_ds, data_key
-        )
-        test_feature = train_feature[sample_index]
-        _, candidate_set_idx = recall_sim_feature(
-            test_feature, train_feature, top_k=cfg.candidate_set_num + 1
-        )
+        sample_cache_metainfo = dict()
+        sample_index = random.sample(range(0, len(train_ds)), cfg.sample_num)
+        sample_cache_metainfo['sample_index'] = sample_index
+        sample_data = train_ds.select(sample_index)
 
-        candidate_set_idx = candidate_set_idx[:, 1:]
+        # get the candidate set
+        if cfg.random_sample_candidate_set:
+            candidate_set_idx = []
+            for s_idx in sample_index:
+                random_candidate_set = random.sample(
+                    range(0, len(train_ds)), cfg.candidate_set_num
+                )
+                while s_idx in random_candidate_set:
+                    random_candidate_set = random.sample(
+                        list(range(0, len(train_ds))), cfg.candidate_set_num
+                    )
+                candidate_set_idx.append(random_candidate_set)
+
+        else:
+            # pre-calculate the cache feature for knn search
+            if cfg.sim_method == 'text':
+                encoding_method = encode_text
+                data_key = cfg.task.sim_text_field
+            elif cfg.sim_method == 'image':
+                encoding_method = encode_image
+                data_key = cfg.task.sim_img_field
+            else:
+                raise ValueError('the sim_method error')
+            sim_model_name = cfg.sim_model_type.split('/')[-1]
+            train_cache_path = os.path.join(
+                cache_dir,
+                f'{cfg.task.task_name}-{cfg.dataset.name}-'
+                f'{cfg.sim_method}-{sim_model_name}-feature.pth',
+            )
+            train_feature = load_feature_cache(
+                cfg, train_cache_path, encoding_method, train_ds, data_key
+            )
+            test_feature = train_feature[sample_index]
+            _, candidate_set_idx = recall_sim_feature(
+                test_feature, train_feature, top_k=cfg.candidate_set_num + 1
+            )
+
+            candidate_set_idx = candidate_set_idx[:, 1:]
+        sample_cache_metainfo['candidate_set_idx'] = candidate_set_idx
+        with open(sample_data_idx_cache, 'w') as f:
+            json.dump(sample_data_idx_cache, f)
 
     spawn(
         gen_data,
@@ -305,10 +335,12 @@ def main(cfg: DictConfig):
         )
         with open(sub_save_path, 'r') as f:
             data = json.load(f)
+        logger.info(f'load the data from {sub_save_path}, the data length: {len(data)}')
         total_data.update(data)
 
     with open(save_path, 'w') as f:
         json.dump(total_data, f)
+    logger.info(f'save the final data to {save_path}')
 
 
 if __name__ == '__main__':
