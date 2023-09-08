@@ -1,41 +1,34 @@
 import torch
 from torch import nn
-from transformers import (
-    CLIPTextModelWithProjection,
-    CLIPVisionModelWithProjection,
-    GPT2Config,
-    GPT2LMHeadModel,
-)
+from transformers import CLIPTextModelWithProjection
+
+from .base_iclm import BaseICLM
 
 
-class SenImgEncodeCaptionICLM(nn.Module):
+class ICETextICLM(BaseICLM):
     def __init__(
         self, lm_config, index_ds_size, clip_name="openai/clip-vit-base-patch32"
     ):
-        super().__init__()
-        vocab_size = index_ds_size + 3
-        conifg = GPT2Config(
-            vocab_size=vocab_size,
-            n_embd=lm_config['n_embd'],
-            n_head=lm_config['n_head'],
-            n_layer=lm_config['n_layer'],
-            eos_token_id=vocab_size,
-            bos_token_id=vocab_size + 1,
-        )
-        self.lm_model = GPT2LMHeadModel(conifg)
+        super().__init__(lm_config, index_ds_size, clip_name)
         self.sen_model = CLIPTextModelWithProjection.from_pretrained(clip_name)
-        self.img_model = CLIPVisionModelWithProjection.from_pretrained(clip_name)
 
     def forward(self, img_input, ice_input, ice_seq_idx):
+        """_summary_
+
+        Args:
+            img_input (tensor): batch_size *&
+            ice_input (_type_): _description_ batchsize, ice_num, 
+            ice_seq_idx (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        inputs_embeds = super().forward(img_input, ice_seq_idx)
         if ice_input is None:
-            image_embedding = self.img_model(img_input)['image_embeds']
-            dataset_embedding = self.lm_model.transformer.wte(ice_seq_idx)
-            dataset_embedding[:, 1] += image_embedding
-            lm_output = self.lm_model(inputs_embeds=dataset_embedding)
+            lm_output = self.lm_model(inputs_embeds=inputs_embeds)
             return lm_output
 
         bs, ice_num, ice_seq_len = ice_input['input_ids'].shape
-        dataset_embedding = self.lm_model.transformer.wte(ice_seq_idx)
 
         ice_input['input_ids'] = ice_input['input_ids'].view(-1, ice_seq_len)
         ice_input['attention_mask'] = ice_input['attention_mask'].view(-1, ice_seq_len)
@@ -44,16 +37,20 @@ class SenImgEncodeCaptionICLM(nn.Module):
             attention_mask=ice_input['attention_mask'],
         )['text_embeds']
         ice_features = ice_features.view(bs, ice_num, -1)
-        img_features = self.img_model(img_input)['image_embeds']
-        dataset_embedding[:, 1] += img_features
-        dataset_embedding[:, 2 : 2 + ice_num] += ice_features
+        inputs_embeds[:, 2 : 2 + ice_num] += ice_features
 
-        output = self.lm_model(inputs_embeds=dataset_embedding, labels=ice_seq_idx)
+        output = self.lm_model(inputs_embeds=inputs_embeds, labels=ice_seq_idx)
         return output
 
     @torch.inference_mode()
     def generation(
-        self, img_input, shot_num, coco_ds, tokenizer, repetition_penalty=2.0
+        self,
+        img_input,
+        shot_num,
+        coco_ds,
+        processor,
+        text_field,
+        repetition_penalty=2.0,
     ):
         """
         Generate for one batch
@@ -64,7 +61,7 @@ class SenImgEncodeCaptionICLM(nn.Module):
 
         for _ in range(shot_num):
             out = self.forward(img_input, ice_input, ice_seq_idx).logits[:, -1, :]
-            # set the eos token prob to 0
+            # set the sp token prob to 0
             out[:, 118287:] = -torch.inf
             for ice_idx in ice_seq_idx:
                 out[:, ice_idx] /= repetition_penalty
@@ -76,12 +73,12 @@ class SenImgEncodeCaptionICLM(nn.Module):
                 dim=1,
             )
 
-            ice_text_list = [
-                coco_ds[i]['single_caption'] for i in ice_seq_idx.tolist()[0][2:]
+            ice_text_list = [ 
+                coco_ds[i][text_field] for i in ice_seq_idx.tolist()[0][2:]
             ]
-            ice_input = tokenizer(ice_text_list, padding=True, return_tensors='pt').to(
-                device
-            )
+            ice_input = processor(
+                text=ice_text_list, padding=True, return_tensors='pt'
+            ).to(device) # shape: ice_num * seq_len
             ice_input = {k: v.unsqueeze(dim=0) for k, v in ice_input.items()}
 
         return ice_seq_idx.detach().cpu().tolist()

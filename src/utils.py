@@ -162,7 +162,6 @@ def collate_fn(batch):
             [item['img_input']['pixel_values'] for item in batch], dim=0
         ),
         'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
-        'ice_input': torch.stack([item['ice_seq_idx'] for item in batch]),
     }
     if not isinstance(sample_data['ice_input'], torch.Tensor):
         ice_num = batch[0]['ice_input']['input_ids'].size(0)
