@@ -13,8 +13,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import get_cosine_schedule_with_warmup
 
-from datasets import load_dataset
-from src.utils import collate_fn, data_split, load_coco_train_ds
+from src.load_ds_utils import load_coco_ds
+from src.utils import collate_fn, data_split
 
 logger = logging.getLogger(__name__)
 # os.environ['CUDA_VISIBLE_DEVICES'] = "2"
@@ -119,7 +119,7 @@ def main(cfg: DictConfig):
     train_data_list, val_data_list = data_split(data, cfg.train_ratio)
 
     # 加载数据集
-    coco_train_ds = load_coco_train_ds(cfg)
+    coco_train_ds = load_coco_ds(cfg, split='train')
 
     iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
     logger.info(f'model: {type(iclm_model)} load succese')

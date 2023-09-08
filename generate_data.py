@@ -13,15 +13,9 @@ from PIL import Image
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
+from src.load_ds_utils import load_coco_ds, load_vqa_train_ds
 from src.metrics.info_score import get_info_score
-from src.utils import (
-    encode_image,
-    encode_text,
-    init_flamingo,
-    load_coco_ds,
-    load_vqa_train_ds,
-    recall_sim_feature,
-)
+from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
 
 
 def get_caption_prompt(single_caption=None) -> str:
