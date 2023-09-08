@@ -2,5 +2,5 @@ hf_root: OpenFlamingo-3B-vitl-mpt1b
 flamingo_checkpoint_path: ${oc.env:CHECKPOINT_PATH}/${flamingo.hf_root}/
 lang_encoder_path: anas-awadalla/mpt-1b-redpajama-200b
 tokenizer_path: ${flamingo.lang_encoder_path}
-cross_attn_every_n_layers: 4
+cross_attn_every_n_layers: 1
 load_from_local: true
