@@ -1,15 +1,11 @@
 from typing import List
 
 import datasets
-import torch
-from PIL import Image
-from torch import nn
-from torch.utils.data import Dataset
 
 from .base_iclm_ds import BaseICLMDataset
 
 
-class IdxBaseCaptionICLMDataset(BaseICLMDataset):
+class IdxICLMDataset(BaseICLMDataset):
     def __init__(
         self,
         data_list: List,
