@@ -94,7 +94,6 @@ def generate_single_sample_ice(
                 filter_id_list = test_data_id_seq[:-1]
                 for i in filter_id_list:
                     filtered_candidateidx2data.pop(i)
-                
 
             # 构建已经选好的ice + 测试样本的输入
             ice_id_seq = test_data_id_seq[:-1]
@@ -179,6 +178,7 @@ def gen_data(
         hf_root,
         precision,
         process_device,
+        cfg.load_from_local,
     )
     tokenizer.pad_token = tokenizer.eos_token
 

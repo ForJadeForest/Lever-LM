@@ -6,6 +6,7 @@ import os
 import hydra
 import pandas as pd
 import torch
+from datasets import load_dataset
 from dotenv import load_dotenv
 from omegaconf import DictConfig
 from openicl import (
@@ -21,11 +22,10 @@ from openicl import (
 from tqdm import tqdm
 from transformers import AutoProcessor, AutoTokenizer
 
-from datasets import load_dataset
 from src.dataset_module import CocoDataset
 from src.metrics.cider_utils import compute_cider
+from src.models import IdxBaseCaptionICLM, SenImgEncodeCaptionICLM
 from src.utils import init_flamingo, load_karpathy_split
-from src.models import SenImgEncodeCaptionICLM, IdxBaseCaptionICLM
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +127,7 @@ def main(cfg: DictConfig):
         hf_root=cfg.flamingo.hf_root,
         precision=cfg.precision,
         device=cfg.device,
+        from_local=cfg.load_from_local,
     )
     inferencer = FlamingoGenInferencer(
         model,
