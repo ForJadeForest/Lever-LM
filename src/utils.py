@@ -54,6 +54,7 @@ def init_flamingo(
     hf_root,
     precision,
     device,
+    from_local=False
 ):
     model, image_processor, tokenizer = create_model_and_transforms(
         clip_vision_encoder_path="ViT-L-14",
@@ -62,10 +63,14 @@ def init_flamingo(
         tokenizer_path=tokenizer_path,
         cross_attn_every_n_layers=cross_attn_every_n_layers,
     )
-    hf_root = 'openflamingo/' + hf_root
-    flamingo_checkpoint_path = hf_hub_download(
-        hf_root, "checkpoint.pt", local_dir=flamingo_checkpoint_path
-    )
+    if from_local:
+        flamingo_checkpoint_path = os.path.join(flamingo_checkpoint_path, hf_root, 'checkpoint.pt')
+    else:
+        hf_root = 'openflamingo/' + hf_root
+        flamingo_checkpoint_path = hf_hub_download(
+            hf_root, "checkpoint.pt", local_dir=flamingo_checkpoint_path
+        )
+        
     model.load_state_dict(torch.load(flamingo_checkpoint_path), strict=False)
     data_type = cast_type(precision)
     model.to(device=device, dtype=data_type, non_blocking=True)
