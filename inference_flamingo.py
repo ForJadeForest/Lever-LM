@@ -15,16 +15,16 @@ from openicl import (
     MMTopkRetriever,
     PromptTemplate,
     RandomRetriever,
-    TopkRetriever,
     ZeroRetriever,
 )
 from tqdm import tqdm
 from transformers import AutoProcessor, AutoTokenizer
 
 from src.dataset_module import CocoDataset
-from src.metrics.cider_utils import compute_cider
+from src.load_ds_utils import load_coco_ds
+from src.metrics.cider_calculator import compute_cider
 from src.models import IdxBaseCaptionICLM, SenImgEncodeCaptionICLM
-from src.utils import init_flamingo, load_coco_ds
+from src.utils import init_flamingo
 
 logger = logging.getLogger(__name__)
 
@@ -64,16 +64,12 @@ def record(result_json_path: str, new_data: dict):
     if os.path.exists(result_json_path):
         with open(result_json_path, 'r') as f:
             recorded_data = json.load(f)
-    
-    with open(result_json_path, 'w')as f:
+
+    with open(result_json_path, 'w') as f:
         recorded_data.update(new_data)
         json.dump(recorded_data, f, indent=4)
 
 
-# base info:
-# 时间 + test_data_num + shot_num
-# retriver info: retriver method + retriver_args
-# info = base info + retriver info
 def evaluate(
     inferencer,
     retriever,
