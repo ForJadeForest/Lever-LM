@@ -8,7 +8,6 @@ defaults:
   - dataset: coco2017
   - task: caption
 
-use_karpathy_split: false
 # get candidate_set args
 random_sample_candidate_set: false
 sim_method: "text"
