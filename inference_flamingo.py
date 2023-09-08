@@ -127,7 +127,7 @@ def main(cfg: DictConfig):
         hf_root=cfg.flamingo.hf_root,
         precision=cfg.precision,
         device=cfg.device,
-        from_local=cfg.load_from_local,
+        from_local=cfg.init_flamingo.load_from_local,
     )
     inferencer = FlamingoGenInferencer(
         model,

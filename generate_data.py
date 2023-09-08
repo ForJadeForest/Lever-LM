@@ -144,17 +144,11 @@ def generate_single_sample_ice(
 
 def gen_data(
     rank,
-    lang_encoder_path,
-    tokenizer_path,
-    flamingo_checkpoint_path,
-    cross_attn_every_n_layers,
-    hf_root,
-    precision,
+    cfg,
     sample_data,
     train_ds,
     candidate_set_idx,
     save_path,
-    cfg,
 ):
     world_size = len(cfg.gpu_ids)
     process_device = f'cuda:{cfg.gpu_ids[rank]}'
@@ -171,14 +165,14 @@ def gen_data(
     # use sleep to load one by one.
     sleep(cfg.sleep_time * rank)
     model, image_processor, tokenizer, autocast_context = init_flamingo(
-        lang_encoder_path,
-        tokenizer_path,
-        flamingo_checkpoint_path,
-        cross_attn_every_n_layers,
-        hf_root,
-        precision,
+        cfg.flamingo.lang_encoder_path,
+        cfg.flamingo.tokenizer_path,
+        cfg.flamingo.flamingo_checkpoint_path,
+        cfg.flamingo.cross_attn_every_n_layers,
+        cfg.flamingo.hf_root,
+        cfg.precision,
         process_device,
-        cfg.load_from_local,
+        cfg.flamingo.load_from_local,
     )
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -290,17 +284,11 @@ def main(cfg: DictConfig):
     spawn(
         gen_data,
         args=(
-            cfg.flamingo.lang_encoder_path,
-            cfg.flamingo.tokenizer_path,
-            cfg.flamingo.flamingo_checkpoint_path,
-            cfg.flamingo.cross_attn_every_n_layers,
-            cfg.flamingo.hf_root,
-            cfg.precision,
+            cfg,
             sample_data,
             train_ds,
             candidate_set_idx,
             sub_save_path,
-            cfg,
         ),
         nprocs=len(cfg.gpu_ids),
         join=True,
