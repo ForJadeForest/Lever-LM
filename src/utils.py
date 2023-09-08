@@ -1,11 +1,15 @@
 import os
 import os.path
+from collections import Counter
 from contextlib import suppress
 
+import datasets
 import faiss
 import more_itertools
 import torch
+from datasets import DatasetDict, load_dataset
 from huggingface_hub import hf_hub_download
+from open_flamingo import create_model_and_transforms
 from PIL import Image
 from tqdm import tqdm
 from transformers import (
@@ -15,10 +19,7 @@ from transformers import (
     CLIPVisionModelWithProjection,
 )
 
-from datasets import load_dataset
-from open_flamingo import create_model_and_transforms
 from src.dataset_module import CocoDataset
-from collections import Counter
 
 
 def cast_type(precision):
@@ -202,14 +203,39 @@ def encode_image(
     return final_image_feature.detach().cpu().numpy()
 
 
-def load_coco_train_ds(cfg):
+def load_coco_ds(cfg, split=None):
     if cfg.dataset.name == 'coco_karpathy_split':
-        train_ds = load_karpathy_split(cfg, 'train')
+        ds = load_karpathy_split(cfg, split)
     else:
-        train_ds = CocoDataset(
-            cfg.dataset.train_coco_dataset_root, cfg.dataset.train_coco_annotation_file
-        )
-    return train_ds
+        if split is None:
+            train_ds = CocoDataset(
+                cfg.dataset.train_coco_dataset_root,
+                cfg.dataset.train_coco_annotation_file,
+            )
+            val_ds = CocoDataset(
+                cfg.dataset.val_coco_dataset_root, cfg.dataset.val_coco_annotation_file
+            )
+            train_ds = datasets.Dataset.from_list(train_ds)
+            val_ds = datasets.Dataset.from_list(val_ds)
+            ds = DatasetDict({'train': train_ds, 'validaiton': val_ds})
+            ds = ds.sort('image_id')
+            ds = ds.cast_column('image', datasets.Image(decode=True))
+        else:
+            if split == 'train':
+                ds = CocoDataset(
+                    cfg.dataset.train_coco_dataset_root,
+                    cfg.dataset.train_coco_annotation_file,
+                )
+            elif split == 'val':
+                ds = CocoDataset(
+                    cfg.dataset.val_coco_dataset_root,
+                    cfg.dataset.val_coco_annotation_file,
+                )
+            ds = datasets.Dataset.from_list(ds)
+            ds = ds.sort('image_id')
+            ds = ds.cast_column('image', datasets.Image(decode=True))
+
+    return ds
 
 
 def load_vqa_train_ds(cfg):
@@ -320,6 +346,7 @@ def load_karpathy_split(cfg, split=None):
         batched=True,
         num_proc=12,
     )
+    ds = ds.cast_column('image', datasets.Image(decode=True))
     return ds
 
 

@@ -6,6 +6,7 @@ from typing import Dict, List
 
 import hydra
 import torch
+from datasets import Dataset, DatasetDict
 from dotenv import load_dotenv
 from omegaconf import DictConfig
 from PIL import Image
@@ -17,9 +18,9 @@ from src.utils import (
     encode_image,
     encode_text,
     init_flamingo,
-    load_coco_train_ds,
-    recall_sim_feature,
+    load_coco_ds,
     load_vqa_train_ds,
+    recall_sim_feature,
 )
 
 
@@ -56,7 +57,7 @@ def generate_single_sample_ice(
     image_processor,
     test_data: Dict,
     cfg: DictConfig,
-    candidate_set: List[Dict],
+    candidate_set: Dataset,
     autocast_context,
     device,
     few_shot_num=4,
@@ -72,7 +73,7 @@ def generate_single_sample_ice(
     test_text_input = {k: test_data[k] for k in cfg.task.text_fields}
     test_data_text = prompt_method(**test_text_input)
 
-    test_data_image = Image.open(test_data[cfg.task.img_field]).convert('RGB')
+    test_data_image = test_data[cfg.task.img_field]
     test_data_id = test_data['idx']
 
     # 构建candidate set
@@ -91,26 +92,24 @@ def generate_single_sample_ice(
         new_test_score_list = []
         for test_data_id_seq in test_data_id_list:
             # 避免添加重复的结果 将已经添加的进行过滤
+            filtered_candidateidx2data = candidateidx2data.copy()
             if len(test_data_id_list) >= 2:
-                filtered_candidateidx2data = candidateidx2data.copy()
                 filter_id_list = test_data_id_seq[:-1]
                 for i in filter_id_list:
                     filtered_candidateidx2data.pop(i)
-            else:
-                filtered_candidateidx2data = candidateidx2data.copy()
+                
 
             # 构建已经选好的ice + 测试样本的输入
             ice_id_seq = test_data_id_seq[:-1]
             lang_x = [candidateidx2data[idx]['text_input'] for idx in ice_id_seq] + [
                 test_data_text
             ]
-            image_x = [
-                Image.open(candidateidx2data[idx]['image']).convert('RGB')
-                for idx in ice_id_seq
-            ] + [test_data_image]
+            image_x = [candidateidx2data[idx]['image'] for idx in ice_id_seq] + [
+                test_data_image
+            ]
 
             filtered_idx_list = sorted(list(filtered_candidateidx2data.keys()))
-            info_score_list = get_info_score(
+            info_score = get_info_score(
                 model,
                 tokenizer,
                 image_processor,
@@ -122,10 +121,9 @@ def generate_single_sample_ice(
                 batch_size=batch_size,
                 autocast_context=autocast_context,
             )
-            score_array = torch.tensor(info_score_list)
 
             # 选出最高的InfoScore
-            scores, indices = score_array.topk(beam_size)
+            scores, indices = info_score.topk(beam_size)
             indices = indices.tolist()
             indices = list(
                 map(
@@ -157,7 +155,7 @@ def gen_data(
     hf_root,
     precision,
     sample_data,
-    train_dataset,
+    train_ds,
     candidate_set_idx,
     save_path,
     cfg,
@@ -170,7 +168,7 @@ def gen_data(
     subset_end = (
         subset_start + subset_size if rank != world_size - 1 else len(sample_data)
     )
-    subset = [sample_data[i] for i in range(subset_start, subset_end)]
+    subset = sample_data.select(range(subset_start, subset_end))
     sub_cand_set_idx = candidate_set_idx[subset_start:subset_end]
 
     # load several models will cost large memory at the same time.
@@ -195,7 +193,7 @@ def gen_data(
     save_path = save_path.replace(os.path.basename(save_path), sub_res_basename)
 
     for i, test_data in enumerate(tqdm(subset, disable=(rank != 0))):
-        candidate_set = [train_dataset[int(idx)] for idx in sub_cand_set_idx[i]]
+        candidate_set = train_ds.select(sub_cand_set_idx[i])
         res = generate_single_sample_ice(
             model,
             tokenizer,
@@ -246,23 +244,22 @@ def main(cfg: DictConfig):
 
     # 加载数据集
     if cfg.task.task_name == 'caption':
-        train_ds = load_coco_train_ds(cfg)
+        train_ds = load_coco_ds(cfg, split='train')
     elif cfg.task.task_name == 'vqa':
         train_ds = load_vqa_train_ds(cfg)
     else:
         raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
 
     # sample from train idx
-    sample_index = random.sample(list(range(0, len(train_ds))), cfg.sample_num)
-    sample_data = [train_ds[i] for i in sample_index]
+    sample_index = random.sample(range(0, len(train_ds)), cfg.sample_num)
+    sample_data = train_ds.select(sample_index)
 
     # get the candidate set
     if cfg.random_sample_candidate_set:
         candidate_set_idx = []
-
         for s_idx in sample_index:
             random_candidate_set = random.sample(
-                list(range(0, len(train_ds))), cfg.candidate_set_num
+                range(0, len(train_ds)), cfg.candidate_set_num
             )
             while s_idx in random_candidate_set:
                 random_candidate_set = random.sample(
