@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import suppress
 
@@ -14,6 +15,8 @@ from transformers import (
     CLIPTextModelWithProjection,
     CLIPVisionModelWithProjection,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def cast_type(precision):
@@ -77,15 +80,10 @@ def init_flamingo(
 
 
 def recall_sim_feature(test_vec, train_vec, top_k=200):
-    print(f'embedding shape: {train_vec.shape}')
-    # train_vec = train_vec.astype(np.float32)
-    # faiss.normalize_L2(train_vec)
-    dim = train_vec.shape[-1]  # 向量维度
+    logger.info(f'embedding shape: {train_vec.shape}')
+    dim = train_vec.shape[-1]
     index_feat = faiss.IndexFlatIP(dim)
     index_feat.add(train_vec)
-
-    # test_vec = test_vec.astype(np.float32)
-    # faiss.normalize_L2(test_vec)
     dist, index = index_feat.search(test_vec, top_k)
     return dist, index
 
@@ -159,8 +157,15 @@ def data_split(generated_data, train_ratio):
 def collate_fn(batch):
     bs = len(batch)
     sample_data = batch[0]
+    collate_dict = {
+        'img_input': torch.cat(
+            [item['img_input']['pixel_values'] for item in batch], dim=0
+        ),
+        'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
+        'ice_input': torch.stack([item['ice_seq_idx'] for item in batch]),
+    }
     if not isinstance(sample_data['ice_input'], torch.Tensor):
-        ice_num = batch[0]['ice_input'].input_ids.size(0)
+        ice_num = batch[0]['ice_input']['input_ids'].size(0)
         ice_input_ids = [item['ice_input']['input_ids'] for item in batch]
         ice_attn_masks = [item['ice_input']['attention_mask'] for item in batch]
 
@@ -177,23 +182,14 @@ def collate_fn(batch):
             padded_ice_input_ids[i, :, :seq_len] = ice_input_ids[i]
             padded_ice_attn_masks[i, :, :seq_len] = ice_attn_masks[i]
 
-        return {
-            'ice_input': {
-                'input_ids': padded_ice_input_ids,
-                'attention_mask': padded_ice_attn_masks,
-                'pixel_values': torch.stack(
-                    [item['ice_input']['pixel_values'] for item in batch], dim=0
-                ),
-            },
-            'img_input': torch.cat([item['img_input'] for item in batch], dim=0),
-            'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
+        collate_dict['ice_input'] = {
+            'input_ids': padded_ice_input_ids,
+            'attention_mask': padded_ice_attn_masks,
+            'pixel_values': torch.cat(
+                [item['ice_input']['pixel_values'] for item in batch], dim=0
+            ),
         }
-    else:
-        return {
-            'img_input': torch.cat([item['img_input'] for item in batch], dim=0),
-            'ice_input': torch.stack([item['ice_seq_idx'] for item in batch]),
-            'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
-        }
+    return collate_dict
 
 
 @torch.inference_mode()
