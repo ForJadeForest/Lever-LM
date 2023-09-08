@@ -1,6 +1,6 @@
 
 hf_root: OpenFlamingo-9B-vitl-mpt7b
-flamingo_checkpoint_path: ${oc.env:CHECKPOINT_PATH}/${flamingo.hf_root}/
+flamingo_checkpoint_dir: ${oc.env:CHECKPOINT_PATH}/${flamingo.hf_root}/
 lang_encoder_path: anas-awadalla/mpt-7b
 tokenizer_path: ${flamingo.lang_encoder_path}
 cross_attn_every_n_layers: 4

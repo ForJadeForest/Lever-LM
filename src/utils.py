@@ -46,7 +46,7 @@ def get_autocast(precision):
 def init_flamingo(
     lang_encoder_path,
     tokenizer_path,
-    flamingo_checkpoint_path,
+    flamingo_checkpoint_dir,
     cross_attn_every_n_layers,
     hf_root,
     precision,
@@ -61,16 +61,16 @@ def init_flamingo(
         cross_attn_every_n_layers=cross_attn_every_n_layers,
     )
     if from_local:
-        flamingo_checkpoint_path = os.path.join(
-            flamingo_checkpoint_path, 'checkpoint.pt'
+        flamingo_checkpoint_dir = os.path.join(
+            flamingo_checkpoint_dir, 'checkpoint.pt'
         )
     else:
         hf_root = 'openflamingo/' + hf_root
-        flamingo_checkpoint_path = hf_hub_download(
-            hf_root, "checkpoint.pt", local_dir=flamingo_checkpoint_path
+        flamingo_checkpoint_dir = hf_hub_download(
+            hf_root, "checkpoint.pt", local_dir=flamingo_checkpoint_dir
         )
 
-    model.load_state_dict(torch.load(flamingo_checkpoint_path), strict=False)
+    model.load_state_dict(torch.load(flamingo_checkpoint_dir), strict=False)
     data_type = cast_type(precision)
     model.to(device=device, dtype=data_type, non_blocking=True)
     model.eval()
@@ -199,7 +199,7 @@ def encode_dataset(
     batch_size,
     lang_encoder_path,
     tokenizer_path,
-    flamingo_checkpoint_path,
+    flamingo_checkpoint_dir,
     cross_attn_every_n_layers,
     hf_root,
     precision,
@@ -213,7 +213,7 @@ def encode_dataset(
     flamingo, image_processor, tokenizer, autocast_context = init_flamingo(
         lang_encoder_path,
         tokenizer_path,
-        flamingo_checkpoint_path,
+        flamingo_checkpoint_dir,
         cross_attn_every_n_layers,
         hf_root,
         precision,

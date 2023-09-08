@@ -153,7 +153,7 @@ def main(cfg: DictConfig):
     model, image_processor, tokenizer, autocast_context = init_flamingo(
         lang_encoder_path=cfg.flamingo.lang_encoder_path,
         tokenizer_path=cfg.flamingo.tokenizer_path,
-        flamingo_checkpoint_path=cfg.flamingo.flamingo_checkpoint_path,
+        flamingo_checkpoint_dir=cfg.flamingo.flamingo_checkpoint_dir,
         cross_attn_every_n_layers=cfg.flamingo.cross_attn_every_n_layers,
         hf_root=cfg.flamingo.hf_root,
         precision=cfg.precision,

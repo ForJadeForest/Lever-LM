@@ -164,7 +164,7 @@ def gen_data(
     model, image_processor, tokenizer, autocast_context = init_flamingo(
         cfg.flamingo.lang_encoder_path,
         cfg.flamingo.tokenizer_path,
-        cfg.flamingo.flamingo_checkpoint_path,
+        cfg.flamingo.flamingo_checkpoint_dir,
         cfg.flamingo.cross_attn_every_n_layers,
         cfg.flamingo.hf_root,
         cfg.precision,
