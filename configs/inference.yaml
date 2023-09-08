@@ -29,10 +29,10 @@ query_token_id: 118289
 # Others
 result_dir: "./result"
 ex_name: "debug"
-shot_num_list: [1, 2]
+shot_num_list: [1, 2, 4, 8, 16]
 test_zero_shot: false
 test_random: false
-test_iclm: true
+test_iclm: false
 test_t2t: false
 test_i2t: false
 test_i2i: false
@@ -41,4 +41,5 @@ hydra:
   run:
     dir: ${result_dir}/hydra_output/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
   sweep:
-    dir: ${result_dir}/hydra_output/multirun/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${result_dir}/hydra_output/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.override_dirname}
