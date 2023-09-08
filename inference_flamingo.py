@@ -95,7 +95,7 @@ def evaluate(
         )
         retriever_res[f'{shot_num=}'] = cider_score
         logger.info(f'{output_files}: {cider_score=}')
-    record(result_json_path, {info: retriever_res})
+        record(result_json_path, {info: retriever_res})
 
 
 def inference_cider(
@@ -338,7 +338,7 @@ def main(cfg: DictConfig):
             )
             retriever_res[f'{shot_num=}'] = cider_score
             logger.info(f'{output_files}: {cider_score=}')
-        record(result_json_path, {info: retriever_res})
+            record(result_json_path, {info: retriever_res})
 
 
 @torch.inference_mode()
