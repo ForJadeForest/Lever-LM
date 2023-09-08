@@ -33,4 +33,4 @@ sleep_time: 90
 # hydra
 hydra:
   run:
-    dir: ${result_dir}/hydra_output/${hydra.job.name}/${task}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${result_dir}/hydra_output/${hydra.job.name}/${task.task_name}/${now:%Y-%m-%d_%H-%M-%S}
