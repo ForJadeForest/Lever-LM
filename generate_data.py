@@ -60,9 +60,6 @@ def generate_single_sample_ice(
     candidate_set: Dataset,
     autocast_context,
     device,
-    few_shot_num=4,
-    batch_size=32,
-    beam_size=5,
 ):
     # 构建test sample prompt
     if cfg.task.task_name == 'vqa':
@@ -87,7 +84,7 @@ def generate_single_sample_ice(
     }
     test_data_id_list = [[test_data_id]]
 
-    for _ in range(few_shot_num):
+    for _ in range(cfg.few_shot_num):
         new_test_data_id_list = []
         new_test_score_list = []
         for test_data_id_seq in test_data_id_list:
@@ -118,12 +115,12 @@ def generate_single_sample_ice(
                 lang_x=lang_x,
                 image_x=image_x,
                 candidate_set=filtered_candidateidx2data,
-                batch_size=batch_size,
+                batch_size=cfg.batch_size,
                 autocast_context=autocast_context,
             )
 
             # 选出最高的InfoScore
-            scores, indices = info_score.topk(beam_size)
+            scores, indices = info_score.topk(cfg.beam_size)
             indices = indices.tolist()
             indices = list(
                 map(
@@ -138,7 +135,7 @@ def generate_single_sample_ice(
                 new_test_score_list.append(score)
 
         new_test_score_list, new_test_data_id_list = beam_filter(
-            new_test_score_list, new_test_data_id_list, beam_size
+            new_test_score_list, new_test_data_id_list, cfg.beam_size
         )
         test_data_id_list = new_test_data_id_list
     return {
@@ -195,17 +192,14 @@ def gen_data(
     for i, test_data in enumerate(tqdm(subset, disable=(rank != 0))):
         candidate_set = train_ds.select(sub_cand_set_idx[i])
         res = generate_single_sample_ice(
-            model,
-            tokenizer,
-            image_processor,
-            test_data,
-            cfg,
-            candidate_set,
+            model=model,
+            tokenizer=tokenizer,
+            image_processor=image_processor,
+            test_data=test_data,
+            cfg=cfg,
+            candidate_set=candidate_set,
             device=process_device,
-            few_shot_num=cfg.few_shot_num,
             autocast_context=autocast_context,
-            batch_size=cfg.bs,
-            beam_size=cfg.beam_size,
         )
         final_res.update(res)
     with open(save_path, 'w') as f:
