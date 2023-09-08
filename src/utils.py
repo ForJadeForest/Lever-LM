@@ -64,7 +64,7 @@ def init_flamingo(
         cross_attn_every_n_layers=cross_attn_every_n_layers,
     )
     if from_local:
-        flamingo_checkpoint_path = os.path.join(flamingo_checkpoint_path, hf_root, 'checkpoint.pt')
+        flamingo_checkpoint_path = os.path.join(flamingo_checkpoint_path, 'checkpoint.pt')
     else:
         hf_root = 'openflamingo/' + hf_root
         flamingo_checkpoint_path = hf_hub_download(
@@ -210,6 +210,7 @@ def encode_image(
 
 def load_coco_ds(cfg, split=None):
     if cfg.dataset.name == 'coco_karpathy_split':
+        # TODO: 完善load batch的方法
         ds = load_karpathy_split(cfg, split)
     else:
         if split is None:
@@ -222,7 +223,7 @@ def load_coco_ds(cfg, split=None):
             )
             train_ds = datasets.Dataset.from_list(train_ds)
             val_ds = datasets.Dataset.from_list(val_ds)
-            ds = DatasetDict({'train': train_ds, 'validaiton': val_ds})
+            ds = DatasetDict({'train': train_ds, 'validation': val_ds})
             ds = ds.sort('image_id')
             ds = ds.cast_column('image', datasets.Image(decode=True))
         else:
@@ -231,7 +232,7 @@ def load_coco_ds(cfg, split=None):
                     cfg.dataset.train_coco_dataset_root,
                     cfg.dataset.train_coco_annotation_file,
                 )
-            elif split == 'val':
+            elif split == 'validation':
                 ds = CocoDataset(
                     cfg.dataset.val_coco_dataset_root,
                     cfg.dataset.val_coco_annotation_file,
@@ -239,7 +240,6 @@ def load_coco_ds(cfg, split=None):
             ds = datasets.Dataset.from_list(ds)
             ds = ds.sort('image_id')
             ds = ds.cast_column('image', datasets.Image(decode=True))
-
     return ds
 
 
@@ -290,7 +290,7 @@ def load_vqav2_ds(cfg, split=None):
             ds = ds.map(train_trans, batched=True, with_indices=True, num_proc=12)
         elif split == 'validation':
             ds = ds.map(val_trans, batched=True, with_indices=True, num_proc=12)
-
+        ds = ds.cast_column('image', datasets.Image(decode=True))
     elif cfg.dataset.version == 'hub':
         ds = load_dataset('HuggingFaceM4/VQAv2', split=split)
         ds.pop('test', None)
@@ -330,7 +330,11 @@ def load_karpathy_split(cfg, split=None):
     if split is None:
         ds.pop('validation', None)
         ds.pop('restval', None)
+        ds['validation'] = ds['test']
+        ds.pop('test', None)
+        
     ds = ds.sort("cocoid")
+
     ds = ds.rename_columns({'sentences': 'captions', 'cocoid': 'image_id'})
 
     def transform(example, idx):
