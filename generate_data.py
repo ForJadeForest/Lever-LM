@@ -208,8 +208,8 @@ def gen_data(
             beam_size=cfg.beam_size,
         )
         final_res.update(res)
-        with open(save_path, 'w') as f:
-            json.dump(final_res, f)
+    with open(save_path, 'w') as f:
+        json.dump(final_res, f)
     return final_res
 
 
