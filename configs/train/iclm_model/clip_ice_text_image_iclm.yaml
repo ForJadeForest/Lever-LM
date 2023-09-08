@@ -1,4 +1,4 @@
-_target_: src.models.sen_img_caption_iclm_add_image_info.SenImgEncodeAddImageCaptionICLM
+_target_: src.models.ice_text_image_iclm.ICETextImageICLM
 
 lm_config: 
   n_embd: 512

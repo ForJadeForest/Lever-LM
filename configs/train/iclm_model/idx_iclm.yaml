@@ -1,4 +1,4 @@
-_target_: src.models.idx_base_caption_iclm.IdxBaseCaptionICLM
+_target_: src.models.idx_base_iclm.IdxBaseICLM
 
 lm_config: 
   n_embd: 512
@@ -6,6 +6,4 @@ lm_config:
   n_layer: 2
   
 index_ds_size: ${dataset.train_ds_len}
-init_with_vlm_logits: false
-emb_dim: null
 clip_name: openai/clip-vit-base-patch32
