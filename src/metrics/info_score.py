@@ -98,9 +98,7 @@ def get_info_score(
     for batch in more_itertools.chunked(cand_idx, batch_size):
         batch_data = [candidate_set[i] for i in batch]
         new_ice_lang_x = [data['text_input'] for data in batch_data]
-        new_ice_image_x = [
-            data['image'] for data in batch_data
-        ]
+        new_ice_image_x = [data['image'] for data in batch_data]
 
         # 2.1 拼接文本输入
         total_ice_lang_x_input = [
@@ -143,4 +141,3 @@ def get_info_score(
         sub_info_score = (-new_ppl).exp() - (-ppl).exp()
         info_score_list.append(sub_info_score)
     return torch.cat(info_score_list)
-

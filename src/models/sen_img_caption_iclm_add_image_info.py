@@ -41,28 +41,29 @@ class SenImgEncodeAddImageCaptionICLM(nn.Module):
         ice_input['attention_mask'] = ice_input['attention_mask'].view(-1, ice_seq_len)
         img_shape = ice_input['pixel_values'].shape[-3:]
         ice_input['pixel_values'] = ice_input['pixel_values'].view(-1, *img_shape)
-        
-        
+
         ice_text_features = self.sen_model(
             input_ids=ice_input['input_ids'],
             attention_mask=ice_input['attention_mask'],
         )['text_embeds']
-        
+
         ice_img_features = self.img_model(ice_input['pixel_values'])['image_embeds']
         ice_img_features = ice_img_features.view(bs, ice_num, -1)
         ice_text_features = ice_text_features.view(bs, ice_num, -1)
-        
+
         ice_features = ice_text_features + ice_img_features
-        
+
         img_features = self.img_model(img_input)['image_embeds']
         dataset_embedding[:, 1] += img_features
-        dataset_embedding[:, 2:2+ice_num] += ice_features
+        dataset_embedding[:, 2 : 2 + ice_num] += ice_features
 
         output = self.lm_model(inputs_embeds=dataset_embedding, labels=ice_seq_idx)
         return output
 
     @torch.inference_mode()
-    def generation(self, img_input, shot_num, coco_ds, processor, repetition_penalty=2.0):
+    def generation(
+        self, img_input, shot_num, coco_ds, processor, repetition_penalty=2.0
+    ):
         """
         Generate for one batch
         """
@@ -73,21 +74,27 @@ class SenImgEncodeAddImageCaptionICLM(nn.Module):
         for _ in range(shot_num):
             out = self.forward(img_input, ice_input, ice_seq_idx).logits[:, -1, :]
             # set the eos token prob to 0
-            out[:, 118287:] = - torch.inf
+            out[:, 118287:] = -torch.inf
             for ice_idx in ice_seq_idx:
                 out[:, ice_idx] /= repetition_penalty
-            
-                
+
             next_token_idx = torch.softmax(out, dim=-1).argmax(dim=-1)
-            
+
             ice_seq_idx = torch.cat(
                 [ice_seq_idx, torch.tensor([[next_token_idx]], device=device)],
                 dim=1,
             )
 
-            ice_text_list = [coco_ds[i]['single_caption'] for i in ice_seq_idx.tolist()[0][2:]]
+            ice_text_list = [
+                coco_ds[i]['single_caption'] for i in ice_seq_idx.tolist()[0][2:]
+            ]
             ice_img_list = [coco_ds[i]['image'] for i in ice_seq_idx.tolist()[0][2:]]
-            ice_input = processor(text=ice_text_list, images=ice_img_list, padding=True, return_tensors='pt').to(device)
+            ice_input = processor(
+                text=ice_text_list,
+                images=ice_img_list,
+                padding=True,
+                return_tensors='pt',
+            ).to(device)
             ice_input = {k: v.unsqueeze(dim=0) for k, v in ice_input.items()}
-            
+
         return ice_seq_idx.detach().cpu().tolist()
