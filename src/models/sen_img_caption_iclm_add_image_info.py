@@ -40,7 +40,7 @@ class SenImgEncodeAddImageCaptionICLM(nn.Module):
         ice_input['input_ids'] = ice_input['input_ids'].view(-1, ice_seq_len)
         ice_input['attention_mask'] = ice_input['attention_mask'].view(-1, ice_seq_len)
         img_shape = ice_input['pixel_values'].shape[-3:]
-        ice_input['pixel_values'] = ice_input['pixel_values'].view(-1, **img_shape)
+        ice_input['pixel_values'] = ice_input['pixel_values'].view(-1, *img_shape)
         
         
         ice_text_features = self.sen_model(
@@ -49,7 +49,7 @@ class SenImgEncodeAddImageCaptionICLM(nn.Module):
         )['text_embeds']
         
         ice_img_features = self.img_model(ice_input['pixel_values'])['image_embeds']
-        ice_img_features = ice_img_features.view(bs, ice_num, **img_shape)
+        ice_img_features = ice_img_features.view(bs, ice_num, -1)
         ice_text_features = ice_text_features.view(bs, ice_num, -1)
         
         ice_features = ice_text_features + ice_img_features
