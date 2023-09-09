@@ -38,11 +38,11 @@ def get_ppl(
                 for j in range(ice_token_length[i] - 1, len(loss_mask[i])):
                     loss_mask[i][j] = 1
             loss = loss * loss_mask
-        lens = (model_input["lang_x"] != pad_token_id).sum(-1).cpu().numpy()
+        lens = (model_input["lang_x"] != pad_token_id).sum(-1)
         if ice_token_length is not None:
-            lens -= np.array(ice_token_length)
+            lens -= torch.tensor(ice_token_length, device=lens.device)
         lens += left_padding_len
-        ce_loss = loss.sum(-1).cpu().detach() / lens
+        ce_loss = loss.sum(-1) / lens
     return ce_loss
 
 
@@ -110,9 +110,7 @@ def get_info_score(
     for batch in more_itertools.chunked(cand_idx, batch_size):
         batch_data = [candidate_set[i] for i in batch]
         new_ice_lang_x = [data['text_input'] for data in batch_data]
-        new_ice_image_x = [
-            Image.open(data['image']).convert('RGB') for data in batch_data
-        ]
+        new_ice_image_x = [data['image'] for data in batch_data]
 
         # 2.1 拼接文本输入
         total_ice_lang_x_input = [
@@ -160,5 +158,5 @@ def get_info_score(
             pad_token_id=tokenizer.pad_token_id,
         )
         sub_info_score = (-new_ppl).exp() - (-ppl).exp()
-        info_score_list.extend(sub_info_score.cpu().numpy().tolist())
-    return info_score_list
+        info_score_list.append(sub_info_score)
+    return torch.cat(info_score_list)

@@ -4,3 +4,6 @@ img_field: "image"
 ice_join_char: ""
 sim_text_field: "single_caption"
 sim_img_field: "image"
+
+train_text_field: "single_caption"
+train_image_field: "image"

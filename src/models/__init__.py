@@ -1,3 +1,3 @@
-from .idx_base_caption_iclm import IdxBaseCaptionICLM
-from .sen_img_caption_iclm import SenImgEncodeCaptionICLM
-from .sen_img_caption_iclm_add_image_info import SenImgEncodeAddImageCaptionICLM
+from .ice_text_iclm import ICETextICLM
+from .ice_text_image_iclm import ICETextImageICLM
+from .idx_base_iclm import IdxBaseICLM
