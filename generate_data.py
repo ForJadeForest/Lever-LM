@@ -7,18 +7,27 @@ from typing import Dict, List
 
 import hydra
 import torch
+from datasets import Dataset, DatasetDict
 from dotenv import load_dotenv
 from omegaconf import DictConfig
 from PIL import Image
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from datasets import Dataset, DatasetDict
 from src.load_ds_utils import load_coco_ds, load_vqa_train_ds
 from src.metrics.info_score import get_info_score
 from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+# Remove all default handlers
+for handler in logger.handlers[:]:
+    logger.removeHandler(handler)
+
+handler = logging.StreamHandler()
+formatter = logging.Formatter('[%(asctime)s][%(name)s][%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S,%f'[:-3])
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 
 def get_caption_prompt(single_caption=None) -> str:
@@ -188,10 +197,13 @@ def gen_data(
         logger.info(
             f'Rank: {rank} reloading data from {save_path}, begin from {cur_idx + 1}'
         )
+    if len(final_res) == subset_size:
+        logger.info(f'Rank: {rank} task is Done.')
+        return 
 
     subset = subset.select(range(cur_idx + 1, len(subset)))
     for i, test_data in enumerate(
-        tqdm(subset, disable=(rank != 0)), initial=cur_idx + 1
+        tqdm(subset, disable=(rank != 0), total=subset_size, initial=cur_idx + 1),
     ):
         candidate_set = train_ds.select(sub_cand_set_idx[i])
         res = generate_single_sample_ice(
@@ -205,10 +217,11 @@ def gen_data(
             autocast_context=autocast_context,
         )
         final_res.update(res)
-        final_res['cur_idx'] = i
+        cur_idx += 1
+        final_res['cur_idx'] = cur_idx
         with open(save_path, 'w') as f:
             json.dump(final_res, f)
-    return final_res
+    return
 
 
 @hydra.main(
@@ -260,6 +273,7 @@ def main(cfg: DictConfig):
         sample_cache_metainfo = json.load(open(sample_data_idx_cache, 'r'))
         sample_index = sample_cache_metainfo['sample_index']
         candidate_set_idx = sample_cache_metainfo['candidate_set_idx']
+        sample_data = train_ds.select(sample_index)
     else:
         sample_cache_metainfo = dict()
         sample_index = random.sample(range(0, len(train_ds)), cfg.sample_num)
@@ -306,7 +320,8 @@ def main(cfg: DictConfig):
             candidate_set_idx = candidate_set_idx[:, 1:]
         sample_cache_metainfo['candidate_set_idx'] = candidate_set_idx
         with open(sample_data_idx_cache, 'w') as f:
-            json.dump(sample_data_idx_cache, f)
+            logger.info(f'save {sample_data_idx_cache}...')
+            json.dump(sample_cache_metainfo, f)
 
     spawn(
         gen_data,
