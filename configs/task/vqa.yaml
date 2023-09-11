@@ -1,0 +1,9 @@
+task_name: vqa
+text_fields: ["question", "answer"]
+img_field: "image"
+ice_join_char: ""
+sim_text_field: "question"
+sim_img_field: "image"
+
+train_text_field: "question&answer"
+train_image_field: "image"

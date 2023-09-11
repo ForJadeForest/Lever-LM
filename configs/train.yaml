@@ -5,12 +5,12 @@
 defaults:
   - _self_
   - train: idx_base
-  - dataset: coco2014
+  - dataset: coco2017
+  - task: caption
 
 
 # data args
 data_files: OpenFlamingo-9B-vitl-mpt7b-coco-caption-beam_size:16-few_shot:2-query_top_k:64.json
-use_karpathy_split: true
 
 # train args:
 epochs: 50

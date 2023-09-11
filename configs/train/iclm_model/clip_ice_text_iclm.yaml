@@ -1,0 +1,9 @@
+_target_: src.models.ice_text_iclm.ICETextICLM
+
+lm_config: 
+  n_embd: 512
+  n_head: 8
+  n_layer: 2
+  
+index_ds_size: ${dataset.train_ds_len}
+clip_name: openai/clip-vit-base-patch32

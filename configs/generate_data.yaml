@@ -5,32 +5,42 @@
 defaults:
   - _self_
   - flamingo: flamingo_9B
-  - dataset: coco2017
+  - dataset: vqav2_local
+  - task: vqa
 
-use_karpathy_split: false
+
 # get candidate_set args
-random_sample_candidate_set: false
-sim_method: "caption"
+random_sample_candidate_set: true
+candidate_set_num: 256
+
+# recall args
+sim_method: "text"
 sim_model_type: "openai/clip-vit-large-patch14"
 candidate_set_encode_bs: 64
-candidate_set_num: 64
+
 
 # generation args:
 beam_size: 5
 few_shot_num: 2
-bs: 32
+batch_size: 32
 device: "cuda"
 precision: bf16
 sample_num: 10000
 
 # Others
 result_dir: "./result"
-gpu_ids: [0, 1, 2, 3]
+gpu_ids: [0]
 # load several models at the same time will cost large memory.
 # use sleep to load one by one.
 sleep_time: 90
 
+
+only_y_loss: true
+split_token: "Short answer:"
+
 # hydra
 hydra:
   run:
-    dir: ${result_dir}/hydra_output/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${result_dir}/hydra_output/${hydra.job.name}/${task.task_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${result_dir}/hydra_output/multirun/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}

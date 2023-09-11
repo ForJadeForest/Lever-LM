@@ -1,0 +1,10 @@
+_target_: src.dataset_module.ice_text_image_iclm_ds.ICETextImageICLMDataset
+
+
+clip_processor_name: "openai/clip-vit-base-patch32"
+eos_token_id: 118287
+bos_token_id: 118288
+query_token_id: 118289
+
+image_field: ${task.train_image_field}
+text_field: ${task.train_text_field}

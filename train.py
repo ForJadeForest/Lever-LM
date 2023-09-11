@@ -13,11 +13,10 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import get_cosine_schedule_with_warmup
 
-from datasets import load_dataset
-from src.utils import collate_fn, data_split, load_coco_train_ds
+from src.load_ds_utils import load_coco_ds, load_vqav2_ds
+from src.utils import collate_fn, data_split
 
 logger = logging.getLogger(__name__)
-# os.environ['CUDA_VISIBLE_DEVICES'] = "2"
 
 
 @torch.no_grad()
@@ -28,11 +27,7 @@ def validation(model, val_dataloader, fabric: Fabric):
     )
     total_val_loss = 0.0
     for val_data in val_bar:
-        output = model(
-            img_input=val_data['img_input'],
-            ice_input=val_data['ice_input'],
-            ice_seq_idx=val_data['ice_seq_idx'],
-        )
+        output = model(**val_data)
         loss = output['loss']
         val_bar.set_description(f'val Loss: {round(loss.item(), 4)}')
         reduced_loss = fabric.all_reduce(loss, reduce_op='mean')
@@ -56,11 +51,7 @@ def train(
         )
         for data in bar:
             model.train()
-            output = model(
-                img_input=data['img_input'],
-                ice_input=data['ice_input'],
-                ice_seq_idx=data['ice_seq_idx'],
-            )
+            output = model(**data)
             loss = output['loss']
             fabric.backward(loss)
             optimizer.step()
@@ -93,6 +84,7 @@ def train(
                             os.remove(old_save_path)
                             logger.info(f'old model has been deleted: {old_save_path}')
                         old_save_path = new_save_path
+        logger.info('=' * 20 + f'{epoch} Epoch Done! ')
 
     val_loss = validation(model, val_dataloader, fabric)
     fabric.log("val_loss", val_loss, step)
@@ -112,23 +104,27 @@ def main(cfg: DictConfig):
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
 
-    # 1. load the data
+    # 1. load the ice_seq data
     data_files_path = os.path.join(cfg.result_dir, 'generated_data', cfg.data_files)
     with open(data_files_path, 'r') as f:
         data = json.load(f)
     train_data_list, val_data_list = data_split(data, cfg.train_ratio)
 
-    # 加载数据集
-    coco_train_ds = load_coco_train_ds(cfg)
+    # load the index dataset
+    if cfg.task.task_name == 'caption':
+        index_ds = load_coco_ds(cfg, split='train')
+    elif cfg.task.task_name == 'vqa':
+        index_ds = load_vqav2_ds(cfg, split='train')
 
     iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
     logger.info(f'model: {type(iclm_model)} load succese')
     ds_factory = hydra.utils.instantiate(cfg.train.ice_seq_idx_ds, _partial_=True)
 
-    train_ds = ds_factory(data_list=train_data_list, coco_dataset=coco_train_ds)
+    train_ds = ds_factory(data_list=train_data_list, index_ds=index_ds)
     logger.info('train_ds load success')
-    val_ds = ds_factory(data_list=val_data_list, coco_dataset=coco_train_ds)
+    val_ds = ds_factory(data_list=val_data_list, index_ds=index_ds)
     logger.info('val_ds load success')
+
     tensorboard_logger = TensorBoardLogger(
         root_dir=os.path.join(cfg.result_dir, "tensorboard-logs"), name=cfg.ex_name
     )
