@@ -88,7 +88,7 @@ def recall_sim_feature(test_vec, train_vec, top_k=200):
     index_feat = faiss.IndexFlatIP(dim)
     index_feat.add(train_vec)
     dist, index = index_feat.search(test_vec, top_k)
-    return index
+    return dist, index
 
 
 @torch.inference_mode()
