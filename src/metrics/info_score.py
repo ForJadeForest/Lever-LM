@@ -67,7 +67,9 @@ def get_info_score(
     # 1. 计算P(y|x)
     # 1.1 拼接文本输入
     test_lang_x_input = lang_x[-1]
-    chosen_ice_input = ice_join_char.join(lang_x[:-1]) + ice_join_char
+    chosen_ice_input = ice_join_char.join(lang_x[:-1])
+    if chosen_ice_input:
+        chosen_ice_input += '<|endofchunk|>'
     left_padding_token = 0
     if not chosen_ice_input and not only_y_loss:
         chosen_ice_input = '<|endoftext|>'
@@ -83,6 +85,8 @@ def get_info_score(
 
     lang_x_input = chosen_ice_input + test_lang_x_input + ice_join_char
     lang_x_input = tokenizer(lang_x_input, return_tensors='pt').to(device=device)
+    lang_x_input['attention_mask'][lang_x_input['input_ids'] == 0] = 0
+    
 
     # 1.2 拼接图像输入
     image_x = [image_processor(image) for image in image_x]
