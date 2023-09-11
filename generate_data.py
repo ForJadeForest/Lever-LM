@@ -64,13 +64,13 @@ def generate_single_sample_ice(
     device,
 ):
     template = PromptTemplate(
-        cfg.task.template, 
-        column_token_map=cfg.task.column_token_map,
-        ice_token=cfg.task.ice_token
+        cfg.task.template,
+        column_token_map=dict(cfg.task.column_token_map),
+        ice_token=cfg.task.ice_token,
     )
-    
+
     # 构建test sample prompt
-    test_data_text = template.generate_ice_item(test_data)
+    test_data_text = template.generate_item(test_data)
 
     test_data_image = test_data[cfg.task.image_field]
     test_data_id = test_data['idx']
@@ -78,7 +78,7 @@ def generate_single_sample_ice(
     # 构建candidate set
     candidateidx2data = {
         data['idx']: {
-            'text_input': template.generate_ice_item(data),
+            'text_input': template.generate_item(data),
             'image': data[cfg.task.image_field],
             'idx': data['idx'],
         }
@@ -127,7 +127,7 @@ def generate_single_sample_ice(
             indices = indices.tolist()
             indices = list(
                 map(
-                    lambda x: filtered_candidateidx2data[filtered_idx_list[x]]['idx'],
+                    lambda x: filtered_idx_list[x],
                     indices,
                 )
             )
@@ -178,7 +178,6 @@ def gen_data(
         process_device,
         cfg.flamingo.load_from_local,
     )
-    
 
     final_res = {}
     cur_idx = 0
@@ -313,7 +312,7 @@ def main(cfg: DictConfig):
                 test_feature, train_feature, top_k=cfg.candidate_set_num + 1
             )
 
-            candidate_set_idx = candidate_set_idx[:, 1:]
+            candidate_set_idx = candidate_set_idx[:, 1:].tolist()
         sample_cache_metainfo['candidate_set_idx'] = candidate_set_idx
         with open(sample_data_idx_cache, 'w') as f:
             logger.info(f'save {sample_data_idx_cache}...')
