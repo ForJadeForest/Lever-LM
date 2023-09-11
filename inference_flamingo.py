@@ -22,42 +22,12 @@ from tqdm import tqdm
 from transformers import AutoProcessor, AutoTokenizer
 
 from src.dataset_module import CocoDataset
-from src.load_ds_utils import load_coco_ds
+from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import compute_cider
 from src.models import ICETextICLM, ICETextImageICLM, IdxBaseICLM
 from src.utils import init_flamingo
 
 logger = logging.getLogger(__name__)
-
-
-def construct_coco_dict(coco_root, version=2014, overwrite=False):
-    version_coco_root = os.path.join(coco_root, f'mscoco{version}')
-    for data_split in ['train', 'val']:
-        split_image_path = os.path.join(version_coco_root, f'{data_split}{version}')
-        meta_info_path = os.path.join(split_image_path, 'metadata.csv')
-        if not os.path.exists(meta_info_path) or overwrite:
-            ann_path = os.path.join(
-                version_coco_root, 'annotations', f'captions_{data_split}{version}.json'
-            )
-            dataset = CocoDataset(split_image_path, ann_path)
-
-            image_id_list = []
-            single_caption_list = []
-            captions_list = []
-            file_name_list = []
-            for d in dataset:
-                image_id_list.append(d['image_id'])
-                single_caption_list.append(d['single_caption'])
-                file_name_list.append(os.path.basename(d['image']))
-                captions_list.append(d['captions'])
-
-            data_dict = {
-                'image_id': image_id_list,
-                'single_caption': single_caption_list,
-                'captions': captions_list,
-                'file_name': file_name_list,
-            }
-            pd.DataFrame(data_dict).to_csv(meta_info_path, index=False)
 
 
 def record(result_json_path: str, new_data: dict):
@@ -118,8 +88,12 @@ def init_retriever(retriever_name, dr, cfg):
             test_split='validation',
             batch_size=32,
             mode=mode,
-            index_field='single_caption' if mode.endswith('t') else 'image',
-            test_field='image' if mode.startswith('i') else 'single_caption',
+            index_field=cfg.task.ice_text_feature_field
+            if mode.endswith('t')
+            else cfg.task.image_field,
+            test_field=cfg.task.image_field
+            if mode.startswith('i')
+            else cfg.task.ice_text_feature_field,
             clip_model_name=cfg.mmtopk_clip_name,
         )
     # Add other retrievers if needed
@@ -155,27 +129,33 @@ def inference_cider(
 
 @hydra.main(version_base=None, config_path="./configs", config_name="inference.yaml")
 def main(cfg: DictConfig):
-    construct_coco_dict(
-        cfg.dataset.coco_root, cfg.dataset.version, cfg.overwrite_metainfo
+    result_dir = os.path.join(
+        cfg.result_dir,
+        'flamingo_inference',
+        cfg.task.task_name,
+        cfg.ex_name,
     )
+    result_json_path = os.path.join(result_dir, 'metrics.json')
 
-    result_json_path = os.path.join(
-        cfg.result_dir, 'flamingo_inference', cfg.ex_name, 'total_cider_res.json'
-    )
     ice_prompt = PromptTemplate(
-        template='</E><image>Output:<X>',
-        ice_token='</E>',
-        column_token_map={'single_caption': '<X>'},
+        template=cfg.task.template,
+        ice_token=cfg.task.ice_token,
+        column_token_map=cfg.task.column_token_map,
     )
-
     test_data_num = cfg.test_data_num
-    ds = load_coco_ds(cfg)
+    if cfg.task.task_name == 'caption':
+        ds = load_coco_ds(cfg)
+    elif cfg.task.task_name == 'vqa':
+        ds = load_vqav2_ds(cfg)
+    else:
+        raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
+
     test_split = 'validation'
     if test_data_num != -1:
         ds[test_split] = ds[test_split].select(range(test_data_num))
 
     dr = DatasetReader(
-        ds, input_columns=['single_caption'], output_column='single_caption'
+        ds, input_columns=cfg.task.input_columns, output_column=cfg.task.output_column
     )
 
     model, image_processor, tokenizer, autocast_context = init_flamingo(
@@ -194,12 +174,10 @@ def main(cfg: DictConfig):
         image_processor,
         other_save_field=cfg.other_save_field,
         autocast_context=autocast_context,
-        image_field="image",
+        image_field=cfg.task.image_field,
         batch_size=cfg.inference_bs,
         generation_kwargs=cfg.gen_args,
-        output_json_filepath=os.path.join(
-            cfg.result_dir, 'flamingo_inference', cfg.ex_name, 'generation_metainfo'
-        ),
+        output_json_filepath=os.path.join(result_dir, 'generation_metainfo'),
     )
 
     base_info = f'{str(datetime.datetime.now())}-{test_data_num=}-'
@@ -247,7 +225,7 @@ def main(cfg: DictConfig):
                     processor=processor,
                     shot_num=shot_num,
                     device=cfg.device,
-                    text_field=cfg.task.train_text_field,
+                    text_field=cfg.task.ice_text_feature_field,
                 )
             elif isinstance(iclm_model, IdxBaseICLM):
                 ice_idx_list = idx_iclm_generation(
@@ -266,8 +244,8 @@ def main(cfg: DictConfig):
                     processor=processor,
                     shot_num=shot_num,
                     device=cfg.device,
-                    text_field=cfg.task.train_text_field,
-                    image_field=cfg.task.train_image_field,
+                    text_field=cfg.task.ice_text_feature_field,
+                    image_field=cfg.task.image_field,
                 )
             retriever = DirRetriever(
                 dr,
