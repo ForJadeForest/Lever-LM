@@ -98,6 +98,30 @@ def evaluate_retriever(
         record(result_json_path, {info: retriever_res})
 
 
+def init_retriever(retriever_name, dr, cfg):
+    if retriever_name == 'ZeroShot':
+        return ZeroRetriever(dr, prompt_eos_token='', test_split='validation')
+    elif retriever_name == 'RandomSample':
+        return RandomRetriever(
+            dr, ice_separator='<|endofchunk|>', ice_eos_token='<|endofchunk|>', test_split='validation'
+        )
+    elif retriever_name.startswith('MMTopKRetriever'):
+        mode = retriever_name.split('-')[-1]
+        return MMTopkRetriever(
+            dr,
+            ice_separator='<|endofchunk|>',
+            ice_eos_token='<|endofchunk|>',
+            test_split='validation',
+            batch_size=32,
+            mode=mode,
+            index_field='single_caption' if mode.endswith('t') else 'image',
+            test_field='image' if mode.startswith('i') else 'single_caption',
+            clip_model_name=cfg.mmtopk_clip_name,
+        )
+    # Add other retrievers if needed
+    return None
+
+
 def inference_cider(
     inferencer,
     retriever,
@@ -176,79 +200,28 @@ def main(cfg: DictConfig):
 
     base_info = f'{str(datetime.datetime.now())}-{test_data_num=}-'
 
-    retrievers = [
-        (
-            'ZeroShot',
-            ZeroRetriever(dr, prompt_eos_token='', test_split='validation'),
-            [0] if cfg.test_zero_shot else [],
-        ),
-        (
-            'RandomSample',
-            RandomRetriever(
-                dr, ice_separator='', ice_eos_token='', test_split='validation'
-            ),
-            cfg.shot_num_list if cfg.test_random else [],
-        ),
-        (
-            f'MMTopKRetriever-{cfg.mmtopk_clip_name.replace("/", "-")}-i2t',
-            MMTopkRetriever(
-                dr,
-                ice_separator='',
-                ice_eos_token='',
-                test_split='validation',
-                batch_size=32,
-                mode='i2t',
-                index_field='single_caption',
-                test_field='image',
-                clip_model_name=cfg.mmtopk_clip_name,
-            ),
-            cfg.shot_num_list if cfg.test_i2t else [],
-        ),
-        (
-            f'MMTopKRetriever-{cfg.mmtopk_clip_name.replace("/", "-")}-i2i',
-            MMTopkRetriever(
-                dr,
-                ice_separator='',
-                ice_eos_token='',
-                test_split='validation',
-                batch_size=32,
-                mode='i2i',
-                index_field='image',
-                test_field='image',
-                clip_model_name=cfg.mmtopk_clip_name,
-            ),
-            cfg.shot_num_list if cfg.test_i2i else [],
-        ),
-        (
-            f'MMTopKRetriever-{cfg.mmtopk_clip_name.replace("/", "-")}-t2t',
-            MMTopkRetriever(
-                dr,
-                ice_separator='',
-                ice_eos_token='',
-                test_split='validation',
-                batch_size=32,
-                mode='t2t',
-                index_field='single_caption',
-                test_field='single_caption',
-                clip_model_name=cfg.mmtopk_clip_name,
-            ),
-            cfg.shot_num_list if cfg.test_t2t else [],
-        ),
-        # Note: The ICLM retriever is not added here since its initialization is more complex and involves additional logic.
+    retriever_list = [
+        ('ZeroShot', [0] if cfg.test_zero_shot else []),
+        ('RandomSample', cfg.shot_num_list if cfg.test_random else []),
+        (f'MMTopKRetriever-i2t', cfg.shot_num_list if cfg.test_i2t else []),
+        (f'MMTopKRetriever-i2i', cfg.shot_num_list if cfg.test_i2i else []),
+        (f'MMTopKRetriever-t2t', cfg.shot_num_list if cfg.test_t2t else []),
     ]
 
     # Test for other
-    for retriever_name, retriever_instance, shot_nums in retrievers:
-        evaluate_retriever(
-            retriever_name,
-            inferencer,
-            retriever_instance,
-            ice_prompt,
-            base_info,
-            shot_nums,
-            cfg.dataset.val_coco_annotation_file,
-            result_json_path,
-        )
+    for retriever_name, shot_nums in retriever_list:
+        if shot_nums:  # Only initialize and evaluate if shot_nums is not empty
+            retriever_instance = init_retriever(retriever_name, dr, cfg)
+            evaluate_retriever(
+                retriever_name,
+                inferencer,
+                retriever_instance,
+                ice_prompt,
+                base_info,
+                shot_nums,
+                cfg.dataset.val_coco_annotation_file,
+                result_json_path,
+            )
     # ICLM sample test
     if cfg.test_iclm:
         retriever_res = {}
@@ -257,7 +230,7 @@ def main(cfg: DictConfig):
 
         image_processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
         tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-base-patch32")
-        retriever_info = 'ICLM'
+        retriever_info = 'ICLM-' + os.path.splitext(os.path.basename(cfg.iclm_path))[0]
 
         info = base_info + retriever_info
         for shot_num in cfg.shot_num_list:

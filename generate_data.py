@@ -355,7 +355,7 @@ def main(cfg: DictConfig):
             data = json.load(f)
         logger.info(f'load the data from {sub_save_path}, the data length: {len(data)}')
         total_data.update(data)
-
+    total_data.pop('cur_idx')
     with open(save_path, 'w') as f:
         json.dump(total_data, f)
     logger.info(f'save the final data to {save_path}')
