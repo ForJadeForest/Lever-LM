@@ -77,6 +77,7 @@ def init_flamingo(
     model.to(device=device, dtype=data_type, non_blocking=True)
     model.eval()
     tokenizer.padding_side = 'left'
+    tokenizer.pad_token = tokenizer.eos_token
     autocast_context = get_autocast(precision)
     return model, image_processor, tokenizer, autocast_context
 
