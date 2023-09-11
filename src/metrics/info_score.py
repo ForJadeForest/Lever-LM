@@ -81,7 +81,7 @@ def get_info_score(
 
     mask_length = get_input_token_num(tokenizer, mask_context)
 
-    lang_x_input = chosen_ice_input + test_lang_x_input
+    lang_x_input = chosen_ice_input + test_lang_x_input + ice_join_char
     lang_x_input = tokenizer(lang_x_input, return_tensors='pt').to(device=device)
 
     # 1.2 拼接图像输入
@@ -103,7 +103,6 @@ def get_info_score(
         left_padding_len=left_padding_token,
     )
 
-
     # 2. 计算P(y|x, c)
     info_score_list = []
     cand_idx = sorted(list(candidate_set.keys()))
@@ -114,7 +113,8 @@ def get_info_score(
 
         # 2.1 拼接文本输入
         total_ice_lang_x_input = [
-            ice_join_char.join([ice_lang_x] + lang_x) for ice_lang_x in new_ice_lang_x
+            ice_join_char.join([ice_lang_x] + lang_x) + ice_join_char
+            for ice_lang_x in new_ice_lang_x
         ]
         total_ice_lang_x_input = tokenizer(
             total_ice_lang_x_input, return_tensors='pt', padding=True
