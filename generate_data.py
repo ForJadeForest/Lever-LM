@@ -10,16 +10,12 @@ import torch
 from datasets import Dataset, DatasetDict
 from dotenv import load_dotenv
 from omegaconf import DictConfig
+from openicl import PromptTemplate
 from PIL import Image
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from src.load_ds_utils import (
-    get_caption_prompt,
-    get_vqa_prompt,
-    load_coco_ds,
-    load_vqav2_ds,
-)
+from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.info_score import get_info_score
 from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
 
@@ -67,23 +63,23 @@ def generate_single_sample_ice(
     autocast_context,
     device,
 ):
+    template = PromptTemplate(
+        cfg.task.template, 
+        column_token_map=cfg.task.column_token_map,
+        ice_token=cfg.task.ice_token
+    )
+    
     # 构建test sample prompt
-    if cfg.task.task_name == 'vqa':
-        prompt_method = get_vqa_prompt
-    elif cfg.task.task_name == 'caption':
-        prompt_method = get_caption_prompt
+    test_data_text = template.generate_ice_item(test_data)
 
-    test_text_input = {k: test_data[k] for k in cfg.task.text_fields}
-    test_data_text = prompt_method(**test_text_input)
-
-    test_data_image = test_data[cfg.task.img_field]
+    test_data_image = test_data[cfg.task.image_field]
     test_data_id = test_data['idx']
 
     # 构建candidate set
     candidateidx2data = {
         data['idx']: {
-            'text_input': prompt_method(**{k: data[k] for k in cfg.task.text_fields}),
-            'image': data[cfg.task.img_field],
+            'text_input': template.generate_ice_item(data),
+            'image': data[cfg.task.image_field],
             'idx': data['idx'],
         }
         for data in candidate_set
@@ -182,7 +178,7 @@ def gen_data(
         process_device,
         cfg.flamingo.load_from_local,
     )
-    tokenizer.pad_token = tokenizer.eos_token
+    
 
     final_res = {}
     cur_idx = 0
@@ -300,7 +296,7 @@ def main(cfg: DictConfig):
                 data_key = cfg.task.sim_text_field
             elif cfg.sim_method == 'image':
                 encoding_method = encode_image
-                data_key = cfg.task.sim_img_field
+                data_key = cfg.task.sim_image_field
             else:
                 raise ValueError('the sim_method error')
             sim_model_name = cfg.sim_model_type.split('/')[-1]
