@@ -6,6 +6,7 @@ defaults:
   - _self_
   - train: idx_base
   - dataset: coco2017
+  - task: caption
 
 
 # data args
