@@ -5,7 +5,6 @@ defaults:
   - train: idx_base
 
 # generation config
-overwrite_metainfo: false
 precision: bf16
 device: cuda
 test_data_num: -1
