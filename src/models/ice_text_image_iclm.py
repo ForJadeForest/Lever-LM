@@ -43,9 +43,11 @@ class ICETextImageICLM(BaseICLM):
     def generation(
         self,
         img_input,
+        init_ice_input,
         shot_num,
         index_ds,
         processor,
+        device,
         text_field,
         image_field,
         repetition_penalty=2.0,
@@ -54,13 +56,13 @@ class ICETextImageICLM(BaseICLM):
         Generate for one batch
         """
         ice_input = None
-        device = next(self.lm_model.parameters()).device
-        ice_seq_idx = torch.tensor([[118288, 118289]]).to(device)
-
+        ice_seq_idx = init_ice_input
+        sp_token_begin = len(index_ds)
+        
         for _ in range(shot_num):
             out = self.forward(img_input, ice_input, ice_seq_idx).logits[:, -1, :]
             # set the sp token prob to 0
-            out[:, 118287:] = -torch.inf
+            out[:, sp_token_begin:] = -torch.inf
             for ice_idx in ice_seq_idx:
                 out[:, ice_idx] /= repetition_penalty
 

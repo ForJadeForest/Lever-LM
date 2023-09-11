@@ -14,7 +14,12 @@ from PIL import Image
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from src.load_ds_utils import load_coco_ds, load_vqa_train_ds
+from src.load_ds_utils import (
+    get_caption_prompt,
+    get_vqa_prompt,
+    load_coco_ds,
+    load_vqav2_ds,
+)
 from src.metrics.info_score import get_info_score
 from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
 
@@ -25,17 +30,12 @@ for handler in logger.handlers[:]:
     logger.removeHandler(handler)
 
 handler = logging.StreamHandler()
-formatter = logging.Formatter('[%(asctime)s][%(name)s][%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S,%f'[:-3])
+formatter = logging.Formatter(
+    '[%(asctime)s][%(name)s][%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S,%f'[:-3],
+)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-
-
-def get_caption_prompt(single_caption=None) -> str:
-    return f"<image>Output:{single_caption if single_caption is not None else ''}{'<|endofchunk|>' if single_caption is not None else ''}"
-
-
-def get_vqa_prompt(question, answer=None) -> str:
-    return f"<image>Question:{question} Short answer:{answer if answer is not None else ''}{'<|endofchunk|>' if answer is not None else ''}"
 
 
 def load_feature_cache(cfg, cache_path, encoding_method, coco_dataset, data_key):
@@ -199,7 +199,7 @@ def gen_data(
         )
     if len(final_res) == subset_size:
         logger.info(f'Rank: {rank} task is Done.')
-        return 
+        return
 
     subset = subset.select(range(cur_idx + 1, len(subset)))
     for i, test_data in enumerate(
@@ -258,7 +258,7 @@ def main(cfg: DictConfig):
     if cfg.task.task_name == 'caption':
         train_ds = load_coco_ds(cfg, split='train')
     elif cfg.task.task_name == 'vqa':
-        train_ds = load_vqa_train_ds(cfg)
+        train_ds = load_vqav2_ds(cfg, split='train')
     else:
         raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
 

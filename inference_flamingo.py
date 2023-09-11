@@ -3,6 +3,7 @@ import json
 import logging
 import os
 
+import datasets
 import hydra
 import pandas as pd
 import torch
@@ -23,7 +24,7 @@ from transformers import AutoProcessor, AutoTokenizer
 from src.dataset_module import CocoDataset
 from src.load_ds_utils import load_coco_ds
 from src.metrics.cider_calculator import compute_cider
-from src.models import ICETextICLM, IdxBaseICLM
+from src.models import ICETextICLM, ICETextImageICLM, IdxBaseICLM
 from src.utils import init_flamingo
 
 logger = logging.getLogger(__name__)
@@ -103,7 +104,10 @@ def init_retriever(retriever_name, dr, cfg):
         return ZeroRetriever(dr, prompt_eos_token='', test_split='validation')
     elif retriever_name == 'RandomSample':
         return RandomRetriever(
-            dr, ice_separator='<|endofchunk|>', ice_eos_token='<|endofchunk|>', test_split='validation'
+            dr,
+            ice_separator='<|endofchunk|>',
+            ice_eos_token='<|endofchunk|>',
+            test_split='validation',
         )
     elif retriever_name.startswith('MMTopKRetriever'):
         mode = retriever_name.split('-')[-1]
@@ -228,8 +232,7 @@ def main(cfg: DictConfig):
         iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
         iclm_model.load_state_dict(torch.load(cfg.iclm_path)['model'])
 
-        image_processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
-        tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+        processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
         retriever_info = 'ICLM-' + os.path.splitext(os.path.basename(cfg.iclm_path))[0]
 
         info = base_info + retriever_info
@@ -237,23 +240,34 @@ def main(cfg: DictConfig):
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
             output_files = info + f'-{shot_num=}'
             if isinstance(iclm_model, ICETextICLM):
-                ice_idx_list = clip_base_iclm_gene_ice(
-                    iclm_model,
-                    ds[test_split],
-                    ds['train'],
-                    image_processor,
-                    tokenizer,
-                    shot_num,
-                    cfg.device,
+                ice_idx_list = ice_text_iclm_generation(
+                    iclm_model=iclm_model,
+                    val_ds=ds[test_split],
+                    train_ds=ds['train'],
+                    processor=processor,
+                    shot_num=shot_num,
+                    device=cfg.device,
+                    text_field=cfg.task.train_text_field,
                 )
             elif isinstance(iclm_model, IdxBaseICLM):
-                ice_idx_list = idx_base_iclm_gene_ice(
+                ice_idx_list = idx_iclm_generation(
                     iclm_model,
                     ds[test_split],
-                    image_processor,
+                    processor,
                     shot_num,
                     cfg.device,
                     cfg.eos_token_id,
+                )
+            elif isinstance(iclm_model, ICETextImageICLM):
+                ice_idx_list = ice_text_image_iclm_generation(
+                    iclm_model=iclm_model,
+                    val_ds=ds[test_split],
+                    train_ds=ds['train'],
+                    processor=processor,
+                    shot_num=shot_num,
+                    device=cfg.device,
+                    text_field=cfg.task.train_text_field,
+                    image_field=cfg.task.train_image_field,
                 )
             retriever = DirRetriever(
                 dr,
@@ -278,9 +292,7 @@ def main(cfg: DictConfig):
 
 
 @torch.inference_mode()
-def idx_base_iclm_gene_ice(
-    iclm_model, ds, img_processor, shot_num, device, eos_token_id
-):
+def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_token_id):
     iclm_model = iclm_model.to(device)
     iclm_model.eval()
     ice_idx_list = []
@@ -324,27 +336,69 @@ def idx_base_iclm_gene_ice(
 
 
 @torch.inference_mode()
-def clip_base_iclm_gene_ice(
-    iclm_model, val_ds, train_ds, img_processor, tokenizer, shot_num, device
+def ice_text_iclm_generation(
+    iclm_model: ICETextICLM,
+    val_ds: datasets.Dataset,
+    train_ds: datasets.Dataset,
+    processor,
+    shot_num,
+    device,
+    text_field,
 ):
     iclm_model = iclm_model.to(device)
     iclm_model.eval()
     ice_idx_list = []
+    ice_input = torch.tensor([[118288, 118289]]).to(device)
 
     for data in tqdm(val_ds):
         img = data['image']
-        img = img_processor(images=img, return_tensors='pt').to(device)['pixel_values']
+        img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
         res = iclm_model.generation(
-            img,
-            shot_num,
-            train_ds,
-            tokenizer,
-            text_field='single_caption',
+            img_input=img,
+            init_ice_idx=ice_input,
+            shot_num=shot_num,
+            index_ds=train_ds,
+            processor=processor,
+            text_field=text_field,
+            device=device,
             repetition_penalty=2.0,
         )[0]
         res = res[2 : 2 + shot_num]
-        assert len(res) == shot_num, f'{len(res)=}'
-        assert 118287 not in res, f'{res=}'
+        ice_idx_list.append(res)
+    return ice_idx_list
+
+
+@torch.inference_mode()
+def ice_text_image_iclm_generation(
+    iclm_model: ICETextImageICLM,
+    val_ds: datasets.Dataset,
+    train_ds: datasets.Dataset,
+    processor,
+    shot_num,
+    device,
+    text_field,
+    image_field,
+):
+    iclm_model = iclm_model.to(device)
+    iclm_model.eval()
+    ice_idx_list = []
+    ice_input = torch.tensor([[118288, 118289]]).to(device)
+
+    for data in tqdm(val_ds):
+        img = data['image']
+        img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
+        res = iclm_model.generation(
+            img_input=img,
+            init_ice_idx=ice_input,
+            shot_num=shot_num,
+            index_ds=train_ds,
+            processor=processor,
+            text_field=text_field,
+            image_field=image_field,
+            device=device,
+            repetition_penalty=2.0,
+        )[0]
+        res = res[2 : 2 + shot_num]
         ice_idx_list.append(res)
     return ice_idx_list
 

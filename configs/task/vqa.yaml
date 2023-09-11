@@ -1,9 +1,12 @@
 task_name: vqa
+# use for get prompt for flamingo
 text_fields: ["question", "answer"]
 img_field: "image"
 ice_join_char: ""
+# use for get sim text when get the candidate set
 sim_text_field: "question"
 sim_img_field: "image"
 
-train_text_field: "question&answer"
+# use for train model and inference
+train_text_field: "q_a"
 train_image_field: "image"

@@ -7,6 +7,14 @@ from datasets import DatasetDict, load_dataset
 from src.dataset_module import CocoDataset
 
 
+def get_caption_prompt(single_caption=None) -> str:
+    return f"<image>Output:{single_caption if single_caption is not None else ''}{'<|endofchunk|>' if single_caption is not None else ''}"
+
+
+def get_vqa_prompt(question, answer=None) -> str:
+    return f"<image>Question:{question} Short answer:{answer if answer is not None else ''}{'<|endofchunk|>' if answer is not None else ''}"
+
+
 def load_coco_ds(cfg, split=None):
     if cfg.dataset.name == 'coco_karpathy_split':
         # TODO: 完善load batch的方法
@@ -42,16 +50,6 @@ def load_coco_ds(cfg, split=None):
     return ds
 
 
-def load_vqa_train_ds(cfg):
-    if cfg.dataset.name == 'vqav2':
-        ds = load_vqav2_ds(cfg, split='train')
-    else:
-        raise ValueError(
-            f'{cfg.dataset.name=} do not exits, now only support ["vqav2"]'
-        )
-    return ds
-
-
 def load_vqav2_ds(cfg, split=None):
     if cfg.dataset.version == 'local':
         data_files = {
@@ -69,6 +67,7 @@ def load_vqav2_ds(cfg, split=None):
                 os.path.join(cfg.dataset.train_coco_dataset_root, f_n)
                 for f_n in filename
             ]
+
             x['image'] = img_path
             x['idx'] = idx
             return x
@@ -83,8 +82,12 @@ def load_vqav2_ds(cfg, split=None):
             return x
 
         if split is None:
-            ds['train'] = ds['train'].map(train_trans)
-            ds['validation'] = ds['validation'].map(val_trans)
+            ds['train'] = ds['train'].map(
+                train_trans, batched=True, with_indices=True, num_proc=12
+            )
+            ds['validation'] = ds['validation'].map(
+                val_trans, batched=True, with_indices=True, num_proc=12
+            )
         elif split == 'train':
             ds = ds.map(train_trans, batched=True, with_indices=True, num_proc=12)
         elif split == 'validation':
@@ -96,7 +99,17 @@ def load_vqav2_ds(cfg, split=None):
         ds.pop('testdev', None)
         ds = ds.sort('question_id')
 
-    def find_most_common_answer(data):
+    def gene_answer_for_batch(batch_data):
+        answers = [gene_answer(answers) for answers in batch_data['answers']]
+        questions = [q for q in batch_data['question']]
+        q_a = [
+            f'Question:{q} Answer: {a}' for q, a in zip(questions, answers)
+        ]
+        batch_data['answer'] = answers
+        batch_data['q_a'] = q_a
+        return batch_data
+
+    def gene_answer(data):
         # Use list comprehension to filter out answers with answer_confidence = "yes"
         yes_answers = [
             item['answer'] for item in data if item['answer_confidence'] == 'yes'
@@ -120,7 +133,7 @@ def load_vqav2_ds(cfg, split=None):
             return most_common_answer[0][0]
         return data[0]['answer']
 
-    ds = ds.map(lambda x: {'answer': find_most_common_answer(x['answers'])})
+    ds = ds.map(gene_answer_for_batch, batched=True, num_proc=12)
     return ds
 
 
