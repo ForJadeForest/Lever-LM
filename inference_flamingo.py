@@ -140,7 +140,7 @@ def main(cfg: DictConfig):
     ice_prompt = PromptTemplate(
         template=cfg.task.template,
         ice_token=cfg.task.ice_token,
-        column_token_map=cfg.task.column_token_map,
+        column_token_map=dict(cfg.task.column_token_map),
     )
     test_data_num = cfg.test_data_num
     if cfg.task.task_name == 'caption':
