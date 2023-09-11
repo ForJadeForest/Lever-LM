@@ -44,12 +44,8 @@ So you should prepare the mscoco2017 or mscoco2014
 ## Generation the train dataset
 
 ```
-python generate_data.py candidate_set_num=128 beam_size=16 few_shot_num=4 bs=128 gpu_ids="[0,1,2,3,4,5,6,7]"
+python generate_data.py candidate_set_num=128 beam_size=10 few_shot_num=4 bs=128 gpu_ids="[0,1,2,3,4,5,6,7]"
 
-python generate_data.py candidate_set_num=256 beam_size=16 few_shot_num=8 bs=128 gpu_ids="[0,1,2,3,4,5,6,7]"
-
-python generate_data.py candidate_set_num=128 beam_size=16 few_shot_num=4 bs=128 gpu_ids="[0,1,2,3,4,5,6,7]" random_sample_candidate_set=true
-
-python generate_data.py candidate_set_num=128 beam_size=16 few_shot_num=4 bs=128 gpu_ids="[0,1,2,3,4,5,6,7]" sample_num=20000
+python generate_data.py candidate_set_num=128 beam_size=10 few_shot_num=4 bs=128 gpu_ids="[0,1,2,3,4,5,6,7]" random_sample_candidate_set=true
 
 ```
