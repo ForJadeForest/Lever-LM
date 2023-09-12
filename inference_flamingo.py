@@ -2,6 +2,8 @@ import datetime
 import json
 import logging
 import os
+import random
+import uuid
 
 import datasets
 import hydra
@@ -24,6 +26,7 @@ from transformers import AutoProcessor, AutoTokenizer
 from src.dataset_module import CocoDataset
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import compute_cider
+from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
 from src.models import ICETextICLM, ICETextImageICLM, IdxBaseICLM
 from src.utils import init_flamingo
 
@@ -48,24 +51,36 @@ def evaluate_retriever(
     ice_prompt,
     base_info,
     shot_num_list,
-    val_coco_annotation_file,
     result_json_path,
+    cfg,
 ):
     retriever_res = {}
     info = base_info + retriever_name
     for shot_num in shot_num_list:
-        logger.info(f'Now begin test: {retriever_name} with {shot_num=}')
+        logger.info(
+            f'Now begin test {cfg.task.task_name}: {retriever_name} with {shot_num=}'
+        )
         output_files = info + f'-{shot_num=}'
         retriever.ice_num = shot_num
-        cider_score = inference_cider(
-            inferencer,
-            retriever,
-            ice_prompt,
-            val_coco_annotation_file,
-            output_files,
-        )
-        retriever_res[f'{shot_num=}'] = cider_score
-        logger.info(f'{output_files}: {cider_score=}')
+        if cfg.task.task_name == 'caption':
+            metric = inference_caption(
+                inferencer,
+                retriever,
+                ice_prompt,
+                cfg.dataset.val_coco_annotation_file,
+                output_files,
+            )
+        elif cfg.task.task_name == 'vqa':
+            metric = inference_vqa(
+                inferencer=inferencer,
+                retriever=retriever,
+                ice_prompt=ice_prompt,
+                val_ques_path=cfg.dataset.val_ques_path,
+                val_ann_path=cfg.dataset.val_ann_path,
+                output_json_filename=output_files,
+            )
+        retriever_res[f'{shot_num=}'] = metric
+        logger.info(f'{output_files}: {metric=}')
         record(result_json_path, {info: retriever_res})
 
 
@@ -81,6 +96,24 @@ def init_retriever(retriever_name, dr, cfg):
         )
     elif retriever_name.startswith('MMTopKRetriever'):
         mode = retriever_name.split('-')[-1]
+        index_field = (
+            cfg.task.ice_text_feature_field
+            if mode.endswith('t')
+            else cfg.task.image_field
+        )
+        test_field = (
+            cfg.task.image_field
+            if mode.startswith('i')
+            else cfg.task.ice_text_feature_field
+        )
+
+        cache_file = os.path.join(
+            cfg.result_dir,
+            'cache',
+            f'{cfg.task.task_name}-{cfg.dataset.name}-{mode}-'
+            f'index_field:{index_field}-test_data_num:{cfg.test_data_num}-'
+            f'test_field:{test_field}-emb_cache.pth',
+        )
         return MMTopkRetriever(
             dr,
             ice_separator='<|endofchunk|>',
@@ -88,19 +121,16 @@ def init_retriever(retriever_name, dr, cfg):
             test_split='validation',
             batch_size=32,
             mode=mode,
-            index_field=cfg.task.ice_text_feature_field
-            if mode.endswith('t')
-            else cfg.task.image_field,
-            test_field=cfg.task.image_field
-            if mode.startswith('i')
-            else cfg.task.ice_text_feature_field,
+            index_field=index_field,
+            test_field=test_field,
             clip_model_name=cfg.mmtopk_clip_name,
+            cache_file=cache_file,
         )
     # Add other retrievers if needed
     return None
 
 
-def inference_cider(
+def inference_caption(
     inferencer,
     retriever,
     ice_prompt,
@@ -127,6 +157,33 @@ def inference_cider(
     return cider_score
 
 
+def inference_vqa(
+    inferencer, retriever, ice_prompt, val_ques_path, val_ann_path, output_json_filename
+):
+    output_dict = inferencer.inference(
+        retriever,
+        ice_prompt,
+        output_json_filename=output_json_filename,
+        return_dict=True,
+    )
+    preds = []
+    for idx in output_dict:
+        preds.append(
+            {
+                'answer': postprocess_vqa_generation(output_dict[idx]['prediction']),
+                'question_id': output_dict[idx]['question_id'],
+            }
+        )
+    random_uuid = str(uuid.uuid4())
+
+    with open(f'{random_uuid}.json', 'w') as f:
+        f.write(json.dumps(preds, indent=4))
+    acc = compute_vqa_accuracy(f"{random_uuid}.json", val_ques_path, val_ann_path)
+    # delete the temporary file
+    os.remove(f"{random_uuid}.json")
+    return acc
+
+
 @hydra.main(version_base=None, config_path="./configs", config_name="inference.yaml")
 def main(cfg: DictConfig):
     result_dir = os.path.join(
@@ -143,6 +200,7 @@ def main(cfg: DictConfig):
         column_token_map=dict(cfg.task.column_token_map),
     )
     test_data_num = cfg.test_data_num
+    index_data_num = cfg.index_data_num
     if cfg.task.task_name == 'caption':
         ds = load_coco_ds(cfg)
     elif cfg.task.task_name == 'vqa':
@@ -151,11 +209,17 @@ def main(cfg: DictConfig):
         raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
 
     test_split = 'validation'
+    if index_data_num != -1:
+        ds['train'] = ds['train'].select(
+            random.sample(range(len(ds['train'])), index_data_num)
+        )
     if test_data_num != -1:
         ds[test_split] = ds[test_split].select(range(test_data_num))
 
     dr = DatasetReader(
-        ds, input_columns=cfg.task.input_columns, output_column=cfg.task.output_column
+        ds,
+        input_columns=list(cfg.task.input_columns),
+        output_column=cfg.task.output_column,
     )
 
     model, image_processor, tokenizer, autocast_context = init_flamingo(
@@ -201,8 +265,8 @@ def main(cfg: DictConfig):
                 ice_prompt,
                 base_info,
                 shot_nums,
-                cfg.dataset.val_coco_annotation_file,
                 result_json_path,
+                cfg,
             )
     # ICLM sample test
     if cfg.test_iclm:
@@ -257,7 +321,7 @@ def main(cfg: DictConfig):
             )
             retriever_info = 'ICLM'
             retriever.ice_num = shot_num
-            cider_score = inference_cider(
+            cider_score = inference_caption(
                 inferencer,
                 retriever,
                 ice_prompt,
