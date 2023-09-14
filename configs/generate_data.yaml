@@ -5,8 +5,8 @@
 defaults:
   - _self_
   - flamingo: flamingo_9B
-  - dataset: vqav2_local
-  - task: vqa
+  - dataset: coco2017
+  - task: caption
 
 
 # get candidate_set args
@@ -36,7 +36,7 @@ sleep_time: 90
 
 
 only_y_loss: true
-split_token: "Short answer:"
+split_token: "Output:"
 
 # hydra
 hydra:
