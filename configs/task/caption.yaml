@@ -1,9 +1,18 @@
 task_name: caption
-text_fields: ["single_caption"]
-img_field: "image"
-ice_join_char: ""
-sim_text_field: "single_caption"
-sim_img_field: "image"
+# use for get prompt for flamingo
+# for get prompt of openicl
+image_field: "image"
 
-train_text_field: "single_caption"
-train_image_field: "image"
+template: "</E><image>Output:<X>"
+ice_token: "</E>"
+column_token_map:
+  single_caption: <X>
+input_columns: ["single_caption"]
+output_column: "answer"
+
+ice_join_char: "<|endofchunk|>"
+
+sim_text_field: "single_caption"
+sim_image_field: "image"
+
+ice_text_feature_field: "single_caption"

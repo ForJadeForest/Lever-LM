@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from lightning.fabric import Fabric
 from lightning.fabric.loggers import TensorBoardLogger
 from omegaconf import DictConfig
+from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @torch.no_grad()
-def validation(model, val_dataloader, fabric: Fabric):
+def validation(model: nn.Module, val_dataloader: DataLoader, fabric: Fabric):
     model.eval()
     val_bar = tqdm(
         val_dataloader, desc=f'val Loss: xx.xxxx', disable=(fabric.local_rank != 0)
@@ -38,7 +39,14 @@ def validation(model, val_dataloader, fabric: Fabric):
 
 
 def train(
-    cfg, train_dataloader, val_dataloader, model, fabric, optimizer, scheduler, save_dir
+    cfg: DictConfig,
+    train_dataloader: DataLoader,
+    val_dataloader: DataLoader,
+    model: nn.Module,
+    fabric: Fabric,
+    optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler.LambdaLR,
+    save_dir: str,
 ):
     step = 0
     min_val_loss = float('inf')

@@ -1,12 +1,10 @@
+import argparse
+import json
+from pathlib import Path
+
 if __name__ == '__main__':
-    import json
-    from pathlib import Path
-    import argparse
-    
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--root_path', type=str
-    )
+    parser.add_argument('--root_path', type=str)
     args = parser.parse_args()
     root = Path(args.root_path)
     train_ques = root / 'v2_OpenEnded_mscoco_train2014_questions.json'
@@ -18,8 +16,7 @@ if __name__ == '__main__':
     save_path = root / 'vqav2_hf'
     if not save_path.exists():
         save_path.mkdir()
-        
-    
+
     ques = json.load(open(train_ques))
     ann = json.load(open(train_ann))
     quesid2question = {}
@@ -30,9 +27,9 @@ if __name__ == '__main__':
         a['question'] = quesid2question[a['question_id']]
         total_data.append(a)
     ann['annotations'] = total_data
-    with open(save_path / 'vqav2_mscoco_train2014.json', 'w')as f:
+    with open(save_path / 'vqav2_mscoco_train2014.json', 'w') as f:
         json.dump(ann, f)
-        
+
     ques = json.load(open(val_ques))
     ann = json.load(open(val_ann))
     quesid2question = {}
@@ -43,5 +40,5 @@ if __name__ == '__main__':
         a['question'] = quesid2question[a['question_id']]
         total_data.append(a)
     ann['annotations'] = total_data
-    with open(save_path / 'vqav2_mscoco_val2014.json', 'w')as f:
+    with open(save_path / 'vqav2_mscoco_val2014.json', 'w') as f:
         json.dump(ann, f)

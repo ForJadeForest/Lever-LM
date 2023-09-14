@@ -10,11 +10,12 @@ import torch
 from datasets import Dataset, DatasetDict
 from dotenv import load_dotenv
 from omegaconf import DictConfig
+from openicl import PromptTemplate
 from PIL import Image
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from src.load_ds_utils import load_coco_ds, load_vqa_train_ds
+from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.info_score import get_info_score
 from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
 
@@ -25,17 +26,12 @@ for handler in logger.handlers[:]:
     logger.removeHandler(handler)
 
 handler = logging.StreamHandler()
-formatter = logging.Formatter('[%(asctime)s][%(name)s][%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S,%f'[:-3])
+formatter = logging.Formatter(
+    '[%(asctime)s][%(name)s][%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S,%f'[:-3],
+)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-
-
-def get_caption_prompt(single_caption=None) -> str:
-    return f"<image>Output:{single_caption if single_caption is not None else ''}{'<|endofchunk|>' if single_caption is not None else ''}"
-
-
-def get_vqa_prompt(question, answer=None) -> str:
-    return f"<image>Question:{question} Short answer:{answer if answer is not None else ''}{'<|endofchunk|>' if answer is not None else ''}"
 
 
 def load_feature_cache(cfg, cache_path, encoding_method, coco_dataset, data_key):
@@ -67,23 +63,23 @@ def generate_single_sample_ice(
     autocast_context,
     device,
 ):
+    template = PromptTemplate(
+        cfg.task.template,
+        column_token_map=dict(cfg.task.column_token_map),
+        ice_token=cfg.task.ice_token,
+    )
+
     # 构建test sample prompt
-    if cfg.task.task_name == 'vqa':
-        prompt_method = get_vqa_prompt
-    elif cfg.task.task_name == 'caption':
-        prompt_method = get_caption_prompt
+    test_data_text = template.generate_item(test_data)
 
-    test_text_input = {k: test_data[k] for k in cfg.task.text_fields}
-    test_data_text = prompt_method(**test_text_input)
-
-    test_data_image = test_data[cfg.task.img_field]
+    test_data_image = test_data[cfg.task.image_field]
     test_data_id = test_data['idx']
 
     # 构建candidate set
     candidateidx2data = {
         data['idx']: {
-            'text_input': prompt_method(**{k: data[k] for k in cfg.task.text_fields}),
-            'image': data[cfg.task.img_field],
+            'text_input': template.generate_item(data),
+            'image': data[cfg.task.image_field],
             'idx': data['idx'],
         }
         for data in candidate_set
@@ -131,7 +127,7 @@ def generate_single_sample_ice(
             indices = indices.tolist()
             indices = list(
                 map(
-                    lambda x: filtered_candidateidx2data[filtered_idx_list[x]]['idx'],
+                    lambda x: filtered_idx_list[x],
                     indices,
                 )
             )
@@ -182,7 +178,6 @@ def gen_data(
         process_device,
         cfg.flamingo.load_from_local,
     )
-    tokenizer.pad_token = tokenizer.eos_token
 
     final_res = {}
     cur_idx = 0
@@ -199,7 +194,7 @@ def gen_data(
         )
     if len(final_res) == subset_size:
         logger.info(f'Rank: {rank} task is Done.')
-        return 
+        return
 
     subset = subset.select(range(cur_idx + 1, len(subset)))
     for i, test_data in enumerate(
@@ -258,7 +253,7 @@ def main(cfg: DictConfig):
     if cfg.task.task_name == 'caption':
         train_ds = load_coco_ds(cfg, split='train')
     elif cfg.task.task_name == 'vqa':
-        train_ds = load_vqa_train_ds(cfg)
+        train_ds = load_vqav2_ds(cfg, split='train')
     else:
         raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
 
@@ -300,7 +295,7 @@ def main(cfg: DictConfig):
                 data_key = cfg.task.sim_text_field
             elif cfg.sim_method == 'image':
                 encoding_method = encode_image
-                data_key = cfg.task.sim_img_field
+                data_key = cfg.task.sim_image_field
             else:
                 raise ValueError('the sim_method error')
             sim_model_name = cfg.sim_model_type.split('/')[-1]
@@ -317,7 +312,7 @@ def main(cfg: DictConfig):
                 test_feature, train_feature, top_k=cfg.candidate_set_num + 1
             )
 
-            candidate_set_idx = candidate_set_idx[:, 1:]
+            candidate_set_idx = candidate_set_idx[:, 1:].tolist()
         sample_cache_metainfo['candidate_set_idx'] = candidate_set_idx
         with open(sample_data_idx_cache, 'w') as f:
             logger.info(f'save {sample_data_idx_cache}...')

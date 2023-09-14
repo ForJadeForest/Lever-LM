@@ -13,16 +13,6 @@ class ICETextICLM(BaseICLM):
         self.sen_model = CLIPTextModelWithProjection.from_pretrained(clip_name)
 
     def forward(self, img_input, ice_input, ice_seq_idx):
-        """_summary_
-
-        Args:
-            img_input (tensor): batch_size *&
-            ice_input (_type_): _description_ batchsize, ice_num, 
-            ice_seq_idx (_type_): _description_
-
-        Returns:
-            _type_: _description_
-        """
         inputs_embeds = super().forward(img_input, ice_seq_idx)
         if ice_input is None:
             lm_output = self.lm_model(inputs_embeds=inputs_embeds)
@@ -46,23 +36,26 @@ class ICETextICLM(BaseICLM):
     def generation(
         self,
         img_input,
+        init_ice_idx,
         shot_num,
-        coco_ds,
+        index_ds,
         processor,
         text_field,
+        device,
         repetition_penalty=2.0,
     ):
         """
         Generate for one batch
         """
         ice_input = None
-        device = next(self.lm_model.parameters()).device
-        ice_seq_idx = torch.tensor([[118288, 118289]]).to(device)
-
+        ice_seq_idx = init_ice_idx
+        sp_token_begin = len(index_ds)
+        
         for _ in range(shot_num):
             out = self.forward(img_input, ice_input, ice_seq_idx).logits[:, -1, :]
             # set the sp token prob to 0
-            out[:, 118287:] = -torch.inf
+            
+            out[:, sp_token_begin:] = -torch.inf
             for ice_idx in ice_seq_idx:
                 out[:, ice_idx] /= repetition_penalty
 
@@ -73,12 +66,14 @@ class ICETextICLM(BaseICLM):
                 dim=1,
             )
 
-            ice_text_list = [ 
-                coco_ds[i][text_field] for i in ice_seq_idx.tolist()[0][2:]
+            ice_text_list = [
+                index_ds[i][text_field] for i in ice_seq_idx.tolist()[0][2:]
             ]
             ice_input = processor(
                 text=ice_text_list, padding=True, return_tensors='pt'
-            ).to(device) # shape: ice_num * seq_len
+            ).to(device)
+
+            # shape: 1, ice_num ,seq_len
             ice_input = {k: v.unsqueeze(dim=0) for k, v in ice_input.items()}
 
         return ice_seq_idx.detach().cpu().tolist()

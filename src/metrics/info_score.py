@@ -67,7 +67,9 @@ def get_info_score(
     # 1. 计算P(y|x)
     # 1.1 拼接文本输入
     test_lang_x_input = lang_x[-1]
-    chosen_ice_input = ice_join_char.join(lang_x[:-1]) + ice_join_char
+    chosen_ice_input = ice_join_char.join(lang_x[:-1])
+    if chosen_ice_input:
+        chosen_ice_input += '<|endofchunk|>'
     left_padding_token = 0
     if not chosen_ice_input and not only_y_loss:
         chosen_ice_input = '<|endoftext|>'
@@ -81,8 +83,10 @@ def get_info_score(
 
     mask_length = get_input_token_num(tokenizer, mask_context)
 
-    lang_x_input = chosen_ice_input + test_lang_x_input
+    lang_x_input = chosen_ice_input + test_lang_x_input + ice_join_char
     lang_x_input = tokenizer(lang_x_input, return_tensors='pt').to(device=device)
+    lang_x_input['attention_mask'][lang_x_input['input_ids'] == 0] = 0
+    
 
     # 1.2 拼接图像输入
     image_x = [image_processor(image) for image in image_x]
@@ -103,7 +107,6 @@ def get_info_score(
         left_padding_len=left_padding_token,
     )
 
-
     # 2. 计算P(y|x, c)
     info_score_list = []
     cand_idx = sorted(list(candidate_set.keys()))
@@ -114,7 +117,8 @@ def get_info_score(
 
         # 2.1 拼接文本输入
         total_ice_lang_x_input = [
-            ice_join_char.join([ice_lang_x] + lang_x) for ice_lang_x in new_ice_lang_x
+            ice_join_char.join([ice_lang_x] + lang_x) + ice_join_char
+            for ice_lang_x in new_ice_lang_x
         ]
         total_ice_lang_x_input = tokenizer(
             total_ice_lang_x_input, return_tensors='pt', padding=True

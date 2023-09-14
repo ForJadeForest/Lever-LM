@@ -5,4 +5,4 @@ eos_token_id: 118287
 bos_token_id: 118288
 query_token_id: 118289
 
-image_field: ${task.train_image_field}
+image_field: ${task.image_field}

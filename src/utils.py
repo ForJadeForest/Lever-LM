@@ -77,6 +77,7 @@ def init_flamingo(
     model.to(device=device, dtype=data_type, non_blocking=True)
     model.eval()
     tokenizer.padding_side = 'left'
+    tokenizer.pad_token = tokenizer.eos_token
     autocast_context = get_autocast(precision)
     return model, image_processor, tokenizer, autocast_context
 
@@ -87,7 +88,7 @@ def recall_sim_feature(test_vec, train_vec, top_k=200):
     index_feat = faiss.IndexFlatIP(dim)
     index_feat.add(train_vec)
     dist, index = index_feat.search(test_vec, top_k)
-    return index
+    return dist, index
 
 
 @torch.inference_mode()

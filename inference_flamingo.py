@@ -2,7 +2,10 @@ import datetime
 import json
 import logging
 import os
+import random
+import uuid
 
+import datasets
 import hydra
 import pandas as pd
 import torch
@@ -21,42 +24,13 @@ from tqdm import tqdm
 from transformers import AutoProcessor, AutoTokenizer
 
 from src.dataset_module import CocoDataset
-from src.load_ds_utils import load_coco_ds
+from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import compute_cider
-from src.models import ICETextICLM, IdxBaseICLM
+from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
+from src.models import ICETextICLM, ICETextImageICLM, IdxBaseICLM
 from src.utils import init_flamingo
 
 logger = logging.getLogger(__name__)
-
-
-def construct_coco_dict(coco_root, version=2014, overwrite=False):
-    version_coco_root = os.path.join(coco_root, f'mscoco{version}')
-    for data_split in ['train', 'val']:
-        split_image_path = os.path.join(version_coco_root, f'{data_split}{version}')
-        meta_info_path = os.path.join(split_image_path, 'metadata.csv')
-        if not os.path.exists(meta_info_path) or overwrite:
-            ann_path = os.path.join(
-                version_coco_root, 'annotations', f'captions_{data_split}{version}.json'
-            )
-            dataset = CocoDataset(split_image_path, ann_path)
-
-            image_id_list = []
-            single_caption_list = []
-            captions_list = []
-            file_name_list = []
-            for d in dataset:
-                image_id_list.append(d['image_id'])
-                single_caption_list.append(d['single_caption'])
-                file_name_list.append(os.path.basename(d['image']))
-                captions_list.append(d['captions'])
-
-            data_dict = {
-                'image_id': image_id_list,
-                'single_caption': single_caption_list,
-                'captions': captions_list,
-                'file_name': file_name_list,
-            }
-            pd.DataFrame(data_dict).to_csv(meta_info_path, index=False)
 
 
 def record(result_json_path: str, new_data: dict):
@@ -77,24 +51,36 @@ def evaluate_retriever(
     ice_prompt,
     base_info,
     shot_num_list,
-    val_coco_annotation_file,
     result_json_path,
+    cfg,
 ):
     retriever_res = {}
     info = base_info + retriever_name
     for shot_num in shot_num_list:
-        logger.info(f'Now begin test: {retriever_name} with {shot_num=}')
+        logger.info(
+            f'Now begin test {cfg.task.task_name}: {retriever_name} with {shot_num=}'
+        )
         output_files = info + f'-{shot_num=}'
         retriever.ice_num = shot_num
-        cider_score = inference_cider(
-            inferencer,
-            retriever,
-            ice_prompt,
-            val_coco_annotation_file,
-            output_files,
-        )
-        retriever_res[f'{shot_num=}'] = cider_score
-        logger.info(f'{output_files}: {cider_score=}')
+        if cfg.task.task_name == 'caption':
+            metric = inference_caption(
+                inferencer,
+                retriever,
+                ice_prompt,
+                cfg.dataset.val_coco_annotation_file,
+                output_files,
+            )
+        elif cfg.task.task_name == 'vqa':
+            metric = inference_vqa(
+                inferencer=inferencer,
+                retriever=retriever,
+                ice_prompt=ice_prompt,
+                val_ques_path=cfg.dataset.val_ques_path,
+                val_ann_path=cfg.dataset.val_ann_path,
+                output_json_filename=output_files,
+            )
+        retriever_res[f'{shot_num=}'] = metric
+        logger.info(f'{output_files}: {metric=}')
         record(result_json_path, {info: retriever_res})
 
 
@@ -103,10 +89,31 @@ def init_retriever(retriever_name, dr, cfg):
         return ZeroRetriever(dr, prompt_eos_token='', test_split='validation')
     elif retriever_name == 'RandomSample':
         return RandomRetriever(
-            dr, ice_separator='<|endofchunk|>', ice_eos_token='<|endofchunk|>', test_split='validation'
+            dr,
+            ice_separator='<|endofchunk|>',
+            ice_eos_token='<|endofchunk|>',
+            test_split='validation',
         )
     elif retriever_name.startswith('MMTopKRetriever'):
         mode = retriever_name.split('-')[-1]
+        index_field = (
+            cfg.task.ice_text_feature_field
+            if mode.endswith('t')
+            else cfg.task.image_field
+        )
+        test_field = (
+            cfg.task.image_field
+            if mode.startswith('i')
+            else cfg.task.ice_text_feature_field
+        )
+
+        cache_file = os.path.join(
+            cfg.result_dir,
+            'cache',
+            f'{cfg.task.task_name}-{cfg.dataset.name}-{mode}-'
+            f'index_field:{index_field}-test_data_num:{cfg.test_data_num}-'
+            f'test_field:{test_field}-emb_cache.pth',
+        )
         return MMTopkRetriever(
             dr,
             ice_separator='<|endofchunk|>',
@@ -114,15 +121,16 @@ def init_retriever(retriever_name, dr, cfg):
             test_split='validation',
             batch_size=32,
             mode=mode,
-            index_field='single_caption' if mode.endswith('t') else 'image',
-            test_field='image' if mode.startswith('i') else 'single_caption',
+            index_field=index_field,
+            test_field=test_field,
             clip_model_name=cfg.mmtopk_clip_name,
+            cache_file=cache_file,
         )
     # Add other retrievers if needed
     return None
 
 
-def inference_cider(
+def inference_caption(
     inferencer,
     retriever,
     ice_prompt,
@@ -149,29 +157,69 @@ def inference_cider(
     return cider_score
 
 
+def inference_vqa(
+    inferencer, retriever, ice_prompt, val_ques_path, val_ann_path, output_json_filename
+):
+    output_dict = inferencer.inference(
+        retriever,
+        ice_prompt,
+        output_json_filename=output_json_filename,
+        return_dict=True,
+    )
+    preds = []
+    for idx in output_dict:
+        preds.append(
+            {
+                'answer': postprocess_vqa_generation(output_dict[idx]['prediction']),
+                'question_id': output_dict[idx]['question_id'],
+            }
+        )
+    random_uuid = str(uuid.uuid4())
+
+    with open(f'{random_uuid}.json', 'w') as f:
+        f.write(json.dumps(preds, indent=4))
+    acc = compute_vqa_accuracy(f"{random_uuid}.json", val_ques_path, val_ann_path)
+    # delete the temporary file
+    os.remove(f"{random_uuid}.json")
+    return acc
+
+
 @hydra.main(version_base=None, config_path="./configs", config_name="inference.yaml")
 def main(cfg: DictConfig):
-    construct_coco_dict(
-        cfg.dataset.coco_root, cfg.dataset.version, cfg.overwrite_metainfo
+    result_dir = os.path.join(
+        cfg.result_dir,
+        'flamingo_inference',
+        cfg.task.task_name,
+        cfg.ex_name,
     )
+    result_json_path = os.path.join(result_dir, 'metrics.json')
 
-    result_json_path = os.path.join(
-        cfg.result_dir, 'flamingo_inference', cfg.ex_name, 'total_cider_res.json'
-    )
     ice_prompt = PromptTemplate(
-        template='</E><image>Output:<X>',
-        ice_token='</E>',
-        column_token_map={'single_caption': '<X>'},
+        template=cfg.task.template,
+        ice_token=cfg.task.ice_token,
+        column_token_map=dict(cfg.task.column_token_map),
     )
-
     test_data_num = cfg.test_data_num
-    ds = load_coco_ds(cfg)
+    index_data_num = cfg.index_data_num
+    if cfg.task.task_name == 'caption':
+        ds = load_coco_ds(cfg)
+    elif cfg.task.task_name == 'vqa':
+        ds = load_vqav2_ds(cfg)
+    else:
+        raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
+
     test_split = 'validation'
+    if index_data_num != -1:
+        ds['train'] = ds['train'].select(
+            random.sample(range(len(ds['train'])), index_data_num)
+        )
     if test_data_num != -1:
         ds[test_split] = ds[test_split].select(range(test_data_num))
 
     dr = DatasetReader(
-        ds, input_columns=['single_caption'], output_column='single_caption'
+        ds,
+        input_columns=list(cfg.task.input_columns),
+        output_column=cfg.task.output_column,
     )
 
     model, image_processor, tokenizer, autocast_context = init_flamingo(
@@ -190,12 +238,10 @@ def main(cfg: DictConfig):
         image_processor,
         other_save_field=cfg.other_save_field,
         autocast_context=autocast_context,
-        image_field="image",
+        image_field=cfg.task.image_field,
         batch_size=cfg.inference_bs,
         generation_kwargs=cfg.gen_args,
-        output_json_filepath=os.path.join(
-            cfg.result_dir, 'flamingo_inference', cfg.ex_name, 'generation_metainfo'
-        ),
+        output_json_filepath=os.path.join(result_dir, 'generation_metainfo'),
     )
 
     base_info = f'{str(datetime.datetime.now())}-{test_data_num=}-'
@@ -219,8 +265,8 @@ def main(cfg: DictConfig):
                 ice_prompt,
                 base_info,
                 shot_nums,
-                cfg.dataset.val_coco_annotation_file,
                 result_json_path,
+                cfg,
             )
     # ICLM sample test
     if cfg.test_iclm:
@@ -228,8 +274,7 @@ def main(cfg: DictConfig):
         iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
         iclm_model.load_state_dict(torch.load(cfg.iclm_path)['model'])
 
-        image_processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
-        tokenizer = AutoTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+        processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
         retriever_info = 'ICLM-' + os.path.splitext(os.path.basename(cfg.iclm_path))[0]
 
         info = base_info + retriever_info
@@ -237,23 +282,34 @@ def main(cfg: DictConfig):
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
             output_files = info + f'-{shot_num=}'
             if isinstance(iclm_model, ICETextICLM):
-                ice_idx_list = clip_base_iclm_gene_ice(
-                    iclm_model,
-                    ds[test_split],
-                    ds['train'],
-                    image_processor,
-                    tokenizer,
-                    shot_num,
-                    cfg.device,
+                ice_idx_list = ice_text_iclm_generation(
+                    iclm_model=iclm_model,
+                    val_ds=ds[test_split],
+                    train_ds=ds['train'],
+                    processor=processor,
+                    shot_num=shot_num,
+                    device=cfg.device,
+                    text_field=cfg.task.ice_text_feature_field,
                 )
             elif isinstance(iclm_model, IdxBaseICLM):
-                ice_idx_list = idx_base_iclm_gene_ice(
+                ice_idx_list = idx_iclm_generation(
                     iclm_model,
                     ds[test_split],
-                    image_processor,
+                    processor,
                     shot_num,
                     cfg.device,
                     cfg.eos_token_id,
+                )
+            elif isinstance(iclm_model, ICETextImageICLM):
+                ice_idx_list = ice_text_image_iclm_generation(
+                    iclm_model=iclm_model,
+                    val_ds=ds[test_split],
+                    train_ds=ds['train'],
+                    processor=processor,
+                    shot_num=shot_num,
+                    device=cfg.device,
+                    text_field=cfg.task.ice_text_feature_field,
+                    image_field=cfg.task.image_field,
                 )
             retriever = DirRetriever(
                 dr,
@@ -265,7 +321,7 @@ def main(cfg: DictConfig):
             )
             retriever_info = 'ICLM'
             retriever.ice_num = shot_num
-            cider_score = inference_cider(
+            cider_score = inference_caption(
                 inferencer,
                 retriever,
                 ice_prompt,
@@ -278,9 +334,7 @@ def main(cfg: DictConfig):
 
 
 @torch.inference_mode()
-def idx_base_iclm_gene_ice(
-    iclm_model, ds, img_processor, shot_num, device, eos_token_id
-):
+def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_token_id):
     iclm_model = iclm_model.to(device)
     iclm_model.eval()
     ice_idx_list = []
@@ -324,27 +378,69 @@ def idx_base_iclm_gene_ice(
 
 
 @torch.inference_mode()
-def clip_base_iclm_gene_ice(
-    iclm_model, val_ds, train_ds, img_processor, tokenizer, shot_num, device
+def ice_text_iclm_generation(
+    iclm_model: ICETextICLM,
+    val_ds: datasets.Dataset,
+    train_ds: datasets.Dataset,
+    processor,
+    shot_num,
+    device,
+    text_field,
 ):
     iclm_model = iclm_model.to(device)
     iclm_model.eval()
     ice_idx_list = []
+    ice_input = torch.tensor([[118288, 118289]]).to(device)
 
     for data in tqdm(val_ds):
         img = data['image']
-        img = img_processor(images=img, return_tensors='pt').to(device)['pixel_values']
+        img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
         res = iclm_model.generation(
-            img,
-            shot_num,
-            train_ds,
-            tokenizer,
-            text_field='single_caption',
+            img_input=img,
+            init_ice_idx=ice_input,
+            shot_num=shot_num,
+            index_ds=train_ds,
+            processor=processor,
+            text_field=text_field,
+            device=device,
             repetition_penalty=2.0,
         )[0]
         res = res[2 : 2 + shot_num]
-        assert len(res) == shot_num, f'{len(res)=}'
-        assert 118287 not in res, f'{res=}'
+        ice_idx_list.append(res)
+    return ice_idx_list
+
+
+@torch.inference_mode()
+def ice_text_image_iclm_generation(
+    iclm_model: ICETextImageICLM,
+    val_ds: datasets.Dataset,
+    train_ds: datasets.Dataset,
+    processor,
+    shot_num,
+    device,
+    text_field,
+    image_field,
+):
+    iclm_model = iclm_model.to(device)
+    iclm_model.eval()
+    ice_idx_list = []
+    ice_input = torch.tensor([[118288, 118289]]).to(device)
+
+    for data in tqdm(val_ds):
+        img = data['image']
+        img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
+        res = iclm_model.generation(
+            img_input=img,
+            init_ice_idx=ice_input,
+            shot_num=shot_num,
+            index_ds=train_ds,
+            processor=processor,
+            text_field=text_field,
+            image_field=image_field,
+            device=device,
+            repetition_penalty=2.0,
+        )[0]
+        res = res[2 : 2 + shot_num]
         ice_idx_list.append(res)
     return ice_idx_list
 
