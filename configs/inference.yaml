@@ -3,10 +3,12 @@ defaults:
   - dataset: coco2017
   - flamingo: flamingo_9B
   - train: idx_base
+  - task: caption
 
 # generation config
 precision: bf16
 device: cuda
+index_data_num: -1
 test_data_num: -1
 other_save_field: ['single_caption', 'captions', 'image_id']
 inference_bs: 1
