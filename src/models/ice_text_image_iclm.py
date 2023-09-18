@@ -43,7 +43,7 @@ class ICETextImageICLM(BaseICLM):
     def generation(
         self,
         img_input,
-        init_ice_input,
+        init_ice_idx,
         shot_num,
         index_ds,
         processor,
@@ -56,7 +56,7 @@ class ICETextImageICLM(BaseICLM):
         Generate for one batch
         """
         ice_input = None
-        ice_seq_idx = init_ice_input
+        ice_seq_idx = init_ice_idx
         sp_token_begin = len(index_ds)
         
         for _ in range(shot_num):
