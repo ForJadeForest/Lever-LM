@@ -8,7 +8,7 @@ ice_token: "</E>"
 column_token_map:
   single_caption: <X>
 input_columns: ["single_caption"]
-output_column: "answer"
+output_column: "single_caption"
 
 ice_join_char: "<|endofchunk|>"
 
