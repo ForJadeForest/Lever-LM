@@ -4,3 +4,9 @@ python-dotenv
 faiss-gpu
 hydra-core
 datasets
+lightning
+omegaconf
+torch
+tqdm
+transformers
+open_flamingo
