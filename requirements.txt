@@ -8,5 +8,7 @@ lightning
 omegaconf
 torch
 tqdm
+pycocotools
+tensorboard
 transformers
 open_flamingo
