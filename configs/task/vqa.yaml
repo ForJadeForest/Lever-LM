@@ -13,7 +13,7 @@ ice_join_char: "<|endofchunk|>"
 image_field: "image"
 
 # use for train model and inference ice feature field
-ice_text_feature_field: "q_a"
+ice_text_feature_field: "question"
 
 
 # sim fields:
