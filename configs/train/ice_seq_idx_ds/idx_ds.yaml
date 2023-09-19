@@ -1,8 +1,6 @@
 _target_: src.dataset_module.idx_iclm_ds.IdxICLMDataset
 
 clip_processor_name: "openai/clip-vit-base-patch32"
-eos_token_id: 118287
-bos_token_id: 118288
-query_token_id: 118289
+index_set_length: ${dataset.train_ds_len}
 
 image_field: ${task.image_field}

@@ -11,11 +11,12 @@ class IdxICLMDataset(BaseICLMDataset):
         data_list: List,
         index_ds: datasets.Dataset,
         clip_processor_name: str,
-        eos_token_id: int,
-        bos_token_id: int,
-        query_token_id: int,
+        index_set_length: int,
         image_field: str,
     ):
+        eos_token_id = index_set_length
+        bos_token_id = index_set_length + 1
+        query_token_id = index_set_length + 2
         super().__init__(
             data_list,
             index_ds,

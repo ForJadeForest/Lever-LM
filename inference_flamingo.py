@@ -348,11 +348,14 @@ def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_tok
     iclm_model = iclm_model.to(device)
     iclm_model.eval()
     ice_idx_list = []
+    bos_token_id = eos_token_id + 1
+    query_token_id = eos_token_id + 2
+    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
 
     for data in tqdm(ds):
         img = data['image']
         img = img_processor(images=img, return_tensors='pt').to(device)['pixel_values']
-        ice_input = torch.tensor([[118288, 118289]]).to(device)
+        
 
         num_beams = 10
         if shot_num == 1:
@@ -360,7 +363,7 @@ def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_tok
 
         res = iclm_model.generation(
             img,
-            ice_input=ice_input,
+            init_ice_idx=init_ice_idx,
             repetition_penalty=2.0,
             max_new_tokens=shot_num,
             num_beams=num_beams,
@@ -372,7 +375,7 @@ def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_tok
         if eos_token_id in res:
             res = iclm_model.generation(
                 img,
-                ice_input=ice_input,
+                init_ice_idx=init_ice_idx,
                 repetition_penalty=2.0,
                 max_new_tokens=shot_num,
                 num_beams=num_beams,
@@ -400,14 +403,16 @@ def ice_text_iclm_generation(
     iclm_model = iclm_model.to(device)
     iclm_model.eval()
     ice_idx_list = []
-    ice_input = torch.tensor([[118288, 118289]]).to(device)
+    bos_token_id = len(train_ds) + 1
+    query_token_id = len(train_ds) + 2
+    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
 
     for data in tqdm(val_ds):
         img = data['image']
         img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
         res = iclm_model.generation(
             img_input=img,
-            init_ice_idx=ice_input,
+            init_ice_idx=init_ice_idx,
             shot_num=shot_num,
             index_ds=train_ds,
             processor=processor,
@@ -434,14 +439,16 @@ def ice_text_image_iclm_generation(
     iclm_model = iclm_model.to(device)
     iclm_model.eval()
     ice_idx_list = []
-    ice_input = torch.tensor([[118288, 118289]]).to(device)
+    bos_token_id = len(train_ds) + 1
+    query_token_id = len(train_ds) + 2
+    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
 
     for data in tqdm(val_ds):
         img = data['image']
         img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
         res = iclm_model.generation(
             img_input=img,
-            init_ice_idx=ice_input,
+            init_ice_idx=init_ice_idx,
             shot_num=shot_num,
             index_ds=train_ds,
             processor=processor,

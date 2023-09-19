@@ -21,10 +21,10 @@ class IdxBaseICLM(BaseICLM):
         return lm_output
 
     @torch.inference_mode()
-    def generation(self, img_input, ice_seq_idx, **kwargs):
-        inputs_embeds = super().forward(img_input, ice_seq_idx)
+    def generation(self, img_input, init_ice_idx, **kwargs):
+        inputs_embeds = super().forward(img_input, init_ice_idx)
         generated_ids = self.lm_model.generate(
-            input_ids=ice_seq_idx, inputs_embeds=inputs_embeds, **kwargs
+            input_ids=init_ice_idx, inputs_embeds=inputs_embeds, **kwargs
         )
 
         return generated_ids.cpu().detach().tolist()
