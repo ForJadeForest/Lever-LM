@@ -321,15 +321,25 @@ def main(cfg: DictConfig):
             )
             retriever_info = 'ICLM'
             retriever.ice_num = shot_num
-            cider_score = inference_caption(
-                inferencer,
-                retriever,
-                ice_prompt,
-                cfg.dataset.val_coco_annotation_file,
-                output_files,
-            )
-            retriever_res[f'{shot_num=}'] = cider_score
-            logger.info(f'{output_files}: {cider_score=}')
+            if cfg.task.task_name == 'caption':
+                metric = inference_caption(
+                    inferencer,
+                    retriever,
+                    ice_prompt,
+                    cfg.dataset.val_coco_annotation_file,
+                    output_files,
+                )
+            elif cfg.task.task_name == 'vqa':
+                metric = inference_vqa(
+                    inferencer=inferencer,
+                    retriever=retriever,
+                    ice_prompt=ice_prompt,
+                    val_ques_path=cfg.dataset.val_ques_path,
+                    val_ann_path=cfg.dataset.val_ann_path,
+                    output_json_filename=output_files,
+                )
+            retriever_res[f'{shot_num=}'] = metric
+            logger.info(f'{output_files}: {metric=}')
             record(result_json_path, {info: retriever_res})
 
 
