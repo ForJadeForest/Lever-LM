@@ -23,9 +23,7 @@ mmtopk_clip_name: openai/clip-vit-large-patch14
 
 # iclm config:
 iclm_path: "result/model_cpk/idx_base_iclm_2shot_with_imgToken_loss/last-val_loss:5.5326.pth"
-eos_token_id: 118287
-bos_token_id: 118288
-query_token_id: 118289
+eos_token_id: ${dataset.train_ds_len}
 
 # Others
 result_dir: "./result"
