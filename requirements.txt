@@ -9,6 +9,7 @@ omegaconf
 torch
 tqdm
 pycocotools
+pycocoevalcap
 tensorboard
 transformers
 open_flamingo
