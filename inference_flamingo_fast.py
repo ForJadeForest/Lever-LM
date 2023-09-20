@@ -236,7 +236,7 @@ def main(cfg: DictConfig):
         model,
         tokenizer,
         image_processor,
-        other_save_field=cfg.other_save_field,
+        other_save_field=cfg.task.other_save_field,
         autocast_context=autocast_context,
         image_field=cfg.task.image_field,
         batch_size=cfg.inference_bs,
