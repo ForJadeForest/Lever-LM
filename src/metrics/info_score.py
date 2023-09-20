@@ -19,7 +19,7 @@ def get_ppl(
     pad_token_id=0,
     left_padding_len=0,
 ):
-    with autocast_context():
+    with autocast_context:
         outputs = model(**model_input)
 
         shift_logits = outputs.logits[..., :-1, :].contiguous()
