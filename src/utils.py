@@ -62,9 +62,7 @@ def init_flamingo(
         cross_attn_every_n_layers=cross_attn_every_n_layers,
     )
     if from_local:
-        flamingo_checkpoint_dir = os.path.join(
-            flamingo_checkpoint_dir, 'checkpoint.pt'
-        )
+        flamingo_checkpoint_dir = os.path.join(flamingo_checkpoint_dir, 'checkpoint.pt')
     else:
         hf_root = 'openflamingo/' + hf_root
         flamingo_checkpoint_dir = hf_hub_download(
