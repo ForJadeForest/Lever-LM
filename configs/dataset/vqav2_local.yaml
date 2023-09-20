@@ -1,8 +1,8 @@
 version: local
 name: vqav2
 train_ds_len: 443757
-train_path: ${oc.env:VQAV2_PATH}/vqav2_mscoco_train2014.json
-val_path: ${oc.env:VQAV2_PATH}/vqav2_mscoco_val2014.json
+train_path: ${oc.env:VQAV2_PATH}/vqav2_hf/vqav2_mscoco_train2014.json
+val_path: ${oc.env:VQAV2_PATH}/vqav2_hf/vqav2_mscoco_val2014.json
 train_coco_dataset_root: ${oc.env:COCO_PATH}/mscoco2014/train2014
 val_coco_dataset_root: ${oc.env:COCO_PATH}/mscoco2014/val2014
 
