@@ -7,6 +7,7 @@ import more_itertools
 import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
+from open_flamingo import create_model_and_transforms
 from PIL import Image
 from tqdm import tqdm
 from transformers import (
@@ -15,8 +16,6 @@ from transformers import (
     CLIPTextModelWithProjection,
     CLIPVisionModelWithProjection,
 )
-
-from open_flamingo import create_model_and_transforms
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,7 @@ def get_autocast(precision):
         return torch.cuda.amp.autocast(dtype=torch.float16)
     elif precision == "bf16":
         # amp_bfloat16 is more stable than amp float16 for clip training
-        return lambda: torch.cuda.amp.autocast(dtype=torch.bfloat16)
+        return torch.cuda.amp.autocast(dtype=torch.bfloat16)
     else:
         return suppress
 
