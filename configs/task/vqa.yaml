@@ -19,3 +19,12 @@ ice_text_feature_field: "question"
 # sim fields:
 sim_text_field: "question"
 sim_image_field: "image"
+
+# for flamingo inference
+gen_args:
+  max_new_tokens: 5
+  num_beams: 3
+  length_penalty: 0.0
+  min_new_tokens: 0
+
+other_save_field: ['question', 'answer', 'image_id', 'answers', 'question_id']

@@ -16,3 +16,12 @@ sim_text_field: "single_caption"
 sim_image_field: "image"
 
 ice_text_feature_field: "single_caption"
+
+# for flamingo inference
+gen_args:
+  max_new_tokens: 20
+  num_beams: 3
+  length_penalty: 0.0
+  min_new_tokens: 0
+
+other_save_field: ['single_caption', 'captions', 'image_id']

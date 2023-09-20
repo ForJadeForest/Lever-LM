@@ -10,13 +10,8 @@ precision: bf16
 device: cuda
 index_data_num: -1
 test_data_num: -1
-other_save_field: ['single_caption', 'captions', 'image_id']
+
 inference_bs: 1
-gen_args:
-  max_new_tokens: 20
-  num_beams: 3
-  length_penalty: 0.0
-  min_new_tokens: 0
 
 # MMTopK config:
 mmtopk_clip_name: openai/clip-vit-large-patch14
