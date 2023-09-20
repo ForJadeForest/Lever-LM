@@ -240,6 +240,9 @@ def main(cfg: DictConfig):
         autocast_context=autocast_context,
         image_field=cfg.task.image_field,
         batch_size=cfg.inference_bs,
+        num_workers=cfg.num_workers,
+        num_proc=cfg.num_proc,
+        preprocessor_bs=cfg.preprocessor_bs,
         generation_kwargs=cfg.task.gen_args,
         output_json_filepath=os.path.join(result_dir, 'generation_metainfo'),
     )

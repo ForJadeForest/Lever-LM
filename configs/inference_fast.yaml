@@ -5,6 +5,13 @@ defaults:
   - train: idx_base
   - task: caption
 
+
+# for fast version:
+num_workers: 16
+num_proc: 16
+preprocessor_bs: 100
+
+
 # generation config
 precision: bf16
 device: cuda
