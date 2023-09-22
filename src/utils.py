@@ -117,8 +117,7 @@ def encode_image(
 
     final_image_feature = []
     for batch in more_itertools.chunked(tqdm(image_list), batch_size):
-        images = [Image.open(image).convert('RGB') for image in batch]
-        inputs = processor(images=images, return_tensors="pt").to(device)
+        inputs = processor(images=batch, return_tensors="pt").to(device)
         image_feature = model(**inputs).image_embeds
         image_feature /= image_feature.norm(dim=-1, keepdim=True)
         final_image_feature.append(image_feature)
