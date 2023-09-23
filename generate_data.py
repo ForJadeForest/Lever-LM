@@ -243,7 +243,7 @@ def main(cfg: DictConfig):
         f'{cfg.task.task_name}-{cfg.dataset.name}-{"only_y_loss" if cfg.only_y_loss else ""}-'
         f'{cfg.flamingo.hf_root}-{candidate_method}-'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
-        f'candidate_set_num:{cfg.candidate_set_num}.json'
+        f'candidate_set_num:{cfg.candidate_set_num}-sample_num:{cfg.sample_num}.json'
     )
 
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)

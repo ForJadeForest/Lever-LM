@@ -11,7 +11,7 @@ defaults:
 
 # get candidate_set args
 random_sample_candidate_set: false
-candidate_set_num: 128
+candidate_set_num: 64
 
 # recall args
 sim_method: "text"
@@ -22,10 +22,10 @@ candidate_set_encode_bs: 64
 # generation args:
 beam_size: 5
 few_shot_num: 2
-batch_size: 32
+batch_size: 64
 device: "cuda"
 precision: bf16
-sample_num: 10000
+sample_num: 5000
 
 # Others
 result_dir: "./result"
@@ -34,7 +34,7 @@ gpu_ids: [0]
 # use sleep to load one by one.
 sleep_time: 90
 
-
+ 
 only_y_loss: true
 split_token: "Output:"
 
