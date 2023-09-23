@@ -16,7 +16,7 @@ from torch.multiprocessing import spawn
 from tqdm import tqdm
 
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
-from src.metrics.info_score import get_info_score
+from src.metrics.cider_calculator import get_cider_score
 from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,9 @@ def generate_single_sample_ice(
     )
 
     # 构建test sample prompt
-    test_data_text = template.generate_item(test_data)
+    test_data_text = template.generate_item(
+        test_data, output_field=cfg.task.output_column
+    )
 
     test_data_image = test_data[cfg.task.image_field]
     test_data_id = test_data['idx']
@@ -81,6 +83,7 @@ def generate_single_sample_ice(
             'text_input': template.generate_item(data),
             'image': data[cfg.task.image_field],
             'idx': data['idx'],
+            'image_id': data['image_id'],
         }
         for data in candidate_set
     }
@@ -107,7 +110,7 @@ def generate_single_sample_ice(
             ]
 
             filtered_idx_list = sorted(list(filtered_candidateidx2data.keys()))
-            info_score = get_info_score(
+            info_score = get_cider_score(
                 model,
                 tokenizer,
                 image_processor,
@@ -117,9 +120,9 @@ def generate_single_sample_ice(
                 image_x=image_x,
                 candidate_set=filtered_candidateidx2data,
                 batch_size=cfg.batch_size,
+                train_ann_path=cfg.dataset.train_coco_annotation_file,
+                gen_kwargs=cfg.task.gen_args,
                 autocast_context=autocast_context,
-                only_y_loss=cfg.only_y_loss,
-                split_token=cfg.split_token,
             )
 
             # 选出最高的InfoScore
@@ -220,7 +223,7 @@ def gen_data(
 
 
 @hydra.main(
-    version_base=None, config_path="./configs", config_name="generate_data.yaml"
+    version_base=None, config_path="./configs", config_name="generate_data_cider.yaml"
 )
 def main(cfg: DictConfig):
     if not os.path.exists(cfg.result_dir):
@@ -240,10 +243,10 @@ def main(cfg: DictConfig):
     )
 
     save_file_name = (
-        f'{cfg.task.task_name}-{cfg.dataset.name}-{"only_y_loss" if cfg.only_y_loss else ""}-'
+        f'{cfg.task.task_name}-{cfg.dataset.name}-cider_version'
         f'{cfg.flamingo.hf_root}-{candidate_method}-'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
-        f'candidate_set_num:{cfg.candidate_set_num}-sample_num:{cfg.sample_num}.json'
+        f'candidate_set_num:{cfg.candidate_set_num}.json'
     )
 
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)
@@ -259,7 +262,7 @@ def main(cfg: DictConfig):
 
     # sample from train idx
     idx_cache_filename = (
-        f'{cfg.dataset.name}-{cfg.sample_num}-'
+        f'{cfg.dataset.name}-cider_version-{cfg.sample_num}-'
         f'{cfg.candidate_set_num}-{candidate_method}.json'
     )
 
