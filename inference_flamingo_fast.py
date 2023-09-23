@@ -153,7 +153,7 @@ def inference_caption(
                 .replace('"', ""),
             }
         )
-    cider_score = compute_cider(pred_coco, val_ann_path)['CIDEr']
+    cider_score = compute_cider(pred_coco, val_ann_path)
     return cider_score
 
 
