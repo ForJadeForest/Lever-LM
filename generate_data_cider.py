@@ -183,7 +183,7 @@ def gen_data(
     )
 
     final_res = {}
-    cur_idx = 0
+    cur_idx = -1
     sub_res_basename = (
         os.path.basename(save_path).split('.')[0]
         + f'_rank:{rank}_({subset_start}, {subset_end}).json'
