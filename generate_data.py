@@ -38,9 +38,8 @@ def load_feature_cache(cfg, cache_path, encoding_method, train_ds, data_key):
     if os.path.exists(cache_path):
         features = torch.load(cache_path)
     else:
-        data_list = train_ds[data_key]
         features = encoding_method(
-            data_list, cfg.device, cfg.sim_model_type, cfg.candidate_set_encode_bs
+            train_ds, data_key, cfg.device, cfg.sim_model_type, cfg.candidate_set_encode_bs
         )
         torch.save(features, cache_path)
     return features

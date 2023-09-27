@@ -90,15 +90,16 @@ def recall_sim_feature(test_vec, train_vec, top_k=200):
 
 @torch.inference_mode()
 def encode_text(
-    text_list, device, model_type='openai/clip-vit-large-patch14', batch_size=128
+    train_ds, data_key, device, model_type='openai/clip-vit-large-patch14', batch_size=128
 ):
     model = CLIPTextModelWithProjection.from_pretrained(model_type).to(device)
     model.eval()
     tokenizer = AutoTokenizer.from_pretrained(model_type)
     final_text_feature = []
 
-    for batch in more_itertools.chunked(tqdm(text_list), batch_size):
-        inputs = tokenizer(batch, padding=True, return_tensors="pt").to(device)
+    for batch in more_itertools.chunked(tqdm(train_ds), batch_size):
+        text_list = [i[data_key] for i in batch]
+        inputs = tokenizer(text_list, padding=True, return_tensors="pt").to(device)
         text_feature = model(**inputs).text_embeds
         text_feature /= text_feature.norm(dim=-1, keepdim=True)
         final_text_feature.append(text_feature)
@@ -109,15 +110,16 @@ def encode_text(
 
 @torch.inference_mode()
 def encode_image(
-    image_list, device, model_type='openai/clip-vit-large-patch14', batch_size=128
+    train_ds, data_key, device, model_type='openai/clip-vit-large-patch14', batch_size=128
 ):
     model = CLIPVisionModelWithProjection.from_pretrained(model_type).to(device)
     processor = AutoProcessor.from_pretrained(model_type)
     model.eval()
 
     final_image_feature = []
-    for batch in more_itertools.chunked(tqdm(image_list), batch_size):
-        inputs = processor(images=batch, return_tensors="pt").to(device)
+    for batch in more_itertools.chunked(tqdm(train_ds), batch_size):
+        images = [i[data_key] for i in batch]
+        inputs = processor(images=images, return_tensors="pt").to(device)
         image_feature = model(**inputs).image_embeds
         image_feature /= image_feature.norm(dim=-1, keepdim=True)
         final_image_feature.append(image_feature)
