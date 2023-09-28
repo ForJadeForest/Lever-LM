@@ -25,3 +25,6 @@ gen_args:
   min_new_tokens: 0
 
 other_save_field: ['single_caption', 'captions', 'image_id']
+
+# use for generate_data.py only_y_loss:
+split_token: "Output:"
