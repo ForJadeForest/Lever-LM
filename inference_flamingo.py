@@ -186,6 +186,7 @@ def inference_vqa(
 
 @hydra.main(version_base=None, config_path="./configs", config_name="inference.yaml")
 def main(cfg: DictConfig):
+    logger.info(f'{cfg=}')
     result_dir = os.path.join(
         cfg.result_dir,
         'flamingo_inference',
