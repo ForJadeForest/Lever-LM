@@ -118,7 +118,7 @@ def generate_single_sample_ice(
                 batch_size=cfg.batch_size,
                 autocast_context=autocast_context,
                 only_y_loss=cfg.only_y_loss,
-                split_token=cfg.split_token,
+                split_token=cfg.task.split_token,
             )
 
             # 选出最高的InfoScore
@@ -222,6 +222,7 @@ def gen_data(
     version_base=None, config_path="./configs", config_name="generate_data.yaml"
 )
 def main(cfg: DictConfig):
+    logger.info(f'{cfg=}')
     if not os.path.exists(cfg.result_dir):
         os.makedirs(cfg.result_dir)
     cache_dir = os.path.join(cfg.result_dir, 'cache')

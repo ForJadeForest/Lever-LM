@@ -226,6 +226,7 @@ def gen_data(
     version_base=None, config_path="./configs", config_name="generate_data_cider.yaml"
 )
 def main(cfg: DictConfig):
+    logger.info(f'{cfg=}')
     if not os.path.exists(cfg.result_dir):
         os.makedirs(cfg.result_dir)
     cache_dir = os.path.join(cfg.result_dir, 'cache')

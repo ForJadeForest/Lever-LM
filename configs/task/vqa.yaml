@@ -28,3 +28,6 @@ gen_args:
   min_new_tokens: 0
 
 other_save_field: ['question', 'answer', 'image_id', 'answers', 'question_id']
+
+# use for generate_data.py only_y_loss:
+split_token: "Short answer:"

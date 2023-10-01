@@ -36,7 +36,7 @@ sleep_time: 90
 
  
 only_y_loss: true
-split_token: "Output:"
+
 
 # hydra
 hydra:

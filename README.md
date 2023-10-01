@@ -101,3 +101,43 @@ Other args;
 - `test_data_num`: 测试集的数量，-1表示全部
 - `other_save_field`: 需要保存的一些metainfo key。对于caption，可以为`['single_caption', 'captions', 'image_id']`，对于vqa，可以为`['question', 'answer', 'answers', 'question_id', 'image_id']`
 - `inference_bs`：推理的batc_hsize 对于3090 24G显存设置为4在16shot可行
+
+
+## Ablation
+### Generate data
+**for caption**
+```sh
+# for one gpu defalut [0]
+bash ./scripts/ablation/generate_data.sh caption coco2017 
+# for multi gpu (4 gpus):
+bash ./scripts/ablation/generate_data.sh caption coco2017 "[0,1,2,3]"
+```
+**for vqav2**
+```sh
+# for one gpu defalut [0]
+bash ./scripts/ablation/generate_data.sh vqa vqav2_local
+# for multi gpu (4 gpus):
+bash ./scripts/ablation/generate_data.sh vqa vqav2_local "[0,1,2,3]"
+```
+
+### Train UniGen-ICLM
+**for caption**
+```sh
+# for one gpu defalut [0]
+bash ./scripts/ablation/train_iclm.sh caption coco2017 
+# for multi gpu (4 gpus):
+bash ./scripts/ablation/generate_data.sh caption coco2017 4
+```
+**for vqav2**
+```sh
+# for one gpu defalut [0]
+bash ./scripts/ablation/train_iclm.sh vqa vqav2_local
+# for multi gpu (4 gpus):
+bash ./scripts/ablation/train_iclm.sh vqa vqav2_local 4
+```
+
+
+### Inference...
+```sh
+To be continue...
+```
