@@ -45,7 +45,6 @@ class BaseICLM(nn.Module):
         for n, p in self.named_parameters():
             for prefix in freeze_prefix_list:
                 if n.startswith(prefix):
-                    print(f'freeze: {n}')
                     p.requires_grad = False
 
     @torch.inference_mode()
