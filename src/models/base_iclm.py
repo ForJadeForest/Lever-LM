@@ -9,7 +9,6 @@ class BaseICLM(nn.Module):
         lm_config,
         index_ds_size,
         clip_name="openai/clip-vit-base-patch32",
-        freeze_prefix=None,
         adpter=False,
     ) -> None:
         super().__init__()
@@ -27,23 +26,24 @@ class BaseICLM(nn.Module):
         self._adpter = adpter
         if self._adpter:
             self.img_adpter = nn.Sequential(
-                nn.Linear(self.sen_model.config.projection_dim, lm_config.n_embd * 4),
-                nn.Relu(),
+                nn.Linear(self.img_model.config.projection_dim, lm_config.n_embd * 4),
+                nn.ReLU(),
                 nn.Linear(lm_config.n_embd * 4, lm_config.n_embd),
             )
-        self.freeze_prefix(freeze_prefix)
 
     def forward(self, img_input, ice_input):
         image_embeds = self.img_model(img_input)['image_embeds']
-        if self.adpter:
+        if self._adpter:
             image_embeds = self.img_adpter(image_embeds)
         dataset_embeds = self.lm_model.transformer.wte(ice_input)
         dataset_embeds[:, 1] += image_embeds
         return dataset_embeds
 
-    def freeze_prefix(self, prefix_list):
+    def freeze_prefix(self, freeze_prefix_list):
+        if freeze_prefix_list is None:
+            return 
         for n, p in self.named_parameters():
-            for prefix in prefix_list:
+            for prefix in freeze_prefix_list:
                 if n.startswith(prefix):
                     print(f'freeze: {n}')
                     p.requires_grad = False

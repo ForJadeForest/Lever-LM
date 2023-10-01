@@ -10,10 +10,11 @@ class ICEImageICLM(BaseICLM):
         lm_config,
         index_ds_size,
         clip_name="openai/clip-vit-base-patch32",
-        freeze_prefix=None,
+        freeze_prefix_list=None,
         adpter=False,
     ):
-        super().__init__(lm_config, index_ds_size, clip_name, freeze_prefix, adpter)
+        super().__init__(lm_config, index_ds_size, clip_name, adpter)
+        self.freeze_prefix(freeze_prefix_list)
 
     def forward(self, img_input, ice_input, ice_seq_idx):
         inputs_embeds = super().forward(img_input, ice_seq_idx)

@@ -11,10 +11,10 @@ class ICETextImageICLM(BaseICLM):
         lm_config,
         index_ds_size,
         clip_name="openai/clip-vit-base-patch32",
-        freeze_prefix=None,
+        freeze_prefix_list=None,
         adpter=False,
     ):
-        super().__init__(lm_config, index_ds_size, clip_name, freeze_prefix, adpter)
+        super().__init__(lm_config, index_ds_size, clip_name, adpter)
         if self._adpter:
             self.sen_adpter = nn.Sequential(
                 nn.Linear(self.sen_model.config.projection_dim, lm_config.n_embd * 4),
@@ -22,6 +22,7 @@ class ICETextImageICLM(BaseICLM):
                 nn.Linear(lm_config.n_embd * 4, lm_config.n_embd),
             )
         self.sen_model = CLIPTextModelWithProjection.from_pretrained(clip_name)
+        self.freeze_prefix(freeze_prefix_list)
 
     def forward(self, img_input, ice_input, ice_seq_idx):
         inputs_embeds = super().forward(img_input, ice_seq_idx)
