@@ -110,7 +110,7 @@ def init_retriever(retriever_name, dr, cfg):
         cache_file = os.path.join(
             cfg.result_dir,
             'cache',
-            f'{cfg.task.task_name}-{cfg.dataset.name}-{mode}-'
+            f'{cfg.task.task_name}-{cfg.dataset.name}-{cfg.mmtopk_clip_name.split("/")[-1]}-{mode}-'
             f'index_field:{index_field}-test_data_num:{cfg.test_data_num}-'
             f'test_field:{test_field}-emb_cache.pth',
         )
