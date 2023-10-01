@@ -9,6 +9,7 @@ class BaseICLM(nn.Module):
         lm_config,
         index_ds_size,
         clip_name="openai/clip-vit-base-patch32",
+        freeze_prefix=None
     ) -> None:
         super().__init__()
         vocab_size = index_ds_size + 3
@@ -22,12 +23,18 @@ class BaseICLM(nn.Module):
         )
         self.lm_model = GPT2LMHeadModel(conifg)
         self.img_model = CLIPVisionModelWithProjection.from_pretrained(clip_name)
+        self.freeze_prefix(freeze_prefix)
 
     def forward(self, img_input, ice_input):
         image_embeds = self.img_model(img_input)['image_embeds']
         dataset_embeds = self.lm_model.transformer.wte(ice_input)
         dataset_embeds[:, 1] += image_embeds
         return dataset_embeds
+
+    def freeze_prefix(self, prefix):
+        for n, p in self.named_parameters():
+            if n.startswith(prefix):
+                p.requires_grad = False
 
     @torch.inference_mode()
     def generation(self, *args, **kwargs):

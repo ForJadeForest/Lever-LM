@@ -7,9 +7,9 @@ from .base_iclm import BaseICLM
 
 class ICETextICLM(BaseICLM):
     def __init__(
-        self, lm_config, index_ds_size, clip_name="openai/clip-vit-base-patch32"
+        self, lm_config, index_ds_size, clip_name="openai/clip-vit-base-patch32", freeze_prefix=None
     ):
-        super().__init__(lm_config, index_ds_size, clip_name)
+        super().__init__(lm_config, index_ds_size, clip_name, freeze_prefix)
         self.sen_model = CLIPTextModelWithProjection.from_pretrained(clip_name)
 
     def forward(self, img_input, ice_input, ice_seq_idx):
