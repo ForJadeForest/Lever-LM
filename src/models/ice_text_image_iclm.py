@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 from transformers import CLIPTextModelWithProjection
 
 from .base_iclm import BaseICLM
@@ -6,9 +7,20 @@ from .base_iclm import BaseICLM
 
 class ICETextImageICLM(BaseICLM):
     def __init__(
-        self, lm_config, index_ds_size, clip_name="openai/clip-vit-base-patch32", freeze_prefix=None
+        self,
+        lm_config,
+        index_ds_size,
+        clip_name="openai/clip-vit-base-patch32",
+        freeze_prefix=None,
+        adpter=False,
     ):
-        super().__init__(lm_config, index_ds_size, clip_name, freeze_prefix)
+        super().__init__(lm_config, index_ds_size, clip_name, freeze_prefix, adpter)
+        if self._adpter:
+            self.sen_adpter = nn.Sequential(
+                nn.Linear(self.sen_model.config.projection_dim, lm_config.n_embd * 4),
+                nn.Relu(),
+                nn.Linear(lm_config.n_embd * 4, lm_config.n_embd),
+            )
         self.sen_model = CLIPTextModelWithProjection.from_pretrained(clip_name)
 
     def forward(self, img_input, ice_input, ice_seq_idx):
@@ -30,6 +42,10 @@ class ICETextImageICLM(BaseICLM):
         )['text_embeds']
 
         ice_img_features = self.img_model(ice_input['pixel_values'])['image_embeds']
+        if self._adpter:
+            ice_img_features = self.img_adpter(ice_img_features)
+            ice_text_features = self.sen_adpter(ice_text_features)
+
         ice_img_features = ice_img_features.view(bs, ice_num, -1)
         ice_text_features = ice_text_features.view(bs, ice_num, -1)
 
@@ -58,7 +74,7 @@ class ICETextImageICLM(BaseICLM):
         ice_input = None
         ice_seq_idx = init_ice_idx
         sp_token_begin = len(index_ds)
-        
+
         for _ in range(shot_num):
             out = self.forward(img_input, ice_input, ice_seq_idx).logits[:, -1, :]
             # set the sp token prob to 0

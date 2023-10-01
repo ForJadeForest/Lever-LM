@@ -6,9 +6,14 @@ from .base_iclm import BaseICLM
 
 class ICEImageICLM(BaseICLM):
     def __init__(
-        self, lm_config, index_ds_size, clip_name="openai/clip-vit-base-patch32", freeze_prefix=None
+        self,
+        lm_config,
+        index_ds_size,
+        clip_name="openai/clip-vit-base-patch32",
+        freeze_prefix=None,
+        adpter=False,
     ):
-        super().__init__(lm_config, index_ds_size, clip_name, freeze_prefix)
+        super().__init__(lm_config, index_ds_size, clip_name, freeze_prefix, adpter)
 
     def forward(self, img_input, ice_input, ice_seq_idx):
         inputs_embeds = super().forward(img_input, ice_seq_idx)
@@ -19,8 +24,9 @@ class ICEImageICLM(BaseICLM):
         bs, ice_num, img_shape = ice_input['pixel_values']
         ice_input['pixel_values'] = ice_input['pixel_values'].view(-1, *img_shape)
 
-
         ice_img_features = self.img_model(ice_input['pixel_values'])['image_embeds']
+        if self._adpter:
+            ice_img_features = self.img_adpter(ice_img_features)
         ice_img_features = ice_img_features.view(bs, ice_num, -1)
 
         inputs_embeds[:, 2 : 2 + ice_num] += ice_img_features
@@ -46,7 +52,7 @@ class ICEImageICLM(BaseICLM):
         ice_input = None
         ice_seq_idx = init_ice_idx
         sp_token_begin = len(index_ds)
-        
+
         for _ in range(shot_num):
             out = self.forward(img_input, ice_input, ice_seq_idx).logits[:, -1, :]
             # set the sp token prob to 0

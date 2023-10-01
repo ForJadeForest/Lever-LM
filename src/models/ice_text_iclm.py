@@ -7,10 +7,21 @@ from .base_iclm import BaseICLM
 
 class ICETextICLM(BaseICLM):
     def __init__(
-        self, lm_config, index_ds_size, clip_name="openai/clip-vit-base-patch32", freeze_prefix=None
+        self,
+        lm_config,
+        index_ds_size,
+        clip_name="openai/clip-vit-base-patch32",
+        freeze_prefix=None,
+        adpter=False,
     ):
-        super().__init__(lm_config, index_ds_size, clip_name, freeze_prefix)
+        super().__init__(lm_config, index_ds_size, clip_name, freeze_prefix, adpter)
         self.sen_model = CLIPTextModelWithProjection.from_pretrained(clip_name)
+        if self._adpter:
+            self.sen_adpter = nn.Sequential(
+                nn.Linear(self.sen_model.config.projection_dim, lm_config.n_embd * 4),
+                nn.Relu(),
+                nn.Linear(lm_config.n_embd * 4, lm_config.n_embd),
+            )
 
     def forward(self, img_input, ice_input, ice_seq_idx):
         inputs_embeds = super().forward(img_input, ice_seq_idx)
@@ -26,6 +37,9 @@ class ICETextICLM(BaseICLM):
             input_ids=ice_input['input_ids'],
             attention_mask=ice_input['attention_mask'],
         )['text_embeds']
+        
+        if self._adpter:
+            ice_features = self.sen_adpter(ice_features)
         ice_features = ice_features.view(bs, ice_num, -1)
         inputs_embeds[:, 2 : 2 + ice_num] += ice_features
 
@@ -50,11 +64,11 @@ class ICETextICLM(BaseICLM):
         ice_input = None
         ice_seq_idx = init_ice_idx
         sp_token_begin = len(index_ds)
-        
+
         for _ in range(shot_num):
             out = self.forward(img_input, ice_input, ice_seq_idx).logits[:, -1, :]
             # set the sp token prob to 0
-            
+
             out[:, sp_token_begin:] = -torch.inf
             for ice_idx in ice_seq_idx:
                 out[:, ice_idx] /= repetition_penalty
