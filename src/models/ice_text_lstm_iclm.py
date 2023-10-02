@@ -2,10 +2,8 @@ import torch
 from torch import nn
 from transformers import CLIPTextModelWithProjection, CLIPVisionModelWithProjection
 
-from .base_iclm import BaseICLM
 
-
-class ICETextLSTMICLM(nn.Moduel):
+class ICETextLSTMICLM(nn.Module):
     def __init__(
         self,
         emb_dim,
@@ -28,9 +26,9 @@ class ICETextLSTMICLM(nn.Moduel):
         )
 
         self.proj = nn.Sequential(
-            nn.Linear(emb_dim, emb_dim * 4),
+            nn.Linear(emb_dim, emb_dim),
             nn.ReLU(),
-            nn.Linear(emb_dim * 4, vocab_size),
+            nn.Linear(emb_dim, vocab_size),
         )
         self.img_model = CLIPVisionModelWithProjection.from_pretrained(clip_name)
 
@@ -78,7 +76,7 @@ class ICETextLSTMICLM(nn.Moduel):
         ice_features = ice_features.view(bs, ice_num, -1)
         inputs_embeds[:, 2 : 2 + ice_num] += ice_features
 
-        logits, _ = self.lm_model(inputs_embeds=inputs_embeds)
+        logits, _ = self.lm_model(inputs_embeds)
         logits = self.proj(logits)  # batch, len, vocab_dim
         shift_logits = logits[..., :-1, :].contiguous()
         shift_labels = ice_seq_idx[..., 1:].contiguous()
