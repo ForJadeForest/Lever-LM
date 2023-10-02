@@ -22,7 +22,9 @@ class ICEImageICLM(BaseICLM):
             lm_output = self.lm_model(inputs_embeds=inputs_embeds)
             return lm_output
 
-        bs, ice_num, img_shape = ice_input['pixel_values']
+        bs = len(img_input)
+        ice_num = ice_input['pixel_values'].shape[0] // bs
+        img_shape = ice_input['pixel_values'].shape[-3:]
         ice_input['pixel_values'] = ice_input['pixel_values'].view(-1, *img_shape)
 
         ice_img_features = self.img_model(ice_input['pixel_values'])['image_embeds']
