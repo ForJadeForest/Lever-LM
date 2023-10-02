@@ -1,0 +1,10 @@
+_target_: src.models.ice_text_lstm_iclm.ICETextLSTMICLM
+
+emb_dim: 512
+dropout: 0.1
+num_layers: 2
+  
+index_ds_size: ${dataset.train_ds_len}
+clip_name: openai/clip-vit-base-patch32
+freeze_prefix_list: null
+adpter: False
