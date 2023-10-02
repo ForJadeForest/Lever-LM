@@ -54,6 +54,21 @@ So you should prepare the mscoco2017 or mscoco2014
 |            |- captions_val2014.json
 ```
 
+### VQAV2
+We use the VQAV2 train dataset to generate the good ICD Sequences.
+So you should prepare the VQAV2 dataset or if you can download datasets from huggingface you can use `configs/dataset/vqav2_online.yaml`. 
+```bash
+# For download the vqav2 dataset:
+wget https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Annotations_Train_mscoco.zip -O /path/to/vqav2/
+wget https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Annotations_Val_mscoco.zip -O /path/to/vqav2/
+
+# for preprepare the dataset.
+
+python src/dataset_module/preprocess/vqav2_hf.py --root_path /path/to/vqav2/
+```
+Then, set the `VQAV2_PATH` environment variable in `.env`.
+
+
 #### 1. Generation the train dataset
 
 ```
