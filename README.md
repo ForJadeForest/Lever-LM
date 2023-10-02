@@ -61,9 +61,17 @@ So you should prepare the VQAV2 dataset or if you can download datasets from hug
 # For download the vqav2 dataset:
 wget https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Annotations_Train_mscoco.zip -O /path/to/vqav2/
 wget https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Annotations_Val_mscoco.zip -O /path/to/vqav2/
+wget https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Train_mscoco.zip -O /path/to/vqav2/
+wget https://s3.amazonaws.com/cvmlp/vqa/mscoco/vqa/v2_Questions_Val_mscoco.zip -O /path/to/vqav2/
+
+cd /path/to/vqav2/
+unzip v2_Annotations_Train_mscoco.zip
+unzip v2_Annotations_Val_mscoco.zip
+unzip v2_Questions_Train_mscoco.zip
+unzip v2_Questions_Val_mscoco.zip
+
 
 # for preprepare the dataset.
-
 python src/dataset_module/preprocess/vqav2_hf.py --root_path /path/to/vqav2/
 ```
 Then, set the `VQAV2_PATH` environment variable in `.env`.
