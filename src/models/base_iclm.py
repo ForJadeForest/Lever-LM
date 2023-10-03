@@ -10,6 +10,7 @@ class BaseICLM(nn.Module):
         index_ds_size,
         clip_name="openai/clip-vit-base-patch32",
         adpter=False,
+        norm=False,
     ) -> None:
         super().__init__()
         vocab_size = index_ds_size + 3
@@ -30,18 +31,21 @@ class BaseICLM(nn.Module):
                 nn.ReLU(),
                 nn.Linear(lm_config.n_embd * 4, lm_config.n_embd),
             )
+        self._norm = norm
 
     def forward(self, img_input, ice_input):
         image_embeds = self.img_model(img_input)['image_embeds']
         if self._adpter:
             image_embeds = self.img_adpter(image_embeds)
+        if self._norm:
+            image_embeds = image_embeds / image_embeds.norm(dim=-1, keepdim=True)
         dataset_embeds = self.lm_model.transformer.wte(ice_input)
         dataset_embeds[:, 1] += image_embeds
         return dataset_embeds
 
     def freeze_prefix(self, freeze_prefix_list):
         if freeze_prefix_list is None:
-            return 
+            return
         for n, p in self.named_parameters():
             for prefix in freeze_prefix_list:
                 if n.startswith(prefix):

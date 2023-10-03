@@ -13,8 +13,9 @@ class ICETextICLM(BaseICLM):
         clip_name="openai/clip-vit-base-patch32",
         freeze_prefix_list=None,
         adpter=False,
+        norm=False,
     ):
-        super().__init__(lm_config, index_ds_size, clip_name, adpter)
+        super().__init__(lm_config, index_ds_size, clip_name, adpter, norm)
         self.sen_model = CLIPTextModelWithProjection.from_pretrained(clip_name)
         if self._adpter:
             self.sen_adpter = nn.Sequential(
@@ -38,7 +39,9 @@ class ICETextICLM(BaseICLM):
             input_ids=ice_input['input_ids'],
             attention_mask=ice_input['attention_mask'],
         )['text_embeds']
-        
+        if self._norm:
+            ice_features = ice_features / ice_features.norm(dim=-1, keepdim=True)
+
         if self._adpter:
             ice_features = self.sen_adpter(ice_features)
         ice_features = ice_features.view(bs, ice_num, -1)
