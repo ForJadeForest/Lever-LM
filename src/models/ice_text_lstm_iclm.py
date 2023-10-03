@@ -113,7 +113,7 @@ class ICETextLSTMICLM(nn.Module):
         sp_token_begin = len(index_ds)
 
         for _ in range(shot_num):
-            out = self.forward(img_input, ice_input, ice_seq_idx).logits[:, -1, :]
+            out = self.forward(img_input, ice_input, ice_seq_idx)['logits'][:, -1, :]
             # set the sp token prob to 0
 
             out[:, sp_token_begin:] = -torch.inf

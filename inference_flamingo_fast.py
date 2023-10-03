@@ -27,7 +27,13 @@ from src.dataset_module import CocoDataset
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import compute_cider
 from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
-from src.models import ICEImageICLM, ICETextICLM, ICETextImageICLM, IdxBaseICLM
+from src.models import (
+    ICEImageICLM,
+    ICETextICLM,
+    ICETextImageICLM,
+    ICETextLSTMICLM,
+    IdxBaseICLM,
+)
 from src.utils import init_flamingo
 
 logger = logging.getLogger(__name__)
@@ -184,7 +190,9 @@ def inference_vqa(
     return acc
 
 
-@hydra.main(version_base=None, config_path="./configs", config_name="inference_fast.yaml")
+@hydra.main(
+    version_base=None, config_path="./configs", config_name="inference_fast.yaml"
+)
 def main(cfg: DictConfig):
     logger.info(f'{cfg=}')
     result_dir = os.path.join(
@@ -326,7 +334,17 @@ def main(cfg: DictConfig):
                     text_field=cfg.task.ice_text_feature_field,
                     image_field=cfg.task.image_field,
                 )
-            
+            elif isinstance(iclm_model, ICETextLSTMICLM):
+                ice_idx_list = ice_text_lstm_iclm_generation(
+                    iclm_model=iclm_model,
+                    val_ds=ds[test_split],
+                    train_ds=ds['train'],
+                    processor=processor,
+                    shot_num=shot_num,
+                    device=cfg.device,
+                    text_field=cfg.task.ice_text_feature_field,
+                )
+
             retriever = DirRetriever(
                 dr,
                 ice_idx_list,
@@ -441,6 +459,41 @@ def ice_text_iclm_generation(
 
 
 @torch.inference_mode()
+def ice_text_lstm_iclm_generation(
+    iclm_model: ICETextLSTMICLM,
+    val_ds: datasets.Dataset,
+    train_ds: datasets.Dataset,
+    processor,
+    shot_num,
+    device,
+    text_field,
+):
+    iclm_model = iclm_model.to(device)
+    iclm_model.eval()
+    ice_idx_list = []
+    bos_token_id = len(train_ds) + 1
+    query_token_id = len(train_ds) + 2
+    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
+
+    for data in tqdm(val_ds):
+        img = data['image']
+        img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
+        res = iclm_model.generation(
+            img_input=img,
+            init_ice_idx=init_ice_idx,
+            shot_num=shot_num,
+            index_ds=train_ds,
+            processor=processor,
+            text_field=text_field,
+            device=device,
+            repetition_penalty=2.0,
+        )[0]
+        res = res[2 : 2 + shot_num]
+        ice_idx_list.append(res)
+    return ice_idx_list
+
+
+@torch.inference_mode()
 def ice_text_image_iclm_generation(
     iclm_model: ICETextImageICLM,
     val_ds: datasets.Dataset,
@@ -475,6 +528,7 @@ def ice_text_image_iclm_generation(
         res = res[2 : 2 + shot_num]
         ice_idx_list.append(res)
     return ice_idx_list
+
 
 @torch.inference_mode()
 def ice_image_iclm_generation(
