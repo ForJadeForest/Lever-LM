@@ -9,3 +9,4 @@ index_ds_size: ${dataset.train_ds_len}
 clip_name: openai/clip-vit-base-patch32
 freeze_prefix_list: null
 adpter: false
+norm: true

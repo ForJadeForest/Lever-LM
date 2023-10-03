@@ -9,8 +9,10 @@ class IdxBaseICLM(BaseICLM):
         lm_config,
         index_ds_size,
         clip_name="openai/clip-vit-base-patch32",
+        adpter=False,
+        norm=False
     ) -> None:
-        super().__init__(lm_config, index_ds_size, clip_name)
+        super().__init__(lm_config, index_ds_size, clip_name, adpter, norm)
 
     def forward(self, img_input, ice_seq_idx):
         inputs_embeds = super().forward(img_input, ice_seq_idx)
