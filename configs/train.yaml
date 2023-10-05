@@ -10,7 +10,7 @@ defaults:
 
 
 # data args
-data_files: OpenFlamingo-9B-vitl-mpt7b-coco-caption-beam_size:16-few_shot:2-query_top_k:64.json
+data_files: ???
 
 # train args:
 epochs: 50

@@ -13,8 +13,9 @@ class ICETextImageICLM(BaseICLM):
         clip_name="openai/clip-vit-base-patch32",
         freeze_prefix_list=None,
         adpter=False,
+        norm=False
     ):
-        super().__init__(lm_config, index_ds_size, clip_name, adpter)
+        super().__init__(lm_config, index_ds_size, clip_name, adpter, norm)
         if self._adpter:
             self.sen_adpter = nn.Sequential(
                 nn.Linear(self.sen_model.config.projection_dim, lm_config.n_embd * 4),
@@ -46,7 +47,9 @@ class ICETextImageICLM(BaseICLM):
         if self._adpter:
             ice_img_features = self.img_adpter(ice_img_features)
             ice_text_features = self.sen_adpter(ice_text_features)
-
+        if self._norm:
+            ice_img_features = ice_img_features / ice_img_features.norm(dim=-1, keepdim=True)
+            ice_text_features = ice_text_features / ice_text_features.norm(dim=-1, keepdim=True)
         ice_img_features = ice_img_features.view(bs, ice_num, -1)
         ice_text_features = ice_text_features.view(bs, ice_num, -1)
 

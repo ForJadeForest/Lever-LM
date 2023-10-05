@@ -13,6 +13,7 @@ class ICETextLSTMICLM(nn.Module):
         clip_name="openai/clip-vit-base-patch32",
         freeze_prefix_list=None,
         adpter=False,
+        norm=False
     ):
         super().__init__()
         vocab_size = index_ds_size + 3
@@ -24,7 +25,7 @@ class ICETextLSTMICLM(nn.Module):
             dropout=dropout,
             batch_first=True,
         )
-
+        self._norm = norm
         self.proj = nn.Sequential(
             nn.Linear(emb_dim, emb_dim),
             nn.ReLU(),
@@ -73,6 +74,8 @@ class ICETextLSTMICLM(nn.Module):
 
         if self._adpter:
             ice_features = self.sen_adpter(ice_features)
+        if self._norm:
+            ice_features = ice_features / ice_features.norm(dim=-1, keepdim=True)
         ice_features = ice_features.view(bs, ice_num, -1)
         inputs_embeds[:, 2 : 2 + ice_num] += ice_features
 
