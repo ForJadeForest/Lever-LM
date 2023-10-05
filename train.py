@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from functools import partial
 
 import hydra
 import torch
@@ -12,7 +13,7 @@ from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import get_cosine_schedule_with_warmup
+from transformers import CLIPProcessor, get_cosine_schedule_with_warmup
 
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.utils import collate_fn, data_split
@@ -127,7 +128,7 @@ def main(cfg: DictConfig):
 
     iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
     logger.info(f'model: {type(iclm_model)} load succese')
-    ds_factory = hydra.utils.instantiate(cfg.train.ice_seq_idx_ds, _partial_=True)
+    ds_factory = hydra.utils.instantiate(cfg.train.iclm_ds, _partial_=True)
 
     train_ds = ds_factory(data_list=train_data_list, index_ds=index_ds)
     logger.info('train_ds load success')
@@ -146,6 +147,8 @@ def main(cfg: DictConfig):
     )
     fabric.launch()
     fabric.seed_everything(cfg.seed)
+    processor = CLIPProcessor.from_pretrained(cfg.train.iclm_model.clip_name)
+    collate_fn = partial(collate_fn, processor=processor)
     train_dataloader = DataLoader(
         train_ds,
         batch_size=cfg.batch_size,

@@ -1,4 +1,0 @@
-
-defaults:
-  - ice_seq_idx_ds: idx_ds
-  - iclm_model: idx_iclm

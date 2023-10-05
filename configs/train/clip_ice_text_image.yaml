@@ -1,4 +1,0 @@
-
-defaults:
-  - ice_seq_idx_ds: clip_ds
-  - iclm_model: clip_ice_text_image_iclm

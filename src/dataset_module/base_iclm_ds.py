@@ -11,11 +11,11 @@ class BaseICLMDataset(Dataset):
         self,
         data_list: List,
         index_ds: datasets.Dataset,
-        clip_processor_name: str,
         eos_token_id: int,
         bos_token_id: int,
         query_token_id: int,
-        image_field: str = 'image',
+        query_image_field: str = None,
+        query_text_field: str = None,
     ):
         super().__init__()
         self.ice_idx_seq_list = []
@@ -24,9 +24,10 @@ class BaseICLMDataset(Dataset):
         self.eos_token_id = eos_token_id
         self.bos_token_id = bos_token_id
         self.query_token_id = query_token_id
-        self.image_field = image_field
 
-        self.processor = CLIPProcessor.from_pretrained(clip_processor_name)
+        self.query_image_field = query_image_field
+        self.query_text_field = query_text_field
+
         self.index_ds = index_ds
         for idx_seq in data_list:
             idx_list = idx_seq[:-1]
@@ -40,13 +41,14 @@ class BaseICLMDataset(Dataset):
         )
 
         test_sample_id = self.x_id_list[index]
-        img = self.index_ds[test_sample_id][self.image_field]
-        test_img_input = self.processor(
-            images=img,
-            return_tensors='pt',
-        )
+        text = img = None
+        if self.query_image_field:
+            img = self.index_ds[test_sample_id][self.query_image_field]
+        if self.query_text_field:
+            text = self.index_ds[test_sample_id][self.query_text_field]
+        query_input = {'text': text, 'images': img}
         return {
-            'img_input': test_img_input,
+            'query_input': query_input,
             'ice_seq_idx': torch.tensor(add_sp_token_seq_idx, dtype=torch.long),
         }
 

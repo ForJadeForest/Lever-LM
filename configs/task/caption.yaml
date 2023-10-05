@@ -15,7 +15,8 @@ ice_join_char: "<|endofchunk|>"
 sim_text_field: "single_caption"
 sim_image_field: "image"
 
-ice_text_feature_field: "single_caption"
+ice_text_feature_field: "single_caption"  # use for as encoding data feature
+query_text_feature_field: null
 
 # for flamingo inference
 gen_args:
