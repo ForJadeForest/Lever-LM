@@ -59,7 +59,7 @@ def evaluate_retriever(
         logger.info(
             f'Now begin test {cfg.task.task_name}: {retriever_name} with {shot_num=}'
         )
-        output_files = info + f'-{shot_num=}'
+        output_files = info + f'-bs:{cfg.inference_bs}-{shot_num=}'
         retriever.ice_num = shot_num
         if cfg.task.task_name == 'caption':
             metric = inference_caption(
@@ -277,6 +277,18 @@ def main(cfg: DictConfig):
     if cfg.test_iclm:
         retriever_res = {}
         iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
+        if cfg.iclm_path is None:
+            logger.info(f'detect iclm_path is None, now try to find in model_cpk/{cfg.ex_name}')
+            cpk_dir = os.path.join(cfg.result, 'model_cpk', cfg.ex_name)
+            cpk_list = []
+            for f in os.listdir(cpk_dir):
+                cpk_list.append(os.path.join(cpk_dir, f))
+            cpk_list = list(filter(lambda x: 'last' in x, cpk_list))
+            if cpk_list:
+                logger.info(f'Detect {cpk_list[0]}, now begin to load cpk...')
+            else:
+                raise ValueError(f'The iclm_path is None and detect no checkpoint can use in {cpk_dir}')
+                
         iclm_model.load_state_dict(torch.load(cfg.iclm_path)['model'])
 
         processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
@@ -285,7 +297,7 @@ def main(cfg: DictConfig):
         info = base_info + retriever_info
         for shot_num in cfg.shot_num_list:
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
-            output_files = info + f'-{shot_num=}'
+            output_files = info + f'-bs:{cfg.inference_bs}-{shot_num=}-{iclm_model.query_encoding_flag=}-{iclm_model.ice_encoding_flag=}'
             if isinstance(iclm_model, GPT2ICLM):
                 ice_idx_list = iclm_generation(
                     iclm_model=iclm_model,
@@ -465,4 +477,5 @@ def iclm_generation(
 
 if __name__ == '__main__':
     load_dotenv()
+    main()
     main()
