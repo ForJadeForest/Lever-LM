@@ -77,16 +77,3 @@ python generate_data.py \
     gpu_ids="${gpu_ids}" \
     task=${task} \
     dataset=${dataset}
-
-# only_y_loss
-echo "=====================BEGIN TO Not Only Y Loss====================="
-python generate_data.py \
-    beam_size=5 \
-    few_shot_num=2 \
-    candidate_set_num=128 \
-    sample_num=5000 \
-    only_y_loss=false \
-    random_sample_candidate_set=true \
-    gpu_ids="${gpu_ids}" \
-    task=${task} \
-    dataset=${dataset}
