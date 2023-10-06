@@ -2,7 +2,7 @@ defaults:
   - _self_
   - dataset: coco2017
   - flamingo: flamingo_9B
-  - train: query_img_ice_text
+  - train: query_img_text_ice_img_text
   - task: caption
 
 
@@ -18,13 +18,13 @@ device: cuda
 index_data_num: -1
 test_data_num: -1
 
-inference_bs: 1
+inference_bs: 4
 
 # MMTopK config:
-mmtopk_clip_name: openai/clip-vit-large-patch14
+mmtopk_clip_name: openai/clip-vit-base-patch32
 
 # iclm config:
-iclm_path: "result/model_cpk/idx_base_iclm_2shot_with_imgToken_loss/last-val_loss:5.5326.pth"
+iclm_path: ???
 eos_token_id: ${dataset.train_ds_len}
 
 # Others

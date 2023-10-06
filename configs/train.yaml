@@ -4,26 +4,26 @@
 # order of defaults determines the order in which configs override each other
 defaults:
   - _self_
-  - train: query_img_ice_text
+  - train: query_img_text_ice_img_text
   - dataset: coco2017
   - task: caption
 
 
 # data args
-data_files: "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-text-beam_size:10-few_shot:2-candidate_set_num:64-sample_num:5000.json"
+data_files: ???
 
 # train args:
 epochs: 20
 train_ratio: 0.9
 lr: 1e-4
 batch_size: 64
-num_workers: 8
+num_workers: 16
 warm_up_ratio: 0.05
 val_step: 80
 
 # Others
 result_dir: "./result"
-ex_name: "default"
+ex_name: "debug"
 device: "cuda"
 device_num: 1
 precision: 16
@@ -33,3 +33,6 @@ seed: 42
 hydra:
   run:
     dir: ${result_dir}/hydra_output/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${result_dir}/hydra_output/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.override_dirname}
