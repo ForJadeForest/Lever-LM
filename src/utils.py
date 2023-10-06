@@ -166,49 +166,56 @@ def data_split(generated_data, train_ratio):
 
 def collate_fn(batch, processor: CLIPProcessor):
     bs = len(batch)
+    collate_dict = {
+        'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
+    }
     query_input = [d['query_input'] for d in batch]
+
     query_text_input = (
-        [q['text'] for q in query_input] if query_input[0]['text'] is not None else None
+        [q['text'] for q in query_input] if 'text' in query_input[0] is not None else None
     )
     query_image_input = (
         [q['images'] for q in query_input]
-        if query_input[0]['images'] is not None
+        if 'images' in query_input[0] is not None
         else None
     )
-    query_input = processor(
-        images=query_image_input,
-        text=query_text_input,
-        padding=True,
-        return_tensors='pr',
-    )
-    collate_dict = {
-        'query_input': query_input,
-        'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
-    }
-    ice_input = [d['ice_input'] for d in batch]
-    if 'text' in ice_input[0]:
-        ice_num = len(ice_input[0]['text'])
-        ice_text_input = [i['text'] for i in ice_input]
-        ice_text_input = [i for ice_text in ice_text_input for i in ice_text]
-    elif 'pixel_values' in ice_input[0]:
-        ice_num = len(ice_input[0]['images'])
-        ice_image_input = [i['images'] for i in ice_input]
-        ice_image_input = [i for ice_image in ice_image_input for i in ice_image]
-    else:
-        return collate_dict
+    if query_text_input or query_image_input:
+        query_input = processor(
+            images=query_image_input,
+            text=query_text_input,
+            padding=True,
+            return_tensors='pt',
+        )
+        collate_dict['query_input'] = query_input
 
-    ice_input = processor(
-        images=ice_text_input,
-        text=query_text_input,
-        padding=True,
-        return_tensors='pr',
-    )
-    ice_input['input_ids'] = ice_input['input_ids'].view(bs, ice_num, -1)
-    ice_input['attention_mask'] = ice_input['attention_mask'].view(bs, ice_num, -1)
-    ice_input['pixel_values'] = ice_input['pixel_values'].view(
-        bs, ice_num, *ice_input['pixel_values'].shape[1:]
-    )
-    collate_dict['ice_input'] = ice_input
+    ice_input_list = [d['ice_input'] for d in batch]
+    ice_image_input = ice_text_input = None
+    if 'text' in ice_input_list[0]:
+        ice_num = len(ice_input_list[0]['text'])
+        ice_text_input = [i['text'] for i in ice_input_list]
+        ice_text_input = [i for ice_text in ice_text_input for i in ice_text]
+    if 'images' in ice_input_list[0]:
+        ice_num = len(ice_input_list[0]['images'])
+        ice_image_input = [i['images'] for i in ice_input_list]
+        ice_image_input = [i for ice_image in ice_image_input for i in ice_image]
+
+    if ice_image_input or ice_text_input:
+        ice_input = processor(
+            images=ice_image_input,
+            text=ice_text_input,
+            padding=True,
+            return_tensors='pt',
+        )
+        if 'input_ids' in ice_input:
+            ice_input['input_ids'] = ice_input['input_ids'].view(bs, ice_num, -1)
+            ice_input['attention_mask'] = ice_input['attention_mask'].view(
+                bs, ice_num, -1
+            )
+        if 'pixel_values' in ice_input:
+            ice_input['pixel_values'] = ice_input['pixel_values'].view(
+                bs, ice_num, *ice_input['pixel_values'].shape[1:]
+            )
+        collate_dict['ice_input'] = ice_input
     return collate_dict
 
 

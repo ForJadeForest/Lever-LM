@@ -106,6 +106,7 @@ def train(
 
 @hydra.main(version_base=None, config_path="./configs", config_name="train.yaml")
 def main(cfg: DictConfig):
+    global collate_fn
     logger.info(f'{cfg=}')
     save_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.ex_name)
     if not os.path.exists(save_dir):
