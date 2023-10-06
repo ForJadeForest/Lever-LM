@@ -176,6 +176,6 @@ class GPT2ICLM(BaseICLM):
                     padding=True,
                     return_tensors='pt',
                 ).to(device)
-            # ice_input = {k: v.unsqueeze(dim=0) for k, v in ice_input.items()}
+            ice_input = {k: v.unsqueeze(dim=0) for k, v in ice_input.items()}
 
         return ice_seq_idx.detach().cpu().tolist()
