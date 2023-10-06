@@ -2,7 +2,7 @@ defaults:
   - _self_
   - dataset: coco2017
   - flamingo: flamingo_9B
-  - train: query_img_text_ice_img_text
+  - train: query_img_ice_text
   - task: caption
 
 
