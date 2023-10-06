@@ -65,7 +65,7 @@ class GPT2ICLM(BaseICLM):
 
     def forward(self, query_input, ice_input, ice_seq_idx):
         text_embeds = image_embeds = None
-        inputs_embeds = self.lm_model.transformer.wte(ice_input)
+        inputs_embeds = self.lm_model.transformer.wte(ice_seq_idx)
 
         # add query feature
         if 'image' in self.query_encoding_flag:
@@ -79,12 +79,12 @@ class GPT2ICLM(BaseICLM):
             text_embeds = self.sen_model(
                 input_ids=query_input['input_ids'],
                 attention_mask=query_input['attention_mask'],
-            )
+            )['text_embeds']
             if self._adpter:
                 text_embeds = self.sen_adpter(text_embeds)
             if self._norm:
                 text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
-            inputs_embeds[:, 1] += image_embeds
+            inputs_embeds[:, 1] += text_embeds
 
         # add ice feature
         if ice_input is None:
@@ -109,7 +109,7 @@ class GPT2ICLM(BaseICLM):
                 )
             ice_text_features = ice_text_features.view(bs, ice_num, -1)
             inputs_embeds[:, 2 : 2 + ice_num] += ice_text_features
-        elif 'image' in self.ice_encoding_flag:
+        if 'image' in self.ice_encoding_flag:
             bs, ice_num = ice_input['pixel_values'].shape[:2]
             img_shape = ice_input['pixel_values'].shape[-3:]
             ice_input['pixel_values'] = ice_input['pixel_values'].view(-1, *img_shape)
@@ -130,14 +130,14 @@ class GPT2ICLM(BaseICLM):
     @torch.inference_mode()
     def generation(
         self,
-        img_input,
+        query_input,
         init_ice_idx,
         shot_num,
         index_ds,
         processor,
         device,
-        text_field,
-        image_field,
+        ice_image_field,
+        ice_text_field,
         repetition_penalty=2.0,
     ):
         """
@@ -148,7 +148,7 @@ class GPT2ICLM(BaseICLM):
         sp_token_begin = len(index_ds)
 
         for _ in range(shot_num):
-            out = self.forward(img_input, ice_input, ice_seq_idx).logits[:, -1, :]
+            out = self.forward(query_input, ice_input, ice_seq_idx)["logits"][:, -1, :]
             # set the sp token prob to 0
             out[:, sp_token_begin:] = -torch.inf
             for ice_idx in ice_seq_idx:
@@ -160,19 +160,22 @@ class GPT2ICLM(BaseICLM):
                 [ice_seq_idx, torch.tensor([[next_token_idx]], device=device)],
                 dim=1,
             )
-
-            ice_text_list = [
-                index_ds[i][text_field] for i in ice_seq_idx.tolist()[0][2:]
-            ]
-            ice_img_list = [
-                index_ds[i][image_field] for i in ice_seq_idx.tolist()[0][2:]
-            ]
-            ice_input = processor(
-                text=ice_text_list,
-                images=ice_img_list,
-                padding=True,
-                return_tensors='pt',
-            ).to(device)
-            ice_input = {k: v.unsqueeze(dim=0) for k, v in ice_input.items()}
+            ice_text_list = ice_img_list = None
+            if 'text' in self.ice_encoding_flag:
+                ice_text_list = [
+                    index_ds[i][ice_text_field] for i in ice_seq_idx.tolist()[0][2:]
+                ]
+            if 'image' in self.ice_encoding_flag:
+                ice_img_list = [
+                    index_ds[i][ice_image_field] for i in ice_seq_idx.tolist()[0][2:]
+                ]
+            if ice_text_list or ice_img_list:
+                ice_input = processor(
+                    text=ice_text_list,
+                    images=ice_img_list,
+                    padding=True,
+                    return_tensors='pt',
+                ).to(device)
+            # ice_input = {k: v.unsqueeze(dim=0) for k, v in ice_input.items()}
 
         return ice_seq_idx.detach().cpu().tolist()
