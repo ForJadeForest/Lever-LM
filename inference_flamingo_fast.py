@@ -21,9 +21,8 @@ from openicl import (
     ZeroRetriever,
 )
 from tqdm import tqdm
-from transformers import AutoProcessor, AutoTokenizer
+from transformers import AutoProcessor
 
-from src.dataset_module import CocoDataset
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import compute_cider
 from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
@@ -439,8 +438,11 @@ def iclm_generation(
     query_image_field = cfg.train.iclm_ds.query_image_field
     query_text_field = cfg.train.iclm_ds.query_text_field
     for data in tqdm(val_ds):
-        query_img = data[query_image_field]
-        query_text = data[query_text_field]
+        query_img = query_text = None
+        if query_image_field:
+            query_img = data[query_image_field]
+        if query_text_field:
+            query_text = data[query_text_field]
 
         query_input = processor(
             images=query_img, text=query_text, return_tensors='pt'
