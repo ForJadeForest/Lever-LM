@@ -24,7 +24,7 @@ inference_bs: 4
 mmtopk_clip_name: openai/clip-vit-base-patch32
 
 # iclm config:
-iclm_path: ???
+iclm_path: null
 eos_token_id: ${dataset.train_ds_len}
 
 # Others
