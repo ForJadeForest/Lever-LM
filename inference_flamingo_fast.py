@@ -27,13 +27,7 @@ from src.dataset_module import CocoDataset
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import compute_cider
 from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
-from src.models import (
-    ICEImageICLM,
-    ICETextICLM,
-    ICETextImageICLM,
-    ICETextLSTMICLM,
-    IdxBaseICLM,
-)
+from src.models import GPT2ICLM, ICETextLSTMICLM
 from src.utils import init_flamingo
 
 logger = logging.getLogger(__name__)
@@ -293,46 +287,14 @@ def main(cfg: DictConfig):
         for shot_num in cfg.shot_num_list:
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
             output_files = info + f'-{shot_num=}'
-            if isinstance(iclm_model, ICETextICLM):
-                ice_idx_list = ice_text_iclm_generation(
+            if isinstance(iclm_model, GPT2ICLM):
+                ice_idx_list = iclm_generation(
                     iclm_model=iclm_model,
                     val_ds=ds[test_split],
                     train_ds=ds['train'],
                     processor=processor,
                     shot_num=shot_num,
-                    device=cfg.device,
-                    text_field=cfg.task.ice_text_feature_field,
-                )
-            elif isinstance(iclm_model, IdxBaseICLM):
-                ice_idx_list = idx_iclm_generation(
-                    iclm_model,
-                    ds[test_split],
-                    processor,
-                    shot_num,
-                    cfg.device,
-                    cfg.eos_token_id,
-                )
-            elif isinstance(iclm_model, ICETextImageICLM):
-                ice_idx_list = ice_text_image_iclm_generation(
-                    iclm_model=iclm_model,
-                    val_ds=ds[test_split],
-                    train_ds=ds['train'],
-                    processor=processor,
-                    shot_num=shot_num,
-                    device=cfg.device,
-                    text_field=cfg.task.ice_text_feature_field,
-                    image_field=cfg.task.image_field,
-                )
-            elif isinstance(iclm_model, ICEImageICLM):
-                ice_idx_list = ice_image_iclm_generation(
-                    iclm_model=iclm_model,
-                    val_ds=ds[test_split],
-                    train_ds=ds['train'],
-                    processor=processor,
-                    shot_num=shot_num,
-                    device=cfg.device,
-                    text_field=cfg.task.ice_text_feature_field,
-                    image_field=cfg.task.image_field,
+                    cfg=cfg,
                 )
             elif isinstance(iclm_model, ICETextLSTMICLM):
                 ice_idx_list = ice_text_lstm_iclm_generation(
@@ -423,40 +385,6 @@ def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_tok
     return ice_idx_list
 
 
-@torch.inference_mode()
-def ice_text_iclm_generation(
-    iclm_model: ICETextICLM,
-    val_ds: datasets.Dataset,
-    train_ds: datasets.Dataset,
-    processor,
-    shot_num,
-    device,
-    text_field,
-):
-    iclm_model = iclm_model.to(device)
-    iclm_model.eval()
-    ice_idx_list = []
-    bos_token_id = len(train_ds) + 1
-    query_token_id = len(train_ds) + 2
-    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
-
-    for data in tqdm(val_ds):
-        img = data['image']
-        img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
-        res = iclm_model.generation(
-            img_input=img,
-            init_ice_idx=init_ice_idx,
-            shot_num=shot_num,
-            index_ds=train_ds,
-            processor=processor,
-            text_field=text_field,
-            device=device,
-            repetition_penalty=2.0,
-        )[0]
-        res = res[2 : 2 + shot_num]
-        ice_idx_list.append(res)
-    return ice_idx_list
-
 
 @torch.inference_mode()
 def ice_text_lstm_iclm_generation(
@@ -494,71 +422,38 @@ def ice_text_lstm_iclm_generation(
 
 
 @torch.inference_mode()
-def ice_text_image_iclm_generation(
-    iclm_model: ICETextImageICLM,
+def iclm_generation(
+    iclm_model: GPT2ICLM,
     val_ds: datasets.Dataset,
     train_ds: datasets.Dataset,
     processor,
     shot_num,
-    device,
-    text_field,
-    image_field,
+    cfg,
 ):
-    iclm_model = iclm_model.to(device)
+    iclm_model = iclm_model.to(cfg.device)
     iclm_model.eval()
     ice_idx_list = []
     bos_token_id = len(train_ds) + 1
     query_token_id = len(train_ds) + 2
-    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
-
+    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(cfg.device)
+    query_image_field = cfg.train.iclm_ds.query_image_field
+    query_text_field = cfg.train.iclm_ds.query_text_field
     for data in tqdm(val_ds):
-        img = data['image']
-        img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
+        query_img = data[query_image_field]
+        query_text = data[query_text_field]
+
+        query_input = processor(
+            images=query_img, text=query_text, return_tensors='pt'
+        ).to(cfg.device)
         res = iclm_model.generation(
-            img_input=img,
+            query_input=query_input,
             init_ice_idx=init_ice_idx,
             shot_num=shot_num,
             index_ds=train_ds,
             processor=processor,
-            text_field=text_field,
-            image_field=image_field,
-            device=device,
-            repetition_penalty=2.0,
-        )[0]
-        res = res[2 : 2 + shot_num]
-        ice_idx_list.append(res)
-    return ice_idx_list
-
-
-@torch.inference_mode()
-def ice_image_iclm_generation(
-    iclm_model: ICEImageICLM,
-    val_ds: datasets.Dataset,
-    train_ds: datasets.Dataset,
-    processor,
-    shot_num,
-    device,
-    text_field,
-    image_field,
-):
-    iclm_model = iclm_model.to(device)
-    iclm_model.eval()
-    ice_idx_list = []
-    bos_token_id = len(train_ds) + 1
-    query_token_id = len(train_ds) + 2
-    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
-
-    for data in tqdm(val_ds):
-        img = data['image']
-        img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
-        res = iclm_model.generation(
-            img_input=img,
-            init_ice_idx=init_ice_idx,
-            shot_num=shot_num,
-            index_ds=train_ds,
-            processor=processor,
-            image_field=image_field,
-            device=device,
+            ice_image_field=cfg.train.iclm_ds.ice_image_field,
+            ice_text_field=cfg.train.iclm_ds.ice_text_field,
+            device=cfg.device,
             repetition_penalty=2.0,
         )[0]
         res = res[2 : 2 + shot_num]
