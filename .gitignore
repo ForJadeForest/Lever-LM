@@ -1,6 +1,7 @@
 result
 temp
 requirements_repo
+*result
 *.pyc
 .vscode
 # Byte-compiled / optimized / DLL files
