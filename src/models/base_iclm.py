@@ -1,11 +1,5 @@
 import torch
 from torch import nn
-from transformers import (
-    CLIPTextModelWithProjection,
-    CLIPVisionModelWithProjection,
-    GPT2Config,
-    GPT2LMHeadModel,
-)
 
 
 class BaseICLM(nn.Module):
