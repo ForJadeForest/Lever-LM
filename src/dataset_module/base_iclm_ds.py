@@ -41,12 +41,13 @@ class BaseICLMDataset(Dataset):
         )
 
         test_sample_id = self.x_id_list[index]
-        text = img = None
+        query_input = {}
         if self.query_image_field:
             img = self.index_ds[test_sample_id][self.query_image_field]
+            query_input['images'] = img
         if self.query_text_field:
             text = self.index_ds[test_sample_id][self.query_text_field]
-        query_input = {'text': text, 'images': img}
+            query_input['text'] = text
         return {
             'query_input': query_input,
             'ice_seq_idx': torch.tensor(add_sp_token_seq_idx, dtype=torch.long),

@@ -34,15 +34,15 @@ class ICLMDataset(BaseICLMDataset):
     def __getitem__(self, index):
         data_dict = super().__getitem__(index)
         ice_seq_idx = self.ice_idx_seq_list[index]
-        ice_text_list = ice_img_input = None
-
+        ice_input = {}
         if self.ice_text_field:
             ice_text_list = [self.index_ds[i][self.ice_text_field] for i in ice_seq_idx]
+            ice_input['text'] = ice_text_list
         if self.ice_image_field:
             ice_img_input = [
                 self.index_ds[i][self.ice_image_field] for i in ice_seq_idx
             ]
-        ice_input = {'text': ice_text_list, 'images': ice_img_input}
+            ice_input['images'] = ice_img_input
 
         data_dict['ice_input'] = ice_input
         return data_dict
