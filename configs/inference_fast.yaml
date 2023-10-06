@@ -28,7 +28,7 @@ iclm_path: ???
 eos_token_id: ${dataset.train_ds_len}
 
 # Others
-result_dir: "./result"
+result_dir: "${oc.env:RESULT_DIR}"
 ex_name: "debug"
 shot_num_list: [1, 2, 3, 4, 5, 6, 8]
 test_zero_shot: false

@@ -22,7 +22,7 @@ warm_up_ratio: 0.05
 val_step: 80
 
 # Others
-result_dir: "./result"
+result_dir: "${oc.env:RESULT_DIR}"
 ex_name: "debug"
 device: "cuda"
 device_num: 1

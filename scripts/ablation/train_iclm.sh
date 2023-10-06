@@ -15,7 +15,7 @@ run_train() {
 
     local ex_name_prefix="ab_${task}"
 
-    python train.py train=clip_ice_text \
+    python train.py train=query_img_ice_text \
         data_files="${data_file}" \
         epochs=20 \
         val_step=${val_step} \
@@ -43,7 +43,7 @@ elif [ "${task}" == "caption" ]; then
     run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random_sample_candidate-beam_size:5-few_shot:2-candidate_set_num:128-sample_num:5000.json" 80 "random_sample_128candidate_set_num"
     run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-image-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "image_sim_method"
     run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-text-beam_size:10-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "beamsize"
-    run_train "caption-coco2017--OpenFlamingo-9B-vitl-mpt7b-random_sample_candidate-beam_size:5-few_shot:2-candidate_set_num:128-sample_num:5000.json" 80 "not_only_yloss"
+    # run_train "caption-coco2017--OpenFlamingo-9B-vitl-mpt7b-random_sample_candidate-beam_size:5-few_shot:2-candidate_set_num:128-sample_num:5000.json" 80 "not_only_yloss"
 
 else
     echo "Invalid task. Please choose 'vqa' or 'caption'."
