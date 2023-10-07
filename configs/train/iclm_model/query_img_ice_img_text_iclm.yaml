@@ -1,4 +1,4 @@
-_target_: src.models.ice_text_iclm.ICETextICLM
+_target_: src.models.gpt2_iclm.GPT2ICLM
 
 lm_config: 
   n_embd: 512
@@ -10,3 +10,5 @@ clip_name: openai/clip-vit-base-patch32
 freeze_prefix_list: null
 adpter: False
 norm: true
+query_encoding_flag: ["image"]
+ice_encoding_flag: ["image", "text"]

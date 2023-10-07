@@ -5,15 +5,16 @@ import datasets
 from .base_iclm_ds import BaseICLMDataset
 
 
-class ICETextImageICLMDataset(BaseICLMDataset):
+class ICLMDataset(BaseICLMDataset):
     def __init__(
         self,
         data_list: List,
         index_ds: datasets.Dataset,
-        clip_processor_name: str,
         index_set_length: int,
-        image_field: str,
-        text_field: str,
+        query_image_field: str,
+        query_text_field: str,
+        ice_image_field: str = None,
+        ice_text_field: str = None,
     ):
         eos_token_id = index_set_length
         bos_token_id = index_set_length + 1
@@ -21,23 +22,27 @@ class ICETextImageICLMDataset(BaseICLMDataset):
         super().__init__(
             data_list,
             index_ds,
-            clip_processor_name,
             eos_token_id,
             bos_token_id,
             query_token_id,
-            image_field,
+            query_image_field,
+            query_text_field,
         )
-        self.text_field = text_field
+        self.ice_text_field = ice_text_field
+        self.ice_image_field = ice_image_field
 
     def __getitem__(self, index):
         data_dict = super().__getitem__(index)
         ice_seq_idx = self.ice_idx_seq_list[index]
-        ice_text_list = [self.index_ds[i][self.text_field] for i in ice_seq_idx]
-
-        ice_img_input = [self.index_ds[i][self.image_field] for i in ice_seq_idx]
-        ice_input = self.processor(
-            images=ice_img_input, text=ice_text_list, return_tensors="pt", padding=True
-        )
+        ice_input = {}
+        if self.ice_text_field:
+            ice_text_list = [self.index_ds[i][self.ice_text_field] for i in ice_seq_idx]
+            ice_input['text'] = ice_text_list
+        if self.ice_image_field:
+            ice_img_input = [
+                self.index_ds[i][self.ice_image_field] for i in ice_seq_idx
+            ]
+            ice_input['images'] = ice_img_input
 
         data_dict['ice_input'] = ice_input
         return data_dict

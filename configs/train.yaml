@@ -4,7 +4,7 @@
 # order of defaults determines the order in which configs override each other
 defaults:
   - _self_
-  - train: idx_base
+  - train: query_img_ice_text
   - dataset: coco2017
   - task: caption
 
@@ -13,17 +13,17 @@ defaults:
 data_files: ???
 
 # train args:
-epochs: 50
+epochs: 20
 train_ratio: 0.9
 lr: 1e-4
 batch_size: 64
-num_workers: 8
+num_workers: 16
 warm_up_ratio: 0.05
-val_step: 200
+val_step: 80
 
 # Others
-result_dir: "./result"
-ex_name: "default"
+result_dir: "${oc.env:RESULT_DIR}"
+ex_name: "debug"
 device: "cuda"
 device_num: 1
 precision: 16
@@ -33,3 +33,6 @@ seed: 42
 hydra:
   run:
     dir: ${result_dir}/hydra_output/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${result_dir}/hydra_output/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.override_dirname}

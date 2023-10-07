@@ -24,6 +24,7 @@ You should set the Environment varibles for dataset path and openflamingo path:
 CHECKPOINT_PATH="./openflamingo"  # the checkpoint path you want to save
 COCO_PATH="/path/to/mscoco"
 VQAV2_PATH="/path/to/vqav2"
+RESULT_DIR="/path/to/result"  # the dir to save result(checkpoint, inference metric, cache...)
 ```
 The flamingo checkpoint path will download automatically.
 
@@ -91,7 +92,7 @@ python generate_data.py candidate_set_num=128 beam_size=10 few_shot_num=4 bs=128
 python train.py
 ```
 参数 (Args):
-- `train`: 可选值为 `clip_ice_text_image`, `clip_ice_text`, `idx_base`，代表三种ICLM模型。
+- `train`: 可选值为 `query_img_ice_idx`, `query_img_ice_img_text`, `query_img_ice_img`，`query_img_ice_text`，`query_img_text_ice_img_text`，query之后的img表示添加query sample的image信息。query之后的text表示i添加query sample的text信息。ice同理。
 - `dataset`: 定义用于ICE的数据集。对于caption任务，可以选择coco2017或coco2014；对于vqa任务，可以选择vqav2_local或vqav2_online。此参数还包括数据集的路径和其他相关信息。
 - `task`: 可选值为 `vqa` 或 `caption`，配置构建prompt的相关参数。
 - `data_files`: 指定第一步生成的json数据文件名。
@@ -112,7 +113,7 @@ python train.py
 
 #### 3. Use Flamingo Inference
 If test the iclm model, you should set:
-- `train`: 可选值为 `clip_ice_text_image`, `clip_ice_text`, `idx_base`，代表三种ICLM模型。
+- `train`: 可选值为 `query_img_ice_idx`, `query_img_ice_img_text`, `query_img_ice_img`，`query_img_ice_text`，`query_img_text_ice_img_text`，query之后的img表示添加query sample的image信息。query之后的text表示i添加query sample的text信息。ice同理。
 - `iclm_path`: 模型checkpoint路径
 - `test_iclm`: 设置为true
 
