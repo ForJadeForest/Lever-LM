@@ -24,6 +24,7 @@ You should set the Environment varibles for dataset path and openflamingo path:
 CHECKPOINT_PATH="./openflamingo"  # the checkpoint path you want to save
 COCO_PATH="/path/to/mscoco"
 VQAV2_PATH="/path/to/vqav2"
+RESULT_DIR="/path/to/result"  # the dir to save result(checkpoint, inference metric, cache...)
 ```
 The flamingo checkpoint path will download automatically.
 
