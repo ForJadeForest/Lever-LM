@@ -92,6 +92,7 @@ def init_retriever(retriever_name, dr, cfg):
             ice_separator='<|endofchunk|>',
             ice_eos_token='<|endofchunk|>',
             test_split='validation',
+            seed=cfg.seed
         )
     elif retriever_name.startswith('MMTopKRetriever'):
         mode = retriever_name.split('-')[-1]
