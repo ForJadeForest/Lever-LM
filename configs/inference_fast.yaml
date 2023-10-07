@@ -22,6 +22,7 @@ inference_bs: 4
 
 # MMTopK config:
 mmtopk_clip_name: openai/clip-vit-base-patch32
+seed: 2023
 
 # iclm config:
 iclm_path: null
