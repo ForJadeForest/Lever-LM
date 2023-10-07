@@ -28,7 +28,7 @@ precision: bf16
 sample_num: 5000
 
 # Others
-result_dir: "./result"
+result_dir: "${oc.env:RESULT_DIR}"
 gpu_ids: [0]
 # load several models at the same time will cost large memory.
 # use sleep to load one by one.
