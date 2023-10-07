@@ -279,20 +279,22 @@ def main(cfg: DictConfig):
         iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
         if cfg.iclm_path is None:
             logger.info(f'detect iclm_path is None, now try to find in model_cpk/{cfg.ex_name}')
-            cpk_dir = os.path.join(cfg.result, 'model_cpk', cfg.ex_name)
+            cpk_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.ex_name)
             cpk_list = []
             for f in os.listdir(cpk_dir):
                 cpk_list.append(os.path.join(cpk_dir, f))
             cpk_list = list(filter(lambda x: 'last' in x, cpk_list))
             if cpk_list:
                 logger.info(f'Detect {cpk_list[0]}, now begin to load cpk...')
+                iclm_path = cpk_list[0]
             else:
                 raise ValueError(f'The iclm_path is None and detect no checkpoint can use in {cpk_dir}')
-                
-        iclm_model.load_state_dict(torch.load(cfg.iclm_path)['model'])
+        else:
+            iclm_path = cfg.iclm_path
+        iclm_model.load_state_dict(torch.load(iclm_path)['model'])
 
         processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
-        retriever_info = 'ICLM-' + os.path.splitext(os.path.basename(cfg.iclm_path))[0]
+        retriever_info = 'ICLM-' + os.path.splitext(os.path.basename(iclm_path))[0]
 
         info = base_info + retriever_info
         for shot_num in cfg.shot_num_list:
