@@ -480,4 +480,3 @@ def iclm_generation(
 if __name__ == '__main__':
     load_dotenv()
     main()
-    main()
