@@ -297,32 +297,34 @@ def main(cfg: DictConfig):
         retriever_info = 'ICLM-' + os.path.splitext(os.path.basename(iclm_path))[0]
 
         info = base_info + retriever_info
+        
+        if isinstance(iclm_model, GPT2ICLM):
+            ice_idx_list = iclm_generation(
+                iclm_model=iclm_model,
+                val_ds=ds[test_split],
+                train_ds=ds['train'],
+                processor=processor,
+                shot_num=max(cfg.shot_num_list),
+                cfg=cfg,
+            )
+        elif isinstance(iclm_model, ICETextLSTMICLM):
+            ice_idx_list = ice_text_lstm_iclm_generation(
+                iclm_model=iclm_model,
+                val_ds=ds[test_split],
+                train_ds=ds['train'],
+                processor=processor,
+                shot_num=max(cfg.shot_num_list),
+                device=cfg.device,
+                text_field=cfg.task.ice_text_feature_field,
+            )
         for shot_num in cfg.shot_num_list:
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
             output_files = info + f'-bs:{cfg.inference_bs}-{shot_num=}-{iclm_model.query_encoding_flag=}-{iclm_model.ice_encoding_flag=}'
-            if isinstance(iclm_model, GPT2ICLM):
-                ice_idx_list = iclm_generation(
-                    iclm_model=iclm_model,
-                    val_ds=ds[test_split],
-                    train_ds=ds['train'],
-                    processor=processor,
-                    shot_num=shot_num,
-                    cfg=cfg,
-                )
-            elif isinstance(iclm_model, ICETextLSTMICLM):
-                ice_idx_list = ice_text_lstm_iclm_generation(
-                    iclm_model=iclm_model,
-                    val_ds=ds[test_split],
-                    train_ds=ds['train'],
-                    processor=processor,
-                    shot_num=shot_num,
-                    device=cfg.device,
-                    text_field=cfg.task.ice_text_feature_field,
-                )
+            need_ice_idx_list = [ice_idx[:shot_num] for ice_idx in ice_idx_list]
 
             retriever = DirRetriever(
                 dr,
-                ice_idx_list,
+                need_ice_idx_list,
                 ice_separator='<|endofchunk|>',
                 ice_eos_token='<|endofchunk|>',
                 prompt_eos_token='',
