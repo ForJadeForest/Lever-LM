@@ -172,11 +172,11 @@ def collate_fn(batch, processor: CLIPProcessor):
     query_input = [d['query_input'] for d in batch]
 
     query_text_input = (
-        [q['text'] for q in query_input] if 'text' in query_input[0] is not None else None
+        [q['text'] for q in query_input] if 'text' in query_input[0] else None
     )
     query_image_input = (
         [q['images'] for q in query_input]
-        if 'images' in query_input[0] is not None
+        if 'images' in query_input[0]
         else None
     )
     if query_text_input or query_image_input:
