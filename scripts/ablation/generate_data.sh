@@ -22,7 +22,20 @@ python generate_data.py \
     candidate_set_num=64 \
     sample_num=10000 \
     only_y_loss=true \
-    random_sample_candidate_set=false \
+    random_sample_candidate_set=true \
+    gpu_ids="${gpu_ids}" \
+    task=${task} \
+    dataset=${dataset}
+
+# candidate num
+echo "=====================BEGIN TO BIG_CANDIDATE_NUM====================="
+python generate_data.py \
+    beam_size=5 \
+    few_shot_num=2 \
+    candidate_set_num=128 \
+    sample_num=5000 \
+    only_y_loss=true \
+    random_sample_candidate_set=true \
     gpu_ids="${gpu_ids}" \
     task=${task} \
     dataset=${dataset}
@@ -35,24 +48,12 @@ python generate_data.py \
     candidate_set_num=64 \
     sample_num=5000 \
     only_y_loss=true \
-    random_sample_candidate_set=false \
-    gpu_ids="${gpu_ids}" \
-    task=${task} \
-    dataset=${dataset}
-
-# candidate_method
-echo "=====================BEGIN TO CANDIDATEMETHOD: RANDOM====================="
-python generate_data.py \
-    beam_size=5 \
-    few_shot_num=2 \
-    candidate_set_num=64 \
-    sample_num=5000 \
-    only_y_loss=true \
     random_sample_candidate_set=true \
     gpu_ids="${gpu_ids}" \
     task=${task} \
     dataset=${dataset}
 
+# candidate_method
 echo "=====================BEGIN TO CANDIDATEMETHOD: SIM_IMAGE====================="
 python generate_data.py \
     beam_size=5 \
@@ -66,14 +67,14 @@ python generate_data.py \
     task=${task} \
     dataset=${dataset}
 
-echo "=====================BEGIN TO CANDIDATEMETHOD: RANDOM_BIG_CANDIDATE_NUM====================="
+echo "=====================BEGIN TO CANDIDATEMETHOD:TEXT_SIM====================="
 python generate_data.py \
     beam_size=5 \
     few_shot_num=2 \
-    candidate_set_num=128 \
+    candidate_set_num=64 \
     sample_num=5000 \
     only_y_loss=true \
-    random_sample_candidate_set=true \
+    random_sample_candidate_set=false \
     gpu_ids="${gpu_ids}" \
     task=${task} \
     dataset=${dataset}

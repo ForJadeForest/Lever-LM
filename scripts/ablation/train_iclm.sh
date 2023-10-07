@@ -30,7 +30,7 @@ run_train() {
 if [ "${task}" == "vqa" ]; then
     # VQA mode
     run_train "vqa-vqav2-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-text-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "baseline" "${iclm_model}"
-    run_train "vqa-vqav2-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-text-beam_size:10-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "beam_size" "${iclm_model}"
+    # run_train "vqa-vqav2-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-text-beam_size:10-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "beam_size" "${iclm_model}"
     # run_train "vqa-vqav2-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-text-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:10000.json" 160 "10000sample_num" "${iclm_model}"
     run_train "vqa-vqav2-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random_sample_candidate-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "random_sample" "${iclm_model}"
     run_train "vqa-vqav2-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random_sample_candidate-beam_size:5-few_shot:2-candidate_set_num:128-sample_num:5000.json" 80 "random_sample_128candidate_set_num" "${iclm_model}"
@@ -44,7 +44,7 @@ elif [ "${task}" == "caption" ]; then
     run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random_sample_candidate-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "random_sample" "${iclm_model}"
     run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random_sample_candidate-beam_size:5-few_shot:2-candidate_set_num:128-sample_num:5000.json" 80 "random_sample_128candidate_set_num" "${iclm_model}"
     run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-image-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "image_sim_method" "${iclm_model}"
-    run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-text-beam_size:10-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "beamsize" "${iclm_model}"
+    # run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-text-beam_size:10-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "beamsize" "${iclm_model}"
     run_train "caption-coco2017-cider_versionOpenFlamingo-9B-vitl-mpt7b-text-beam_size:5-few_shot:2-candidate_set_num:64.json" 80 "cider_score" "${iclm_model}"
 
 else
