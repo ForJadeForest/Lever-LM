@@ -92,7 +92,7 @@ def init_retriever(retriever_name, dr, cfg):
             ice_separator='<|endofchunk|>',
             ice_eos_token='<|endofchunk|>',
             test_split='validation',
-            seed=cfg.seed
+            seed=cfg.seed,
         )
     elif retriever_name.startswith('MMTopKRetriever'):
         mode = retriever_name.split('-')[-1]
@@ -279,7 +279,9 @@ def main(cfg: DictConfig):
         retriever_res = {}
         iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
         if cfg.iclm_path is None:
-            logger.info(f'detect iclm_path is None, now try to find in model_cpk/{cfg.ex_name}')
+            logger.info(
+                f'detect iclm_path is None, now try to find in model_cpk/{cfg.ex_name}'
+            )
             cpk_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.ex_name)
             cpk_list = []
             for f in os.listdir(cpk_dir):
@@ -289,7 +291,9 @@ def main(cfg: DictConfig):
                 logger.info(f'Detect {cpk_list[0]}, now begin to load cpk...')
                 iclm_path = cpk_list[0]
             else:
-                raise ValueError(f'The iclm_path is None and detect no checkpoint can use in {cpk_dir}')
+                raise ValueError(
+                    f'The iclm_path is None and detect no checkpoint can use in {cpk_dir}'
+                )
         else:
             iclm_path = cfg.iclm_path
         iclm_model.load_state_dict(torch.load(iclm_path)['model'])
@@ -298,7 +302,7 @@ def main(cfg: DictConfig):
         retriever_info = 'ICLM-' + os.path.splitext(os.path.basename(iclm_path))[0]
 
         info = base_info + retriever_info
-        
+
         if isinstance(iclm_model, GPT2ICLM):
             ice_idx_list = iclm_generation(
                 iclm_model=iclm_model,
@@ -318,9 +322,17 @@ def main(cfg: DictConfig):
                 device=cfg.device,
                 text_field=cfg.task.ice_text_feature_field,
             )
+        if cfg.random_order_iclm_ice:
+            logger.debug(f'before random {ice_idx_list[0]}')
+            ice_idx_list = shuffle_2d_list(ice_idx_list)
+            logger.debug(f'after random {ice_idx_list[0]}')
+
         for shot_num in cfg.shot_num_list:
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
-            output_files = info + f'-bs:{cfg.inference_bs}-{shot_num=}-{iclm_model.query_encoding_flag=}-{iclm_model.ice_encoding_flag=}'
+            output_files = (
+                info
+                + f'-bs:{cfg.inference_bs}-{shot_num=}-{iclm_model.query_encoding_flag=}-{iclm_model.ice_encoding_flag=}'
+            )
             need_ice_idx_list = [ice_idx[:shot_num] for ice_idx in ice_idx_list]
 
             retriever = DirRetriever(
@@ -353,6 +365,12 @@ def main(cfg: DictConfig):
             retriever_res[f'{shot_num=}'] = metric
             logger.info(f'{output_files}: {metric=}')
             record(result_json_path, {info: retriever_res})
+
+
+def shuffle_2d_list(matrix):
+    for row in matrix:
+        random.shuffle(row)
+    return matrix
 
 
 @torch.inference_mode()
@@ -399,7 +417,6 @@ def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_tok
         assert eos_token_id not in res, f'{res=}'
         ice_idx_list.append(res)
     return ice_idx_list
-
 
 
 @torch.inference_mode()

@@ -22,10 +22,11 @@ inference_bs: 4
 
 # MMTopK config:
 mmtopk_clip_name: openai/clip-vit-base-patch32
-seed: 2023
+seed: 42
 
 # iclm config:
 iclm_path: null
+random_order_iclm_ice: false
 eos_token_id: ${dataset.train_ds_len}
 
 # Others
