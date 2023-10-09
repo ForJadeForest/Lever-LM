@@ -323,9 +323,7 @@ def main(cfg: DictConfig):
                 text_field=cfg.task.ice_text_feature_field,
             )
         if cfg.random_order_iclm_ice:
-            logger.debug(f'before random {ice_idx_list[0]}')
             ice_idx_list = shuffle_2d_list(ice_idx_list)
-            logger.debug(f'after random {ice_idx_list[0]}')
 
         for shot_num in cfg.shot_num_list:
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
