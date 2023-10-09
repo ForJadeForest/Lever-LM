@@ -301,7 +301,11 @@ def main(cfg: DictConfig):
         processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
         retriever_info = 'ICLM-' + os.path.splitext(os.path.basename(iclm_path))[0]
 
-        info = base_info + retriever_info
+        info = (
+            base_info
+            + retriever_info
+            + f'-{iclm_model.query_encoding_flag=}-{iclm_model.ice_encoding_flag=}-bs:{cfg.inference_bs}'
+        )
 
         if isinstance(iclm_model, GPT2ICLM):
             ice_idx_list = iclm_generation(
@@ -327,10 +331,7 @@ def main(cfg: DictConfig):
 
         for shot_num in cfg.shot_num_list:
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
-            output_files = (
-                info
-                + f'-bs:{cfg.inference_bs}-{shot_num=}-{iclm_model.query_encoding_flag=}-{iclm_model.ice_encoding_flag=}'
-            )
+            output_files = info + f'-bs:{cfg.inference_bs}-{shot_num=}'
             need_ice_idx_list = [ice_idx[:shot_num] for ice_idx in ice_idx_list]
 
             retriever = DirRetriever(
