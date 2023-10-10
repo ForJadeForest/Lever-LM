@@ -255,9 +255,9 @@ def main(cfg: DictConfig):
     retriever_list = [
         ('ZeroShot', [0] if cfg.test_zero_shot else []),
         ('RandomSample', cfg.shot_num_list if cfg.test_random else []),
-        (f'MMTopKRetriever-i2t', cfg.shot_num_list if cfg.test_i2t else []),
-        (f'MMTopKRetriever-i2i', cfg.shot_num_list if cfg.test_i2i else []),
-        (f'MMTopKRetriever-t2t', cfg.shot_num_list if cfg.test_t2t else []),
+        (f'MMTopKRetriever-i2t-{cfg.mmtopk_clip_name.split("/")[-1]}', cfg.shot_num_list if cfg.test_i2t else []),
+        (f'MMTopKRetriever-i2i-{cfg.mmtopk_clip_name.split("/")[-1]}', cfg.shot_num_list if cfg.test_i2i else []),
+        (f'MMTopKRetriever-t2t-{cfg.mmtopk_clip_name.split("/")[-1]}', cfg.shot_num_list if cfg.test_t2t else []),
     ]
 
     # Test for other
