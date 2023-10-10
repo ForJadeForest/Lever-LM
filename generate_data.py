@@ -187,7 +187,7 @@ def gen_data(
     save_path = save_path.replace(os.path.basename(save_path), sub_res_basename)
     if os.path.exists(save_path):
         final_res.update(json.load(open(save_path)))
-        cur_idx = final_res['cur_idx']
+        cur_idx = len(final_res)
         logger.info(
             f'Rank: {rank} reloading data from {save_path}, begin from {cur_idx + 1}'
         )
@@ -195,9 +195,9 @@ def gen_data(
         logger.info(f'Rank: {rank} task is Done.')
         return
 
-    subset = subset.select(range(cur_idx + 1, len(subset)))
+    subset = subset.select(range(len(final_res), len(subset)))
     for i, test_data in enumerate(
-        tqdm(subset, disable=(rank != 0), total=subset_size, initial=cur_idx + 1),
+        tqdm(subset, disable=(rank != 0), total=subset_size, initial=len(final_res)),
     ):
         candidate_set = train_ds.select(sub_cand_set_idx[i])
         res = generate_single_sample_ice(
