@@ -20,61 +20,74 @@ python generate_data.py \
     beam_size=5 \
     few_shot_num=2 \
     candidate_set_num=64 \
-    sample_num=10000 \
-    only_y_loss=true \
-    random_sample_candidate_set=true \
-    gpu_ids="${gpu_ids}" \
-    task=${task} \
-    dataset=${dataset}
-
-# candidate num
-echo "=====================BEGIN TO BIG_CANDIDATE_NUM====================="
-python generate_data.py \
-    beam_size=5 \
-    few_shot_num=2 \
-    candidate_set_num=128 \
     sample_num=5000 \
-    only_y_loss=true \
-    random_sample_candidate_set=true \
+    candidate_set_method="random" \
     gpu_ids="${gpu_ids}" \
     task=${task} \
     dataset=${dataset}
 
-# beam_size:
-echo "=====================BEGIN TO BEAMSIZE====================="
+echo "=====================BEGIN TO BEAMSIZE:1====================="
+python generate_data.py \
+    beam_size=1 \
+    few_shot_num=2 \
+    candidate_set_num=64 \
+    sample_num=5000 \
+    candidate_set_method="random" \
+    gpu_ids="${gpu_ids}" \
+    task=${task} \
+    dataset=${dataset}
+
+echo "=====================BEGIN TO BEAMSIZE:10====================="
 python generate_data.py \
     beam_size=10 \
     few_shot_num=2 \
     candidate_set_num=64 \
     sample_num=5000 \
-    only_y_loss=true \
-    random_sample_candidate_set=true \
+    candidate_set_method="random" \
     gpu_ids="${gpu_ids}" \
     task=${task} \
     dataset=${dataset}
 
-# candidate_method
-echo "=====================BEGIN TO CANDIDATEMETHOD: SIM_IMAGE====================="
+echo "=====================BEGIN TO CANDIDATE:128====================="
+python generate_data.py \
+    beam_size=5 \
+    few_shot_num=2 \
+    candidate_set_num=128 \
+    sample_num=5000 \
+    candidate_set_method="random" \
+    gpu_ids="${gpu_ids}" \
+    task=${task} \
+    dataset=${dataset}
+
+echo "=====================BEGIN TO TEXT-SIM====================="
 python generate_data.py \
     beam_size=5 \
     few_shot_num=2 \
     candidate_set_num=64 \
     sample_num=5000 \
-    only_y_loss=true \
-    random_sample_candidate_set=false \
-    sim_method="image" \
+    candidate_set_method="text-sim" \
     gpu_ids="${gpu_ids}" \
     task=${task} \
     dataset=${dataset}
 
-echo "=====================BEGIN TO CANDIDATEMETHOD:TEXT_SIM====================="
+echo "=====================BEGIN TO IMAGE-SIM====================="
 python generate_data.py \
     beam_size=5 \
     few_shot_num=2 \
     candidate_set_num=64 \
     sample_num=5000 \
-    only_y_loss=true \
-    random_sample_candidate_set=false \
+    candidate_set_method="image-sim" \
+    gpu_ids="${gpu_ids}" \
+    task=${task} \
+    dataset=${dataset}
+
+echo "=====================BEGIN TO 1w SAMPLE_NUM===================="
+python generate_data.py \
+    beam_size=5 \
+    few_shot_num=2 \
+    candidate_set_num=64 \
+    sample_num=5000 \
+    candidate_set_method="image-sim" \
     gpu_ids="${gpu_ids}" \
     task=${task} \
     dataset=${dataset}
