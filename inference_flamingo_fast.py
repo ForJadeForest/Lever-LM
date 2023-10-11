@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import uuid
+from typing import Union
 
 import datasets
 import hydra
@@ -26,7 +27,7 @@ from transformers import AutoProcessor
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import compute_cider
 from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
-from src.models import GPT2ICLM, ICETextLSTMICLM
+from src.models import GPT2ICLM, LSTMICLM
 from src.utils import init_flamingo
 
 logger = logging.getLogger(__name__)
@@ -255,9 +256,18 @@ def main(cfg: DictConfig):
     retriever_list = [
         ('ZeroShot', [0] if cfg.test_zero_shot else []),
         ('RandomSample', cfg.shot_num_list if cfg.test_random else []),
-        (f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-i2t', cfg.shot_num_list if cfg.test_i2t else []),
-        (f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-i2i', cfg.shot_num_list if cfg.test_i2i else []),
-        (f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-t2t', cfg.shot_num_list if cfg.test_t2t else []),
+        (
+            f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-i2t',
+            cfg.shot_num_list if cfg.test_i2t else [],
+        ),
+        (
+            f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-i2i',
+            cfg.shot_num_list if cfg.test_i2i else [],
+        ),
+        (
+            f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-t2t',
+            cfg.shot_num_list if cfg.test_t2t else [],
+        ),
     ]
 
     # Test for other
@@ -298,7 +308,7 @@ def main(cfg: DictConfig):
             iclm_path = cfg.iclm_path
         iclm_model.load_state_dict(torch.load(iclm_path)['model'])
 
-        processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        processor = AutoProcessor.from_pretrained(cfg.train.iclm_model.clip_name)
         retriever_info = 'ICLM-' + os.path.splitext(os.path.basename(iclm_path))[0]
 
         info = (
@@ -307,25 +317,15 @@ def main(cfg: DictConfig):
             + f'-{iclm_model.query_encoding_flag=}-{iclm_model.ice_encoding_flag=}-bs:{cfg.inference_bs}'
         )
 
-        if isinstance(iclm_model, GPT2ICLM):
-            ice_idx_list = iclm_generation(
-                iclm_model=iclm_model,
-                val_ds=ds[test_split],
-                train_ds=ds['train'],
-                processor=processor,
-                shot_num=max(cfg.shot_num_list),
-                cfg=cfg,
-            )
-        elif isinstance(iclm_model, ICETextLSTMICLM):
-            ice_idx_list = ice_text_lstm_iclm_generation(
-                iclm_model=iclm_model,
-                val_ds=ds[test_split],
-                train_ds=ds['train'],
-                processor=processor,
-                shot_num=max(cfg.shot_num_list),
-                device=cfg.device,
-                text_field=cfg.task.ice_text_feature_field,
-            )
+        ice_idx_list = iclm_generation(
+            iclm_model=iclm_model,
+            val_ds=ds[test_split],
+            train_ds=ds['train'],
+            processor=processor,
+            shot_num=max(cfg.shot_num_list),
+            cfg=cfg,
+        )
+
         if cfg.random_order_iclm_ice:
             ice_idx_list = shuffle_2d_list(ice_idx_list)
 
@@ -419,43 +419,8 @@ def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_tok
 
 
 @torch.inference_mode()
-def ice_text_lstm_iclm_generation(
-    iclm_model: ICETextLSTMICLM,
-    val_ds: datasets.Dataset,
-    train_ds: datasets.Dataset,
-    processor,
-    shot_num,
-    device,
-    text_field,
-):
-    iclm_model = iclm_model.to(device)
-    iclm_model.eval()
-    ice_idx_list = []
-    bos_token_id = len(train_ds) + 1
-    query_token_id = len(train_ds) + 2
-    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
-
-    for data in tqdm(val_ds):
-        img = data['image']
-        img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
-        res = iclm_model.generation(
-            img_input=img,
-            init_ice_idx=init_ice_idx,
-            shot_num=shot_num,
-            index_ds=train_ds,
-            processor=processor,
-            text_field=text_field,
-            device=device,
-            repetition_penalty=2.0,
-        )[0]
-        res = res[2 : 2 + shot_num]
-        ice_idx_list.append(res)
-    return ice_idx_list
-
-
-@torch.inference_mode()
 def iclm_generation(
-    iclm_model: GPT2ICLM,
+    iclm_model: Union[GPT2ICLM, LSTMICLM],
     val_ds: datasets.Dataset,
     train_ds: datasets.Dataset,
     processor,
