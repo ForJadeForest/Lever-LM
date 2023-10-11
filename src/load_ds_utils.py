@@ -98,42 +98,7 @@ def load_vqav2_ds(cfg, split=None):
         ds.pop('test', None)
         ds.pop('testdev', None)
         ds = ds.sort('question_id')
-
-    def gene_answer_for_batch(batch_data):
-        answers = [gene_answer(answers) for answers in batch_data['answers']]
-        questions = [q for q in batch_data['question']]
-        q_a = [
-            f'Question:{q} Answer: {a}' for q, a in zip(questions, answers)
-        ]
-        batch_data['answer'] = answers
-        batch_data['q_a'] = q_a
-        return batch_data
-
-    def gene_answer(data):
-        # Use list comprehension to filter out answers with answer_confidence = "yes"
-        yes_answers = [
-            item['answer'] for item in data if item['answer_confidence'] == 'yes'
-        ]
-
-        # Use Counter to count the occurrences of each answer
-        answer_counts = Counter(yes_answers)
-
-        # Find the most common answer
-        most_common_answer = answer_counts.most_common(1)
-
-        if most_common_answer:
-            return most_common_answer[0][0]
-
-        maybe_answers = [
-            item['answer'] for item in data if item['answer_confidence'] == 'maybe'
-        ]
-        answer_counts = Counter(maybe_answers)
-        most_common_answer = answer_counts.most_common(1)
-        if most_common_answer:
-            return most_common_answer[0][0]
-        return data[0]['answer']
-
-    ds = ds.map(gene_answer_for_batch, batched=True, num_proc=12)
+    ds = ds.rename_columns({'multiple_choice_answer': 'answer'})
     return ds
 
 
