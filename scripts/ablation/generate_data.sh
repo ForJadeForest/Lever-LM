@@ -87,7 +87,7 @@ python generate_data.py \
     few_shot_num=2 \
     candidate_set_num=64 \
     sample_num=5000 \
-    candidate_set_method="image-sim" \
+    candidate_set_method="random" \
     gpu_ids="${gpu_ids}" \
     task=${task} \
     dataset=${dataset}
