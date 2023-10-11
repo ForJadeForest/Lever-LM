@@ -86,7 +86,7 @@ python generate_data.py \
     beam_size=5 \
     few_shot_num=2 \
     candidate_set_num=64 \
-    sample_num=5000 \
+    sample_num=10000 \
     candidate_set_method="random" \
     gpu_ids="${gpu_ids}" \
     task=${task} \
