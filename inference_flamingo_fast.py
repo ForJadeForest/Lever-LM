@@ -121,6 +121,7 @@ def init_retriever(retriever_name, dr, cfg):
             ice_eos_token='<|endofchunk|>',
             test_split='validation',
             batch_size=32,
+            num_workers=8,
             mode=mode,
             index_field=index_field,
             test_field=test_field,
