@@ -156,7 +156,7 @@ def inference_caption(
             }
         )
     cider_score = compute_cider(pred_coco, val_ann_path)
-    return cider_score
+    return cider_score * 100
 
 
 def inference_vqa(
