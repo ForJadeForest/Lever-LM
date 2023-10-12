@@ -95,7 +95,7 @@ def generate_single_sample_ice(
         for test_data_id_seq in test_data_id_list:
             # 避免添加重复的结果 将已经添加的进行过滤
             filtered_candidateidx2data = candidateidx2data.copy()
-            if len(test_data_id_list) >= 2:
+            if len(test_data_id_seq) >= 2:
                 filter_id_list = test_data_id_seq[:-1]
                 for i in filter_id_list:
                     filtered_candidateidx2data.pop(i)
