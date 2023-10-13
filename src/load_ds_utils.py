@@ -101,7 +101,7 @@ def load_vqav2_ds(cfg, split=None):
     ds = ds.rename_columns({'multiple_choice_answer': 'answer'})
 
     def gene_qa_text_field(batch_data):
-        answers = [i['answer'] for i in batch_data]
+        answers = [i for i in batch_data['answer']]
         questions = [q for q in batch_data['question']]
         q_a = [f'Question:{q} Answer: {a}' for q, a in zip(questions, answers)]
         batch_data['q_a'] = q_a
