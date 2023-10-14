@@ -20,7 +20,7 @@ class BaseICLMDataset(Dataset):
         super().__init__()
         self.ice_idx_seq_list = []
         self.x_id_list = []
-        self.test_sample_input_list = []
+
         self.eos_token_id = eos_token_id
         self.bos_token_id = bos_token_id
         self.query_token_id = query_token_id
