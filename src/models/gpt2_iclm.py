@@ -29,7 +29,7 @@ class GPT2ICLM(BaseICLM):
             ice_encoding_flag,
         )
         vocab_size = index_ds_size + 3
-        conifg = GPT2Config(
+        config = GPT2Config(
             vocab_size=vocab_size,
             n_embd=lm_config['n_embd'],
             n_head=lm_config['n_head'],
@@ -37,7 +37,7 @@ class GPT2ICLM(BaseICLM):
             eos_token_id=vocab_size,
             bos_token_id=vocab_size + 1,
         )
-        self.lm_model = GPT2LMHeadModel(conifg)
+        self.lm_model = GPT2LMHeadModel(config)
         need_encoder = set(self.query_encoding_flag + self.ice_encoding_flag)
         if 'image' in need_encoder:
             self.img_model = CLIPVisionModelWithProjection.from_pretrained(clip_name)
