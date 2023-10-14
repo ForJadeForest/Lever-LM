@@ -19,12 +19,14 @@ class ICLMDataset(BaseICLMDataset):
         eos_token_id = index_set_length
         bos_token_id = index_set_length + 1
         query_token_id = index_set_length + 2
+        padding_token_id = index_set_length + 3
         super().__init__(
             data_list,
             index_ds,
             eos_token_id,
             bos_token_id,
             query_token_id,
+            padding_token_id,
             query_image_field,
             query_text_field,
         )

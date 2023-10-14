@@ -28,16 +28,17 @@ class GPT2ICLM(BaseICLM):
             query_encoding_flag,
             ice_encoding_flag,
         )
-        vocab_size = index_ds_size + 3
-        conifg = GPT2Config(
+        vocab_size = index_ds_size + 4
+        config = GPT2Config(
             vocab_size=vocab_size,
             n_embd=lm_config['n_embd'],
             n_head=lm_config['n_head'],
             n_layer=lm_config['n_layer'],
-            eos_token_id=vocab_size,
-            bos_token_id=vocab_size + 1,
+            eos_token_id=index_ds_size,
+            bos_token_id=index_ds_size + 1,
+            pad_token_id=index_ds_size + 3,
         )
-        self.lm_model = GPT2LMHeadModel(conifg)
+        self.lm_model = GPT2LMHeadModel(config)
         need_encoder = set(self.query_encoding_flag + self.ice_encoding_flag)
         if 'image' in need_encoder:
             self.img_model = CLIPVisionModelWithProjection.from_pretrained(clip_name)
@@ -65,6 +66,7 @@ class GPT2ICLM(BaseICLM):
 
     def forward(self, query_input, ice_input, ice_seq_idx):
         text_embeds = image_embeds = None
+        pad_token_id = self.lm_model.config.pad_token_id
         inputs_embeds = self.lm_model.transformer.wte(ice_seq_idx)
 
         # add query feature
@@ -74,7 +76,7 @@ class GPT2ICLM(BaseICLM):
                 image_embeds = self.img_adpter(image_embeds)
             if self._norm:
                 image_embeds = image_embeds / image_embeds.norm(dim=-1, keepdim=True)
-            inputs_embeds[:, 1] += image_embeds
+            inputs_embeds[:, 1] = inputs_embeds[:, 1] + image_embeds
         if 'text' in self.query_encoding_flag:
             text_embeds = self.sen_model(
                 input_ids=query_input['input_ids'],
@@ -84,19 +86,13 @@ class GPT2ICLM(BaseICLM):
                 text_embeds = self.sen_adpter(text_embeds)
             if self._norm:
                 text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
-            inputs_embeds[:, 1] += text_embeds
+            inputs_embeds[:, 1] = inputs_embeds[:, 1] + text_embeds
 
         # add ice feature
         if ice_input is None:
             lm_output = self.lm_model(inputs_embeds=inputs_embeds)
             return lm_output
         if 'text' in self.ice_encoding_flag:
-            bs, ice_num, ice_seq_len = ice_input['input_ids'].shape
-            ice_input['input_ids'] = ice_input['input_ids'].view(-1, ice_seq_len)
-            ice_input['attention_mask'] = ice_input['attention_mask'].view(
-                -1, ice_seq_len
-            )
-
             ice_text_features = self.sen_model(
                 input_ids=ice_input['input_ids'],
                 attention_mask=ice_input['attention_mask'],
@@ -107,12 +103,15 @@ class GPT2ICLM(BaseICLM):
                 ice_text_features = ice_text_features / ice_text_features.norm(
                     dim=-1, keepdim=True
                 )
-            ice_text_features = ice_text_features.view(bs, ice_num, -1)
-            inputs_embeds[:, 2 : 2 + ice_num] += ice_text_features
+
+            split_sizes = ice_input['ice_num_list'].cpu().tolist()
+            ice_text_feature_splits = torch.split(ice_text_features, split_sizes, dim=0)
+            for i, ice_num in enumerate(ice_input['ice_num_list']):
+                inputs_embeds[i, 2 : 2 + ice_num] = (
+                    inputs_embeds[i, 2 : 2 + ice_num] + ice_text_feature_splits[i]
+                )
+
         if 'image' in self.ice_encoding_flag:
-            bs, ice_num = ice_input['pixel_values'].shape[:2]
-            img_shape = ice_input['pixel_values'].shape[-3:]
-            ice_input['pixel_values'] = ice_input['pixel_values'].view(-1, *img_shape)
             ice_img_features = self.img_model(ice_input['pixel_values'])['image_embeds']
 
             if self._adpter:
@@ -121,8 +120,17 @@ class GPT2ICLM(BaseICLM):
                 ice_img_features = ice_img_features / ice_img_features.norm(
                     dim=-1, keepdim=True
                 )
-            ice_img_features = ice_img_features.view(bs, ice_num, -1)
-            inputs_embeds[:, 2 : 2 + ice_num] += ice_img_features
+            split_sizes = ice_input['ice_num_list'].cpu().tolist()
+            ice_image_feature_splits = torch.split(ice_img_features, split_sizes, dim=0)
+            for i, ice_num in enumerate(ice_input['ice_num_list']):
+                inputs_embeds[i, 2 : 2 + ice_num] = (
+                    inputs_embeds[i, 2 : 2 + ice_num] + ice_image_feature_splits[i]
+                )
+        ice_seq_idx = torch.where(
+            ice_seq_idx == pad_token_id,
+            torch.tensor(-100, device=ice_seq_idx.device),
+            ice_seq_idx,
+        )
 
         output = self.lm_model(inputs_embeds=inputs_embeds, labels=ice_seq_idx)
         return output
@@ -155,9 +163,11 @@ class GPT2ICLM(BaseICLM):
             for ice_idx in ice_seq_idx:
                 out[:, ice_idx] /= repetition_penalty
 
-            next_token_idx = torch.softmax(out, dim=-1).argmax(dim=-1)  # bs, 1
+            next_token_idx = torch.softmax(out, dim=-1).argmax(dim=-1)  # bs,
 
-            ice_seq_idx = torch.cat([ice_seq_idx, next_token_idx.unsqueeze(dim=1)], dim=1)
+            ice_seq_idx = torch.cat(
+                [ice_seq_idx, next_token_idx.unsqueeze(dim=1)], dim=1
+            )
             ice_text_list = ice_img_list = None
             if 'text' in self.ice_encoding_flag:
                 ice_text_list = [
@@ -172,15 +182,12 @@ class GPT2ICLM(BaseICLM):
                     for idx in ice_seq_idx.tolist()[i][2:]
                 ]
             if ice_text_list or ice_img_list:
-                flatten_ice_input = processor(
+                ice_input = processor(
                     text=ice_text_list,
                     images=ice_img_list,
                     padding=True,
                     return_tensors='pt',
                 ).to(device)
-
-                ice_input = {}
-                for k in flatten_ice_input:
-                    other_dim = flatten_ice_input[k].shape[1:]
-                    ice_input[k] = flatten_ice_input[k].view(bs, s_n + 1, *other_dim)
+                ice_num_list = [s_n for _ in range(bs)]
+                ice_input['ice_num_list'] = torch.tensor(ice_num_list).to(device)
         return ice_seq_idx.detach().cpu().tolist()

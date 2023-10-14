@@ -191,11 +191,11 @@ def collate_fn(batch, processor: CLIPProcessor):
     ice_input_list = [d['ice_input'] for d in batch]
     ice_image_input = ice_text_input = None
     if 'text' in ice_input_list[0]:
-        ice_num = len(ice_input_list[0]['text'])
+        ice_num_list = [len(ice_input['text']) for ice_input in ice_input_list]
         ice_text_input = [i['text'] for i in ice_input_list]
         ice_text_input = [i for ice_text in ice_text_input for i in ice_text]
     if 'images' in ice_input_list[0]:
-        ice_num = len(ice_input_list[0]['images'])
+        ice_num_list = [len(ice_input['images']) for ice_input in ice_input_list]
         ice_image_input = [i['images'] for i in ice_input_list]
         ice_image_input = [i for ice_image in ice_image_input for i in ice_image]
 
@@ -206,16 +206,9 @@ def collate_fn(batch, processor: CLIPProcessor):
             padding=True,
             return_tensors='pt',
         )
-        if 'input_ids' in ice_input:
-            ice_input['input_ids'] = ice_input['input_ids'].view(bs, ice_num, -1)
-            ice_input['attention_mask'] = ice_input['attention_mask'].view(
-                bs, ice_num, -1
-            )
-        if 'pixel_values' in ice_input:
-            ice_input['pixel_values'] = ice_input['pixel_values'].view(
-                bs, ice_num, *ice_input['pixel_values'].shape[1:]
-            )
+        ice_input['ice_num_list'] = torch.tensor(ice_num_list)
         collate_dict['ice_input'] = ice_input
+
     return collate_dict
 
 
