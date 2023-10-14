@@ -146,36 +146,41 @@ class GPT2ICLM(BaseICLM):
         ice_input = None
         ice_seq_idx = init_ice_idx
         sp_token_begin = len(index_ds)
+        bs = len(ice_seq_idx)
 
-        for _ in range(shot_num):
+        for s_n in range(shot_num):
             out = self.forward(query_input, ice_input, ice_seq_idx)["logits"][:, -1, :]
             # set the sp token prob to 0
             out[:, sp_token_begin:] = -torch.inf
             for ice_idx in ice_seq_idx:
                 out[:, ice_idx] /= repetition_penalty
 
-            next_token_idx = torch.softmax(out, dim=-1).argmax(dim=-1)
+            next_token_idx = torch.softmax(out, dim=-1).argmax(dim=-1)  # bs, 1
 
-            ice_seq_idx = torch.cat(
-                [ice_seq_idx, torch.tensor([[next_token_idx]], device=device)],
-                dim=1,
-            )
+            ice_seq_idx = torch.cat([ice_seq_idx, next_token_idx.unsqueeze(dim=1)], dim=1)
             ice_text_list = ice_img_list = None
             if 'text' in self.ice_encoding_flag:
                 ice_text_list = [
-                    index_ds[i][ice_text_field] for i in ice_seq_idx.tolist()[0][2:]
+                    index_ds[idx][ice_text_field]
+                    for i in range(bs)
+                    for idx in ice_seq_idx.tolist()[i][2:]
                 ]
             if 'image' in self.ice_encoding_flag:
                 ice_img_list = [
-                    index_ds[i][ice_image_field] for i in ice_seq_idx.tolist()[0][2:]
+                    index_ds[idx][ice_image_field]
+                    for i in range(bs)
+                    for idx in ice_seq_idx.tolist()[i][2:]
                 ]
             if ice_text_list or ice_img_list:
-                ice_input = processor(
+                flatten_ice_input = processor(
                     text=ice_text_list,
                     images=ice_img_list,
                     padding=True,
                     return_tensors='pt',
                 ).to(device)
-            ice_input = {k: v.unsqueeze(dim=0) for k, v in ice_input.items()}
 
+                ice_input = {}
+                for k in flatten_ice_input:
+                    other_dim = flatten_ice_input[k].shape[1:]
+                    ice_input[k] = flatten_ice_input[k].view(bs, s_n + 1, *other_dim)
         return ice_seq_idx.detach().cpu().tolist()

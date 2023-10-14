@@ -21,6 +21,7 @@ from openicl import (
     RandomRetriever,
     ZeroRetriever,
 )
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoProcessor
 
@@ -227,30 +228,30 @@ def main(cfg: DictConfig):
         output_column=cfg.task.output_column,
     )
 
-    model, image_processor, tokenizer, autocast_context = init_flamingo(
-        lang_encoder_path=cfg.flamingo.lang_encoder_path,
-        tokenizer_path=cfg.flamingo.tokenizer_path,
-        flamingo_checkpoint_dir=cfg.flamingo.flamingo_checkpoint_dir,
-        cross_attn_every_n_layers=cfg.flamingo.cross_attn_every_n_layers,
-        hf_root=cfg.flamingo.hf_root,
-        precision=cfg.precision,
-        device=cfg.device,
-        from_local=cfg.flamingo.load_from_local,
-    )
-    inferencer = FlamingoGenInferencerFast(
-        model,
-        tokenizer,
-        image_processor,
-        other_save_field=cfg.task.other_save_field,
-        autocast_context=autocast_context,
-        image_field=cfg.task.image_field,
-        batch_size=cfg.inference_bs,
-        num_workers=cfg.num_workers,
-        num_proc=cfg.num_proc,
-        preprocessor_bs=cfg.preprocessor_bs,
-        generation_kwargs=cfg.task.gen_args,
-        output_json_filepath=os.path.join(result_dir, 'generation_metainfo'),
-    )
+    # model, image_processor, tokenizer, autocast_context = init_flamingo(
+    #     lang_encoder_path=cfg.flamingo.lang_encoder_path,
+    #     tokenizer_path=cfg.flamingo.tokenizer_path,
+    #     flamingo_checkpoint_dir=cfg.flamingo.flamingo_checkpoint_dir,
+    #     cross_attn_every_n_layers=cfg.flamingo.cross_attn_every_n_layers,
+    #     hf_root=cfg.flamingo.hf_root,
+    #     precision=cfg.precision,
+    #     device=cfg.device,
+    #     from_local=cfg.flamingo.load_from_local,
+    # )
+    # inferencer = FlamingoGenInferencerFast(
+    #     model,
+    #     tokenizer,
+    #     image_processor,
+    #     other_save_field=cfg.task.other_save_field,
+    #     autocast_context=autocast_context,
+    #     image_field=cfg.task.image_field,
+    #     batch_size=cfg.inference_bs,
+    #     num_workers=cfg.num_workers,
+    #     num_proc=cfg.num_proc,
+    #     preprocessor_bs=cfg.preprocessor_bs,
+    #     generation_kwargs=cfg.task.gen_args,
+    #     output_json_filepath=os.path.join(result_dir, 'generation_metainfo'),
+    # )
 
     base_info = f'{str(datetime.datetime.now())}-{test_data_num=}-'
 
@@ -433,18 +434,36 @@ def iclm_generation(
     ice_idx_list = []
     bos_token_id = len(train_ds) + 1
     query_token_id = len(train_ds) + 2
-    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(cfg.device)
+
     query_image_field = cfg.train.iclm_ds.query_image_field
     query_text_field = cfg.train.iclm_ds.query_text_field
-    for data in tqdm(val_ds):
-        query_img = query_text = None
-        if query_image_field:
-            query_img = data[query_image_field]
-        if query_text_field:
-            query_text = data[query_text_field]
 
-        query_input = processor(
-            images=query_img, text=query_text, return_tensors='pt'
+    val_ds_ = val_ds.map()
+
+    def prepare(examples):
+        images = texts = None
+        if query_image_field:
+            images = [i for i in examples[query_image_field]]
+        if query_text_field:
+            texts = [i for i in examples[query_text_field]]
+
+        data_dict = processor(
+            images=images,
+            text=texts,
+            padding=True,
+            return_tensors="pt",
+        )
+        return data_dict
+
+    val_ds_.set_transform(prepare)
+    dataloader = DataLoader(
+        val_ds_, batch_size=cfg.iclm_bs, shuffle=False, num_workers=cfg.iclm_num_workers
+    )
+
+    for query_input in tqdm(dataloader):
+        query_input = {k: v.to(cfg.device) for k, v in query_input.items()}
+        init_ice_idx = torch.tensor(
+            [[bos_token_id, query_token_id] for _ in range(cfg.iclm_bs)]
         ).to(cfg.device)
         res = iclm_model.generation(
             query_input=query_input,
@@ -456,9 +475,10 @@ def iclm_generation(
             ice_text_field=cfg.train.iclm_ds.ice_text_field,
             device=cfg.device,
             repetition_penalty=2.0,
-        )[0]
-        res = res[2 : 2 + shot_num]
-        ice_idx_list.append(res)
+        )
+        res = [r[2 : 2 + shot_num] for r in res]
+        ice_idx_list.extend(res)
+
     return ice_idx_list
 
 
