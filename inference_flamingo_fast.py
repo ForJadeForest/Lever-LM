@@ -383,7 +383,7 @@ def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_tok
     query_token_id = eos_token_id + 2
     init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
 
-    for data in tqdm(ds):
+    for data in tqdm(ds, ncols=100):
         img = data['image']
         img = img_processor(images=img, return_tensors='pt').to(device)['pixel_values']
 
@@ -463,7 +463,7 @@ def iclm_generation(
         num_workers=cfg.iclm_num_workers,
     )
 
-    for query_input in tqdm(dataloader):
+    for query_input in tqdm(dataloader, ncols=100):
         query_input = {k: v.to(cfg.device) for k, v in query_input.items()}
         bs = len(query_input[list(query_input.keys())[0]])
         init_ice_idx = torch.tensor(

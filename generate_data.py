@@ -199,7 +199,7 @@ def gen_data(
 
     subset = subset.select(range(len(final_res), len(subset)))
     for i, test_data in enumerate(
-        tqdm(subset, disable=(rank != 0), total=subset_size, initial=len(final_res)),
+        tqdm(subset, disable=(rank != 0), total=subset_size, initial=len(final_res), ncols=100),
     ):
         candidate_set = train_ds.select(sub_cand_set_idx[i])
         res = generate_single_sample_ice(
