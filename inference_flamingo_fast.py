@@ -228,30 +228,30 @@ def main(cfg: DictConfig):
         output_column=cfg.task.output_column,
     )
 
-    model, image_processor, tokenizer, autocast_context = init_flamingo(
-        lang_encoder_path=cfg.flamingo.lang_encoder_path,
-        tokenizer_path=cfg.flamingo.tokenizer_path,
-        flamingo_checkpoint_dir=cfg.flamingo.flamingo_checkpoint_dir,
-        cross_attn_every_n_layers=cfg.flamingo.cross_attn_every_n_layers,
-        hf_root=cfg.flamingo.hf_root,
-        precision=cfg.precision,
-        device=cfg.device,
-        from_local=cfg.flamingo.load_from_local,
-    )
-    inferencer = FlamingoGenInferencerFast(
-        model,
-        tokenizer,
-        image_processor,
-        other_save_field=cfg.task.other_save_field,
-        autocast_context=autocast_context,
-        image_field=cfg.task.image_field,
-        batch_size=cfg.inference_bs,
-        num_workers=cfg.num_workers,
-        num_proc=cfg.num_proc,
-        preprocessor_bs=cfg.preprocessor_bs,
-        generation_kwargs=cfg.task.gen_args,
-        output_json_filepath=os.path.join(result_dir, 'generation_metainfo'),
-    )
+    # model, image_processor, tokenizer, autocast_context = init_flamingo(
+    #     lang_encoder_path=cfg.flamingo.lang_encoder_path,
+    #     tokenizer_path=cfg.flamingo.tokenizer_path,
+    #     flamingo_checkpoint_dir=cfg.flamingo.flamingo_checkpoint_dir,
+    #     cross_attn_every_n_layers=cfg.flamingo.cross_attn_every_n_layers,
+    #     hf_root=cfg.flamingo.hf_root,
+    #     precision=cfg.precision,
+    #     device=cfg.device,
+    #     from_local=cfg.flamingo.load_from_local,
+    # )
+    # inferencer = FlamingoGenInferencerFast(
+    #     model,
+    #     tokenizer,
+    #     image_processor,
+    #     other_save_field=cfg.task.other_save_field,
+    #     autocast_context=autocast_context,
+    #     image_field=cfg.task.image_field,
+    #     batch_size=cfg.inference_bs,
+    #     num_workers=cfg.num_workers,
+    #     num_proc=cfg.num_proc,
+    #     preprocessor_bs=cfg.preprocessor_bs,
+    #     generation_kwargs=cfg.task.gen_args,
+    #     output_json_filepath=os.path.join(result_dir, 'generation_metainfo'),
+    # )
 
     base_info = f'{str(datetime.datetime.now())}-{test_data_num=}-'
 
@@ -457,13 +457,17 @@ def iclm_generation(
 
     val_ds_.set_transform(prepare)
     dataloader = DataLoader(
-        val_ds_, batch_size=cfg.iclm_bs, shuffle=False, num_workers=cfg.iclm_num_workers
+        val_ds_,
+        batch_size=cfg.iclm_bs,
+        shuffle=False,
+        num_workers=cfg.iclm_num_workers,
     )
 
     for query_input in tqdm(dataloader):
         query_input = {k: v.to(cfg.device) for k, v in query_input.items()}
+        bs = len(query_input[query_input.keys()[0]])
         init_ice_idx = torch.tensor(
-            [[bos_token_id, query_token_id] for _ in range(cfg.iclm_bs)]
+            [[bos_token_id, query_token_id] for _ in range(bs)]
         ).to(cfg.device)
         res = iclm_model.generation(
             query_input=query_input,
