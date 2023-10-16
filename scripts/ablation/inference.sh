@@ -28,7 +28,7 @@ run_inference() {
     elif [ "${task}" == "caption" ]; then
         echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
         python inference_flamingo_fast.py   train="${iclm_model}" \
-                                            ex_name="${ex_name_prefix}_${ex_name_suffix}_not_norm_${iclm_model}" \
+                                            ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_${iclm_model}" \
                                             dataset=${dataset} \
                                             task=${task}\
                                             inference_bs=${inference_bs}\
@@ -38,10 +38,10 @@ run_inference() {
     fi
 }
 
-run_inference "baseline"
-run_inference "1beam"
-run_inference "10beam"
-run_inference "128candidate"
-run_inference "text-sim"
+# run_inference "baseline"
+# run_inference "1beam"
+# run_inference "10beam"
+# run_inference "128candidate"
+# run_inference "text-sim"
 run_inference "img-sim"
 run_inference "1wanchors"
