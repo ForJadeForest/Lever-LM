@@ -32,7 +32,25 @@ run_train() {
     
 }
 
-# Caption mode
+
+run_inference() {
+    local ex_name_suffix=$1
+    local ex_name_prefix="ab_${task}"
+
+    echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
+    python inference_flamingo_fast.py   train="${iclm_model}" \
+                                        ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_freeze_adapter_${iclm_model}" \
+                                        dataset=${dataset} \
+                                        task=${task}\
+                                        inference_bs=4\
+                                        test_iclm=true\
+                                        train.iclm_model.norm=false \
+                                        train.iclm_model.freeze_prefix_list="[img_model,sen_model]" \
+                                        train.iclm_model.adapter=true
+}
+
+
+
 run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "baseline"
 run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:1-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "1beam"
 run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:10-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "10beam"
@@ -41,3 +59,15 @@ run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-text-sim-beam
 run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-image-sim-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "img-sim"
 run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:10000.json" 160 "1wanchors"
 
+
+export CUDA_VISIBLE_DEVICES="0" && run_inference "baseline" &
+export CUDA_VISIBLE_DEVICES="1" && run_inference "1beam" &
+export CUDA_VISIBLE_DEVICES="2" && run_inference "10beam" &
+export CUDA_VISIBLE_DEVICES="3" && run_inference "128candidate" &
+wait 
+
+export CUDA_VISIBLE_DEVICES="0" && run_inference "text-sim" &
+export CUDA_VISIBLE_DEVICES="1" && run_inference "img-sim" &
+export CUDA_VISIBLE_DEVICES="2" && run_inference "1wanchors" &
+
+wait
