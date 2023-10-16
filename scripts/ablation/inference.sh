@@ -38,10 +38,10 @@ run_inference() {
     fi
 }
 
-# run_inference "baseline"
-# run_inference "1beam"
-# run_inference "10beam"
-# run_inference "128candidate"
-# run_inference "text-sim"
+run_inference "baseline"
+run_inference "1beam"
+run_inference "10beam"
+run_inference "128candidate"
+run_inference "text-sim"
 run_inference "img-sim"
 run_inference "1wanchors"
