@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import uuid
+from typing import Union
 
 import datasets
 import hydra
@@ -20,13 +21,14 @@ from openicl import (
     RandomRetriever,
     ZeroRetriever,
 )
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoProcessor
 
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import compute_cider
 from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
-from src.models import GPT2ICLM, ICETextLSTMICLM
+from src.models import GPT2ICLM, LSTMICLM
 from src.utils import init_flamingo
 
 logger = logging.getLogger(__name__)
@@ -92,7 +94,7 @@ def init_retriever(retriever_name, dr, cfg):
             ice_separator='<|endofchunk|>',
             ice_eos_token='<|endofchunk|>',
             test_split='validation',
-            seed=cfg.seed
+            seed=cfg.seed,
         )
     elif retriever_name.startswith('MMTopKRetriever'):
         mode = retriever_name.split('-')[-1]
@@ -120,6 +122,7 @@ def init_retriever(retriever_name, dr, cfg):
             ice_eos_token='<|endofchunk|>',
             test_split='validation',
             batch_size=32,
+            num_workers=8,
             mode=mode,
             index_field=index_field,
             test_field=test_field,
@@ -154,7 +157,7 @@ def inference_caption(
             }
         )
     cider_score = compute_cider(pred_coco, val_ann_path)
-    return cider_score
+    return cider_score * 100
 
 
 def inference_vqa(
@@ -255,9 +258,18 @@ def main(cfg: DictConfig):
     retriever_list = [
         ('ZeroShot', [0] if cfg.test_zero_shot else []),
         ('RandomSample', cfg.shot_num_list if cfg.test_random else []),
-        (f'MMTopKRetriever-i2t', cfg.shot_num_list if cfg.test_i2t else []),
-        (f'MMTopKRetriever-i2i', cfg.shot_num_list if cfg.test_i2i else []),
-        (f'MMTopKRetriever-t2t', cfg.shot_num_list if cfg.test_t2t else []),
+        (
+            f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-i2t',
+            cfg.shot_num_list if cfg.test_i2t else [],
+        ),
+        (
+            f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-i2i',
+            cfg.shot_num_list if cfg.test_i2i else [],
+        ),
+        (
+            f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-t2t',
+            cfg.shot_num_list if cfg.test_t2t else [],
+        ),
     ]
 
     # Test for other
@@ -279,7 +291,9 @@ def main(cfg: DictConfig):
         retriever_res = {}
         iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
         if cfg.iclm_path is None:
-            logger.info(f'detect iclm_path is None, now try to find in model_cpk/{cfg.ex_name}')
+            logger.info(
+                f'detect iclm_path is None, now try to find in model_cpk/{cfg.ex_name}'
+            )
             cpk_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.ex_name)
             cpk_list = []
             for f in os.listdir(cpk_dir):
@@ -289,38 +303,37 @@ def main(cfg: DictConfig):
                 logger.info(f'Detect {cpk_list[0]}, now begin to load cpk...')
                 iclm_path = cpk_list[0]
             else:
-                raise ValueError(f'The iclm_path is None and detect no checkpoint can use in {cpk_dir}')
+                raise ValueError(
+                    f'The iclm_path is None and detect no checkpoint can use in {cpk_dir}'
+                )
         else:
             iclm_path = cfg.iclm_path
         iclm_model.load_state_dict(torch.load(iclm_path)['model'])
 
-        processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        processor = AutoProcessor.from_pretrained(cfg.train.iclm_model.clip_name)
         retriever_info = 'ICLM-' + os.path.splitext(os.path.basename(iclm_path))[0]
 
-        info = base_info + retriever_info
-        
-        if isinstance(iclm_model, GPT2ICLM):
-            ice_idx_list = iclm_generation(
-                iclm_model=iclm_model,
-                val_ds=ds[test_split],
-                train_ds=ds['train'],
-                processor=processor,
-                shot_num=max(cfg.shot_num_list),
-                cfg=cfg,
-            )
-        elif isinstance(iclm_model, ICETextLSTMICLM):
-            ice_idx_list = ice_text_lstm_iclm_generation(
-                iclm_model=iclm_model,
-                val_ds=ds[test_split],
-                train_ds=ds['train'],
-                processor=processor,
-                shot_num=max(cfg.shot_num_list),
-                device=cfg.device,
-                text_field=cfg.task.ice_text_feature_field,
-            )
+        info = (
+            base_info
+            + retriever_info
+            + f'-{iclm_model.query_encoding_flag=}-{iclm_model.ice_encoding_flag=}-bs:{cfg.inference_bs}'
+        )
+
+        ice_idx_list = iclm_generation(
+            iclm_model=iclm_model,
+            val_ds=ds[test_split],
+            train_ds=ds['train'],
+            processor=processor,
+            shot_num=max(cfg.shot_num_list),
+            cfg=cfg,
+        )
+
+        if cfg.random_order_iclm_ice:
+            ice_idx_list = shuffle_2d_list(ice_idx_list)
+
         for shot_num in cfg.shot_num_list:
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
-            output_files = info + f'-bs:{cfg.inference_bs}-{shot_num=}-{iclm_model.query_encoding_flag=}-{iclm_model.ice_encoding_flag=}'
+            output_files = info + f'-bs:{cfg.inference_bs}-{shot_num=}'
             need_ice_idx_list = [ice_idx[:shot_num] for ice_idx in ice_idx_list]
 
             retriever = DirRetriever(
@@ -355,6 +368,12 @@ def main(cfg: DictConfig):
             record(result_json_path, {info: retriever_res})
 
 
+def shuffle_2d_list(matrix):
+    for row in matrix:
+        random.shuffle(row)
+    return matrix
+
+
 @torch.inference_mode()
 def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_token_id):
     iclm_model = iclm_model.to(device)
@@ -364,7 +383,7 @@ def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_tok
     query_token_id = eos_token_id + 2
     init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
 
-    for data in tqdm(ds):
+    for data in tqdm(ds, ncols=100):
         img = data['image']
         img = img_processor(images=img, return_tensors='pt').to(device)['pixel_values']
 
@@ -401,45 +420,9 @@ def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_tok
     return ice_idx_list
 
 
-
-@torch.inference_mode()
-def ice_text_lstm_iclm_generation(
-    iclm_model: ICETextLSTMICLM,
-    val_ds: datasets.Dataset,
-    train_ds: datasets.Dataset,
-    processor,
-    shot_num,
-    device,
-    text_field,
-):
-    iclm_model = iclm_model.to(device)
-    iclm_model.eval()
-    ice_idx_list = []
-    bos_token_id = len(train_ds) + 1
-    query_token_id = len(train_ds) + 2
-    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
-
-    for data in tqdm(val_ds):
-        img = data['image']
-        img = processor(images=img, return_tensors='pt').to(device)['pixel_values']
-        res = iclm_model.generation(
-            img_input=img,
-            init_ice_idx=init_ice_idx,
-            shot_num=shot_num,
-            index_ds=train_ds,
-            processor=processor,
-            text_field=text_field,
-            device=device,
-            repetition_penalty=2.0,
-        )[0]
-        res = res[2 : 2 + shot_num]
-        ice_idx_list.append(res)
-    return ice_idx_list
-
-
 @torch.inference_mode()
 def iclm_generation(
-    iclm_model: GPT2ICLM,
+    iclm_model: Union[GPT2ICLM, LSTMICLM],
     val_ds: datasets.Dataset,
     train_ds: datasets.Dataset,
     processor,
@@ -451,18 +434,40 @@ def iclm_generation(
     ice_idx_list = []
     bos_token_id = len(train_ds) + 1
     query_token_id = len(train_ds) + 2
-    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(cfg.device)
+
     query_image_field = cfg.train.iclm_ds.query_image_field
     query_text_field = cfg.train.iclm_ds.query_text_field
-    for data in tqdm(val_ds):
-        query_img = query_text = None
-        if query_image_field:
-            query_img = data[query_image_field]
-        if query_text_field:
-            query_text = data[query_text_field]
 
-        query_input = processor(
-            images=query_img, text=query_text, return_tensors='pt'
+    val_ds_ = val_ds.map()
+
+    def prepare(examples):
+        images = texts = None
+        if query_image_field:
+            images = [i for i in examples[query_image_field]]
+        if query_text_field:
+            texts = [i for i in examples[query_text_field]]
+
+        data_dict = processor(
+            images=images,
+            text=texts,
+            padding=True,
+            return_tensors="pt",
+        )
+        return data_dict
+
+    val_ds_.set_transform(prepare)
+    dataloader = DataLoader(
+        val_ds_,
+        batch_size=cfg.iclm_bs,
+        shuffle=False,
+        num_workers=cfg.iclm_num_workers,
+    )
+
+    for query_input in tqdm(dataloader, ncols=100):
+        query_input = {k: v.to(cfg.device) for k, v in query_input.items()}
+        bs = len(query_input[list(query_input.keys())[0]])
+        init_ice_idx = torch.tensor(
+            [[bos_token_id, query_token_id] for _ in range(bs)]
         ).to(cfg.device)
         res = iclm_model.generation(
             query_input=query_input,
@@ -474,9 +479,10 @@ def iclm_generation(
             ice_text_field=cfg.train.iclm_ds.ice_text_field,
             device=cfg.device,
             repetition_penalty=2.0,
-        )[0]
-        res = res[2 : 2 + shot_num]
-        ice_idx_list.append(res)
+        )
+        res = [r[2 : 2 + shot_num] for r in res]
+        ice_idx_list.extend(res)
+
     return ice_idx_list
 
 

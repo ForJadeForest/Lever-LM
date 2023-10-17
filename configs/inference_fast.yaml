@@ -22,16 +22,20 @@ inference_bs: 4
 
 # MMTopK config:
 mmtopk_clip_name: openai/clip-vit-base-patch32
-seed: 2023
+seed: 42
 
 # iclm config:
 iclm_path: null
+random_order_iclm_ice: false
+iclm_bs: 3
+iclm_num_workers: 2
+
 eos_token_id: ${dataset.train_ds_len}
 
 # Others
 result_dir: "${oc.env:RESULT_DIR}"
 ex_name: "debug"
-shot_num_list: [1, 2, 3, 4, 5, 6, 7, 8]
+shot_num_list: [1, 2, 3, 4, 6, 8]
 test_zero_shot: false
 test_random: false
 test_iclm: false

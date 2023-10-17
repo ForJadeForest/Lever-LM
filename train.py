@@ -25,7 +25,10 @@ logger = logging.getLogger(__name__)
 def validation(model: nn.Module, val_dataloader: DataLoader, fabric: Fabric):
     model.eval()
     val_bar = tqdm(
-        val_dataloader, desc=f'val Loss: xx.xxxx', disable=(fabric.local_rank != 0)
+        val_dataloader,
+        desc=f'val Loss: xx.xxxx',
+        disable=(fabric.local_rank != 0),
+        ncols=100,
     )
     total_val_loss = 0.0
     for val_data in val_bar:
@@ -57,6 +60,7 @@ def train(
             train_dataloader,
             desc=f'epoch:{epoch}-Loss: xx.xxxx',
             disable=(fabric.local_rank != 0),
+            ncols=100,
         )
         for data in bar:
             model.train()

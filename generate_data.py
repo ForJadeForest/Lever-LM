@@ -39,7 +39,11 @@ def load_feature_cache(cfg, cache_path, encoding_method, train_ds, data_key):
         features = torch.load(cache_path)
     else:
         features = encoding_method(
-            train_ds, data_key, cfg.device, cfg.sim_model_type, cfg.candidate_set_encode_bs
+            train_ds,
+            data_key,
+            cfg.device,
+            cfg.sim_model_type,
+            cfg.candidate_set_encode_bs,
         )
         torch.save(features, cache_path)
     return features
@@ -91,7 +95,7 @@ def generate_single_sample_ice(
         for test_data_id_seq in test_data_id_list:
             # 避免添加重复的结果 将已经添加的进行过滤
             filtered_candidateidx2data = candidateidx2data.copy()
-            if len(test_data_id_list) >= 2:
+            if len(test_data_id_seq) >= 2:
                 filter_id_list = test_data_id_seq[:-1]
                 for i in filter_id_list:
                     filtered_candidateidx2data.pop(i)
@@ -179,7 +183,6 @@ def gen_data(
     )
 
     final_res = {}
-    cur_idx = -1
     sub_res_basename = (
         os.path.basename(save_path).split('.')[0]
         + f'_rank:{rank}_({subset_start}, {subset_end}).json'
@@ -187,17 +190,16 @@ def gen_data(
     save_path = save_path.replace(os.path.basename(save_path), sub_res_basename)
     if os.path.exists(save_path):
         final_res.update(json.load(open(save_path)))
-        cur_idx = final_res['cur_idx']
         logger.info(
-            f'Rank: {rank} reloading data from {save_path}, begin from {cur_idx + 1}'
+            f'Rank: {rank} reloading data from {save_path}, begin from {len(final_res)}'
         )
     if len(final_res) == subset_size:
         logger.info(f'Rank: {rank} task is Done.')
         return
 
-    subset = subset.select(range(cur_idx + 1, len(subset)))
+    subset = subset.select(range(len(final_res), len(subset)))
     for i, test_data in enumerate(
-        tqdm(subset, disable=(rank != 0), total=subset_size, initial=cur_idx + 1),
+        tqdm(subset, disable=(rank != 0), total=subset_size, initial=len(final_res), ncols=100),
     ):
         candidate_set = train_ds.select(sub_cand_set_idx[i])
         res = generate_single_sample_ice(
@@ -211,8 +213,6 @@ def gen_data(
             autocast_context=autocast_context,
         )
         final_res.update(res)
-        cur_idx += 1
-        final_res['cur_idx'] = cur_idx
         with open(save_path, 'w') as f:
             json.dump(final_res, f)
     return
@@ -235,13 +235,9 @@ def main(cfg: DictConfig):
     if not os.path.exists(sub_proc_save_dir):
         os.makedirs(sub_proc_save_dir)
 
-    candidate_method = (
-        'random_sample_candidate' if cfg.random_sample_candidate_set else cfg.sim_method
-    )
-
     save_file_name = (
         f'{cfg.task.task_name}-{cfg.dataset.name}-{"only_y_loss" if cfg.only_y_loss else ""}-'
-        f'{cfg.flamingo.hf_root}-{candidate_method}-'
+        f'{cfg.flamingo.hf_root}-{cfg.candidate_set_method}-'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
         f'candidate_set_num:{cfg.candidate_set_num}-sample_num:{cfg.sample_num}.json'
     )
@@ -258,27 +254,34 @@ def main(cfg: DictConfig):
         raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
 
     # sample from train idx
-    idx_cache_filename = (
-        f'{cfg.dataset.name}-{cfg.sample_num}-'
-        f'{cfg.candidate_set_num}-{candidate_method}.json'
+    anchor_set_cache_filename = os.path.join(
+        cache_dir, f'{cfg.dataset.name}-sample_num:{cfg.sample_num}.json'
     )
 
-    sample_data_idx_cache = os.path.join(cache_dir, idx_cache_filename)
-    if os.path.exists(sample_data_idx_cache):
-        sample_cache_metainfo = json.load(open(sample_data_idx_cache, 'r'))
-        sample_index = sample_cache_metainfo['sample_index']
-        candidate_set_idx = sample_cache_metainfo['candidate_set_idx']
-        sample_data = train_ds.select(sample_index)
-    else:
-        sample_cache_metainfo = dict()
-        sample_index = random.sample(range(0, len(train_ds)), cfg.sample_num)
-        sample_cache_metainfo['sample_index'] = sample_index
-        sample_data = train_ds.select(sample_index)
+    candidate_set_cache_filename = os.path.join(
+        cache_dir,
+        f'{cfg.dataset.name}-sample_num:{cfg.sample_num}-'
+        f'candidate_set_num:{cfg.candidate_set_num}-method:{cfg.candidate_set_method}.json',
+    )
 
-        # get the candidate set
-        if cfg.random_sample_candidate_set:
-            candidate_set_idx = []
-            for s_idx in sample_index:
+    if os.path.exists(anchor_set_cache_filename):
+        logger.info('the anchor_set_cache_filename exists, loding...')
+        anchor_idx_list = json.load(open(anchor_set_cache_filename, 'r'))
+    else:
+        anchor_idx_list = random.sample(range(0, len(train_ds)), cfg.sample_num)
+        with open(anchor_set_cache_filename, 'w') as f:
+            logger.info(f'save {anchor_set_cache_filename}...')
+            json.dump(anchor_idx_list, f)
+    anchor_data = train_ds.select(anchor_idx_list)
+
+    if os.path.exists(candidate_set_cache_filename):
+        logger.info('the candidate set cache exists, loding...')
+        candidate_set_idx = json.load(open(candidate_set_cache_filename, 'r'))
+        candidate_set_idx = {int(k): v for k,v in candidate_set_idx.items()}
+    else:
+        candidate_set_idx = {}
+        if cfg.candidate_set_method == 'random':
+            for s_idx in anchor_idx_list:
                 random_candidate_set = random.sample(
                     range(0, len(train_ds)), cfg.candidate_set_num
                 )
@@ -286,43 +289,44 @@ def main(cfg: DictConfig):
                     random_candidate_set = random.sample(
                         list(range(0, len(train_ds))), cfg.candidate_set_num
                     )
-                candidate_set_idx.append(random_candidate_set)
-
+                candidate_set_idx[s_idx] = random_candidate_set
         else:
             # pre-calculate the cache feature for knn search
-            if cfg.sim_method == 'text':
+            if cfg.candidate_set_method == 'text-sim':
                 encoding_method = encode_text
                 data_key = cfg.task.sim_text_field
-            elif cfg.sim_method == 'image':
+            elif cfg.candidate_set_method == 'image-sim':
                 encoding_method = encode_image
                 data_key = cfg.task.sim_image_field
             else:
-                raise ValueError('the sim_method error')
+                raise ValueError('the candidate_set_method error')
             sim_model_name = cfg.sim_model_type.split('/')[-1]
             train_cache_path = os.path.join(
                 cache_dir,
                 f'{cfg.task.task_name}-{cfg.dataset.name}-'
-                f'{cfg.sim_method}-{sim_model_name}-feature.pth',
+                f'{cfg.candidate_set_method}-{sim_model_name}-feature.pth',
             )
             train_feature = load_feature_cache(
                 cfg, train_cache_path, encoding_method, train_ds, data_key
             )
-            test_feature = train_feature[sample_index]
-            _, candidate_set_idx = recall_sim_feature(
+            test_feature = train_feature[anchor_idx_list]
+            _, sim_sample_idx = recall_sim_feature(
                 test_feature, train_feature, top_k=cfg.candidate_set_num + 1
             )
 
-            candidate_set_idx = candidate_set_idx[:, 1:].tolist()
-        sample_cache_metainfo['candidate_set_idx'] = candidate_set_idx
-        with open(sample_data_idx_cache, 'w') as f:
-            logger.info(f'save {sample_data_idx_cache}...')
-            json.dump(sample_cache_metainfo, f)
-
+            sim_sample_idx = sim_sample_idx[:, 1:].tolist()
+            candidate_set_idx = {
+                idx: cand for idx, cand in zip(anchor_idx_list, sim_sample_idx)
+            }
+        with open(candidate_set_cache_filename, 'w') as f:
+            logger.info(f'save {candidate_set_cache_filename}...')
+            json.dump(candidate_set_idx, f)
+    candidate_set_idx = [candidate_set_idx[k] for k in anchor_idx_list]
     spawn(
         gen_data,
         args=(
             cfg,
-            sample_data,
+            anchor_data,
             train_ds,
             candidate_set_idx,
             sub_save_path,
@@ -332,12 +336,12 @@ def main(cfg: DictConfig):
     )
 
     world_size = len(cfg.gpu_ids)
-    subset_size = len(sample_data) // world_size
+    subset_size = len(anchor_data) // world_size
     total_data = {}
     for rank in range(world_size):
         subset_start = rank * subset_size
         subset_end = (
-            subset_start + subset_size if rank != world_size - 1 else len(sample_data)
+            subset_start + subset_size if rank != world_size - 1 else len(anchor_data)
         )
         sub_res_basename = (
             os.path.basename(save_path).split('.')[0]
@@ -350,7 +354,6 @@ def main(cfg: DictConfig):
             data = json.load(f)
         logger.info(f'load the data from {sub_save_path}, the data length: {len(data)}')
         total_data.update(data)
-    total_data.pop('cur_idx')
     with open(save_path, 'w') as f:
         json.dump(total_data, f)
     logger.info(f'save the final data to {save_path}')
