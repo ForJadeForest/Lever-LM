@@ -1,3 +1,10 @@
 version: hub
 name: vqav2
 train_ds_len: 443757
+
+# use for eval
+val_ques_path: ${oc.env:VQAV2_PATH}/v2_OpenEnded_mscoco_val2014_questions.json
+val_ann_path: ${oc.env:VQAV2_PATH}/v2_mscoco_val2014_annotations.json
+
+train_ques_path: ${oc.env:VQAV2_PATH}/v2_OpenEnded_mscoco_train2014_questions.json
+train_ann_path: ${oc.env:VQAV2_PATH}/v2_mscoco_train2014_annotations.json
