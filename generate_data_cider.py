@@ -86,6 +86,7 @@ def generate_single_sample_ice(
             'text_input': template.generate_item(data),
             'image': data[cfg.task.image_field],
             'idx': data['idx'],
+            'image_id': data['image_id'],
         }
         for data in candidate_set
     }
