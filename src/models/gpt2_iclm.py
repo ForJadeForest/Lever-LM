@@ -188,6 +188,6 @@ class GPT2ICLM(BaseICLM):
                     padding=True,
                     return_tensors='pt',
                 ).to(device)
-                ice_num_list = [s_n for _ in range(bs)]
+                ice_num_list = [s_n + 1 for _ in range(bs)]
                 ice_input['ice_num_list'] = torch.tensor(ice_num_list).to(device)
         return ice_seq_idx.detach().cpu().tolist()
