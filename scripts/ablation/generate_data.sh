@@ -48,6 +48,19 @@ python generate_data.py \
     task=${task} \
     dataset=${dataset}
 
+
+echo "=====================BEGIN TO CANDIDATE:32====================="
+python generate_data.py \
+    beam_size=5 \
+    few_shot_num=2 \
+    candidate_set_num=32 \
+    sample_num=5000 \
+    candidate_set_method="random" \
+    gpu_ids="${gpu_ids}" \
+    task=${task} \
+    dataset=${dataset}
+
+
 echo "=====================BEGIN TO CANDIDATE:128====================="
 python generate_data.py \
     beam_size=5 \
