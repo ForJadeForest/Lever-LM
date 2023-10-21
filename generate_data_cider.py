@@ -34,13 +34,16 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
-def load_feature_cache(cfg, cache_path, encoding_method, coco_dataset, data_key):
+def load_feature_cache(cfg, cache_path, encoding_method, train_ds, data_key):
     if os.path.exists(cache_path):
         features = torch.load(cache_path)
     else:
-        data_list = [d[data_key] for d in coco_dataset]
         features = encoding_method(
-            data_list, cfg.device, cfg.sim_model_type, cfg.candidate_set_encode_bs
+            train_ds,
+            data_key,
+            cfg.device,
+            cfg.sim_model_type,
+            cfg.candidate_set_encode_bs,
         )
         torch.save(features, cache_path)
     return features
@@ -83,7 +86,6 @@ def generate_single_sample_ice(
             'text_input': template.generate_item(data),
             'image': data[cfg.task.image_field],
             'idx': data['idx'],
-            'image_id': data['image_id'],
         }
         for data in candidate_set
     }
@@ -95,7 +97,7 @@ def generate_single_sample_ice(
         for test_data_id_seq in test_data_id_list:
             # 避免添加重复的结果 将已经添加的进行过滤
             filtered_candidateidx2data = candidateidx2data.copy()
-            if len(test_data_id_list) >= 2:
+            if len(test_data_id_seq) >= 2:
                 filter_id_list = test_data_id_seq[:-1]
                 for i in filter_id_list:
                     filtered_candidateidx2data.pop(i)
@@ -199,7 +201,13 @@ def gen_data(
 
     subset = subset.select(range(len(final_res), len(subset)))
     for i, test_data in enumerate(
-        tqdm(subset, disable=(rank != 0), total=subset_size, initial=len(final_res)),
+        tqdm(
+            subset,
+            disable=(rank != 0),
+            total=subset_size,
+            initial=len(final_res),
+            ncols=100,
+        ),
     ):
         candidate_set = train_ds.select(sub_cand_set_idx[i])
         res = generate_single_sample_ice(
@@ -240,7 +248,7 @@ def main(cfg: DictConfig):
         f'{cfg.task.task_name}-{cfg.dataset.name}-cider_version'
         f'{cfg.flamingo.hf_root}-{cfg.candidate_set_method}-'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
-        f'candidate_set_num:{cfg.candidate_set_num}.json'
+        f'candidate_set_num:{cfg.candidate_set_num}-sample_num:{cfg.sample_num}.json'
     )
 
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)
