@@ -138,7 +138,6 @@ class GPT2ICLM(BaseICLM):
         device,
         ice_image_field,
         ice_text_field,
-        repetition_penalty=2.0,
     ):
         """
         Generate for one batch
@@ -153,7 +152,7 @@ class GPT2ICLM(BaseICLM):
             # set the sp token prob to 0
             out[:, sp_token_begin:] = -torch.inf
             for ice_idx in ice_seq_idx:
-                out[:, ice_idx] /= repetition_penalty
+                out[:, ice_idx] = -torch.inf
 
             next_token_idx = torch.softmax(out, dim=-1).argmax(dim=-1)  # bs, 1
 

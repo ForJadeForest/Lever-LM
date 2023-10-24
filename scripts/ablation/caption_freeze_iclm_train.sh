@@ -51,28 +51,28 @@ run_inference() {
 
 
 
-# run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "baseline"
-# run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:1-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "1beam"
-# run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:10-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "10beam"
-# run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:5-few_shot:2-candidate_set_num:128-sample_num:5000.json" 80 "128candidate"
-# run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-text-sim-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "text-sim"
-# run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-image-sim-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "img-sim"
-# run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:10000.json" 160 "1wanchors"
+run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "baseline"
+run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:1-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "1beam"
+run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:10-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "10beam"
+run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:5-few_shot:2-candidate_set_num:128-sample_num:5000.json" 80 "128candidate"
+run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-text-sim-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "text-sim"
+run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-image-sim-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:5000.json" 80 "img-sim"
+run_train "caption-coco2017-only_y_loss-OpenFlamingo-9B-vitl-mpt7b-random-beam_size:5-few_shot:2-candidate_set_num:64-sample_num:10000.json" 160 "1wanchors"
 
 
 export CUDA_VISIBLE_DEVICES="0" && run_inference "baseline" &
-# sleep 120
-# export CUDA_VISIBLE_DEVICES="1" && run_inference "1beam" &
-# sleep 120
-# export CUDA_VISIBLE_DEVICES="2" && run_inference "10beam" &
-# sleep 120
-# export CUDA_VISIBLE_DEVICES="3" && run_inference "128candidate" &
+sleep 120
+export CUDA_VISIBLE_DEVICES="1" && run_inference "1beam" &
+sleep 120
+export CUDA_VISIBLE_DEVICES="2" && run_inference "10beam" &
+sleep 120
+export CUDA_VISIBLE_DEVICES="3" && run_inference "128candidate" &
 wait 
 
-# export CUDA_VISIBLE_DEVICES="1" && run_inference "text-sim" &
-# sleep 120
-# export CUDA_VISIBLE_DEVICES="2" && run_inference "img-sim" &
-# sleep 120
-# export CUDA_VISIBLE_DEVICES="3" && run_inference "1wanchors" &
+export CUDA_VISIBLE_DEVICES="1" && run_inference "text-sim" &
+sleep 120
+export CUDA_VISIBLE_DEVICES="2" && run_inference "img-sim" &
+sleep 120
+export CUDA_VISIBLE_DEVICES="3" && run_inference "1wanchors" &
 
-# wait
+wait

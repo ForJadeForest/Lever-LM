@@ -481,7 +481,6 @@ def iclm_generation(
             ice_image_field=cfg.train.iclm_ds.ice_image_field,
             ice_text_field=cfg.train.iclm_ds.ice_text_field,
             device=cfg.device,
-            repetition_penalty=2.0,
         )
         res = [r[2 : 2 + shot_num] for r in res]
         ice_idx_list.extend(res)
