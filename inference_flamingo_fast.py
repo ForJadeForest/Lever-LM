@@ -228,30 +228,30 @@ def main(cfg: DictConfig):
         output_column=cfg.task.output_column,
     )
 
-    model, image_processor, tokenizer, autocast_context = init_flamingo(
-        lang_encoder_path=cfg.flamingo.lang_encoder_path,
-        tokenizer_path=cfg.flamingo.tokenizer_path,
-        flamingo_checkpoint_dir=cfg.flamingo.flamingo_checkpoint_dir,
-        cross_attn_every_n_layers=cfg.flamingo.cross_attn_every_n_layers,
-        hf_root=cfg.flamingo.hf_root,
-        precision=cfg.precision,
-        device=cfg.device,
-        from_local=cfg.flamingo.load_from_local,
-    )
-    inferencer = FlamingoGenInferencerFast(
-        model,
-        tokenizer,
-        image_processor,
-        other_save_field=cfg.task.other_save_field,
-        autocast_context=autocast_context,
-        image_field=cfg.task.image_field,
-        batch_size=cfg.inference_bs,
-        num_workers=cfg.num_workers,
-        num_proc=cfg.num_proc,
-        preprocessor_bs=cfg.preprocessor_bs,
-        generation_kwargs=cfg.task.gen_args,
-        output_json_filepath=os.path.join(result_dir, 'generation_metainfo'),
-    )
+    # model, image_processor, tokenizer, autocast_context = init_flamingo(
+    #     lang_encoder_path=cfg.flamingo.lang_encoder_path,
+    #     tokenizer_path=cfg.flamingo.tokenizer_path,
+    #     flamingo_checkpoint_dir=cfg.flamingo.flamingo_checkpoint_dir,
+    #     cross_attn_every_n_layers=cfg.flamingo.cross_attn_every_n_layers,
+    #     hf_root=cfg.flamingo.hf_root,
+    #     precision=cfg.precision,
+    #     device=cfg.device,
+    #     from_local=cfg.flamingo.load_from_local,
+    # )
+    # inferencer = FlamingoGenInferencerFast(
+    #     model,
+    #     tokenizer,
+    #     image_processor,
+    #     other_save_field=cfg.task.other_save_field,
+    #     autocast_context=autocast_context,
+    #     image_field=cfg.task.image_field,
+    #     batch_size=cfg.inference_bs,
+    #     num_workers=cfg.num_workers,
+    #     num_proc=cfg.num_proc,
+    #     preprocessor_bs=cfg.preprocessor_bs,
+    #     generation_kwargs=cfg.task.gen_args,
+    #     output_json_filepath=os.path.join(result_dir, 'generation_metainfo'),
+    # )
 
     base_info = f'{str(datetime.datetime.now())}-{test_data_num=}-'
 
@@ -367,9 +367,14 @@ def main(cfg: DictConfig):
 
 
 def shuffle_2d_list(matrix):
-    for row in matrix:
-        random.shuffle(row)
-    return matrix
+    new_matrix = [row.copy() for row in matrix]
+    if len(new_matrix[0]) == 1:
+        return new_matrix
+    for i, row in enumerate(tqdm(new_matrix)):
+
+        while row == matrix[i]:
+            random.shuffle(row)
+    return new_matrix
 
 
 @torch.inference_mode()
