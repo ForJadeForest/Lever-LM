@@ -27,8 +27,8 @@ seed: 42
 # iclm config:
 iclm_path: null
 random_order_iclm_ice: false
-iclm_bs: 3
-iclm_num_workers: 2
+iclm_bs: 20
+iclm_num_workers: 4
 
 eos_token_id: ${dataset.train_ds_len}
 
