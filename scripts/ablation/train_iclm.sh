@@ -7,6 +7,19 @@ device_num=${3:-1}
 iclm_model=${4:-query_img_ice_text}
 
 which python
+check_command_status() {
+    local pid=$1
+    # 循环检查command1的状态，直到它完成
+    while ps -p $pid > /dev/null; do
+        echo "command $pid not done"
+        sleep 60
+    done
+}
+
+pids=()
+for pid in "${pids[@]}"; do
+    check_command_status $pid
+done
 
 # Define a function to run the train.py script with the given parameters
 run_train() {
@@ -33,11 +46,13 @@ run_train() {
             data_files="${data_file}" \
             epochs=20 \
             val_step=${val_step} \
-            ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_${iclm_model}" \
+            ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_freeze_adapter_${iclm_model}" \
             device_num=${device_num} \
             dataset=${dataset} \
             task=${task} \
-            train.iclm_model.norm=false
+            train.iclm_model.norm=false \
+            train.iclm_model.freeze_prefix_list="[img_model,sen_model]" \
+            train.iclm_model.adpter=true
     fi
 }
 
