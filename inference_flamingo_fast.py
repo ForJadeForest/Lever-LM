@@ -328,14 +328,12 @@ def main(cfg: DictConfig):
             cfg=cfg,
         )
 
-        if cfg.random_order_iclm_ice:
-            ice_idx_list = shuffle_2d_list(ice_idx_list)
-
         for shot_num in cfg.shot_num_list:
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
             output_files = info + f'-bs:{cfg.inference_bs}-{shot_num=}'
             need_ice_idx_list = [ice_idx[:shot_num] for ice_idx in ice_idx_list]
-
+            if cfg.random_order_iclm_ice:
+                need_ice_idx_list = shuffle_2d_list(need_ice_idx_list)
             retriever = DirRetriever(
                 dr,
                 need_ice_idx_list,
@@ -369,9 +367,14 @@ def main(cfg: DictConfig):
 
 
 def shuffle_2d_list(matrix):
-    for row in matrix:
-        random.shuffle(row)
-    return matrix
+    new_matrix = [row.copy() for row in matrix]
+    if len(new_matrix[0]) == 1:
+        return new_matrix
+    for i, row in enumerate(tqdm(new_matrix)):
+
+        while row == matrix[i]:
+            random.shuffle(row)
+    return new_matrix
 
 
 @torch.inference_mode()
