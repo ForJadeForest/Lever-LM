@@ -87,8 +87,9 @@ class LSTMICLM(BaseICLM):
 
         # add ice feature
         if ice_input is None:
-            lm_output = self.lm_model(inputs_embeds=inputs_embeds)
-            return lm_output
+            logits, _ = self.lm_model(inputs_embeds)
+            logits = self.proj(logits)
+            return {'logits': logits}
         if 'text' in self.ice_encoding_flag:
             bs, ice_num, ice_seq_len = ice_input['input_ids'].shape
             ice_input['input_ids'] = ice_input['input_ids'].view(-1, ice_seq_len)

@@ -1,4 +1,4 @@
-_target_: src.models.ice_text_lstm_iclm.LSTMICLM
+_target_: src.models.lstm_iclm.LSTMICLM
 
 emb_dim: 128
 dropout: 0.1
