@@ -1,4 +1,4 @@
 
 defaults:
-  - iclm_ds: query_img_ice_img_ds
+  - iclm_ds: query_img_text_ice_img_text_ds
   - iclm_model: lstm
