@@ -27,7 +27,7 @@ class LSTMICLM(BaseICLM):
         )
         vocab_size = index_ds_size + 3
         self.vocab_embedding = nn.Embedding(vocab_size, embedding_dim=emb_dim)
-        self.lm_model = nn.GRU(
+        self.lm_model = nn.LSTM(
             input_size=emb_dim,
             hidden_size=emb_dim,
             num_layers=num_layers,
