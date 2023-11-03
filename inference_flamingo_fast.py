@@ -128,6 +128,7 @@ def init_retriever(retriever_name, dr, cfg):
             test_field=test_field,
             clip_model_name=cfg.mmtopk_clip_name,
             cache_file=cache_file,
+            reversed_order=cfg.mmtopk_reversed_order
         )
     # Add other retrievers if needed
     return None
@@ -489,5 +490,5 @@ def iclm_generation(
 
 
 if __name__ == '__main__':
-    load_dotenv(load_dotenv=True)
+    load_dotenv(override=True)
     main()
