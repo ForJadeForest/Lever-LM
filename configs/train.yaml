@@ -20,6 +20,7 @@ batch_size: 64
 num_workers: 16
 warm_up_ratio: 0.05
 val_step: 80
+save_nper_epoch: 5
 
 # Others
 result_dir: "${oc.env:RESULT_DIR}"
