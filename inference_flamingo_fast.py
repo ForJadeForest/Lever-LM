@@ -294,7 +294,7 @@ def main(cfg: DictConfig):
             logger.info(
                 f'detect iclm_path is None, now try to find in model_cpk/{cfg.ex_name}'
             )
-            cpk_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.ex_name)
+            cpk_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.task.task_name, cfg.ex_name)
             cpk_list = []
             for f in os.listdir(cpk_dir):
                 cpk_list.append(os.path.join(cpk_dir, f))

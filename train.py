@@ -62,6 +62,7 @@ def train(
             disable=(fabric.local_rank != 0),
             ncols=100,
         )
+        train_loss = 0.
         for data in bar:
             model.train()
             output = model(**data)
@@ -75,6 +76,7 @@ def train(
             fabric.log("train_loss", loss.item(), step)
             fabric.log('lr', scheduler.get_last_lr()[0], step)
             step += 1
+            train_loss += loss.item()
             if step % cfg.val_step == 0:
                 val_loss = validation(model, val_dataloader, fabric)
                 fabric.log("val_loss", val_loss, step)
@@ -98,6 +100,14 @@ def train(
                             logger.info(f'old model has been deleted: {old_save_path}')
                         old_save_path = new_save_path
         logger.info('=' * 20 + f'{epoch} Epoch Done! ')
+        if cfg.save_nper_epoch and epoch % cfg.save_nper_epoch:
+            new_save_path = os.path.join(
+                save_dir,
+                f'{epoch=}-{step=}-{train_loss=}.pth',
+            )
+            state = {"model": model}
+            fabric.save(new_save_path, state)
+
 
     val_loss = validation(model, val_dataloader, fabric)
     fabric.log("val_loss", val_loss, step)
@@ -112,7 +122,7 @@ def train(
 def main(cfg: DictConfig):
     global collate_fn
     logger.info(f'{cfg=}')
-    save_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.ex_name)
+    save_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.task.task_name, cfg.ex_name)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     cache_dir = os.path.join(cfg.result_dir, 'cache')
