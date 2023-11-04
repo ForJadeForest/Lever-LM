@@ -22,10 +22,12 @@ inference_bs: 4
 
 # MMTopK config:
 mmtopk_clip_name: openai/clip-vit-base-patch32
+mmtopk_reversed_order: false
 seed: 42
 
 # iclm config:
 iclm_path: null
+default_cpk_key: "last"
 random_order_iclm_ice: false
 iclm_bs: 20
 iclm_num_workers: 4

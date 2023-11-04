@@ -128,6 +128,7 @@ def init_retriever(retriever_name, dr, cfg):
             test_field=test_field,
             clip_model_name=cfg.mmtopk_clip_name,
             cache_file=cache_file,
+            reversed_order=cfg.mmtopk_reversed_order
         )
     # Add other retrievers if needed
     return None
@@ -292,13 +293,13 @@ def main(cfg: DictConfig):
         iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
         if cfg.iclm_path is None:
             logger.info(
-                f'detect iclm_path is None, now try to find in model_cpk/{cfg.ex_name}'
+                f'detect iclm_path is None, now try to find in {cfg.result_dir}/model_cpk/{cfg.ex_name}'
             )
             cpk_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.task.task_name, cfg.ex_name)
             cpk_list = []
             for f in os.listdir(cpk_dir):
                 cpk_list.append(os.path.join(cpk_dir, f))
-            cpk_list = list(filter(lambda x: 'last' in x, cpk_list))
+            cpk_list = list(filter(lambda x: cfg.default_cpk_key in x, cpk_list))
             if cpk_list:
                 logger.info(f'Detect {cpk_list[0]}, now begin to load cpk...')
                 iclm_path = cpk_list[0]
@@ -489,5 +490,5 @@ def iclm_generation(
 
 
 if __name__ == '__main__':
-    load_dotenv()
+    load_dotenv(override=True)
     main()
