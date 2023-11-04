@@ -100,7 +100,8 @@ def train(
                             logger.info(f'old model has been deleted: {old_save_path}')
                         old_save_path = new_save_path
         logger.info('=' * 20 + f'{epoch} Epoch Done! ')
-        if cfg.save_nper_epoch and epoch % cfg.save_nper_epoch:
+        train_loss /= len(bar)
+        if cfg.save_nper_epoch and epoch % cfg.save_nper_epoch == 0:
             new_save_path = os.path.join(
                 save_dir,
                 f'{epoch=}-{step=}-{train_loss=}.pth',
