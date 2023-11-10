@@ -371,5 +371,5 @@ def main(cfg: DictConfig):
 
 
 if __name__ == '__main__':
-    load_dotenv(override=True)
+    load_dotenv()
     main()

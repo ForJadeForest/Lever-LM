@@ -189,7 +189,7 @@ def inference_vqa(
 
 
 @hydra.main(
-    version_base=None, config_path="./configs", config_name="inference_fast.yaml"
+    version_base=None, config_path="./configs", config_name="inference.yaml"
 )
 def main(cfg: DictConfig):
     logger.info(f'{cfg=}')
@@ -490,5 +490,5 @@ def iclm_generation(
 
 
 if __name__ == '__main__':
-    load_dotenv(override=True)
+    load_dotenv()
     main()
