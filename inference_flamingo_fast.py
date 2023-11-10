@@ -331,7 +331,7 @@ def main(cfg: DictConfig):
 
         for shot_num in cfg.shot_num_list:
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
-            output_files = info + f'-bs:{cfg.inference_bs}-{shot_num=}'
+            output_files = info + f'-{shot_num=}'
             need_ice_idx_list = [ice_idx[:shot_num] for ice_idx in ice_idx_list]
             if cfg.random_order_iclm_ice:
                 need_ice_idx_list = shuffle_2d_list(need_ice_idx_list)
