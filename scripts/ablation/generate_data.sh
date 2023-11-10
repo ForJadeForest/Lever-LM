@@ -37,9 +37,9 @@ configs["1w SAMPLE_NUM"]="beam_size=5 candidate_set_num=64 sample_num=10000"
 for key in "${!configs[@]}"; do
     echo "=====================BEGIN TO $key====================="
     python generate_data.py \
+        sample_num=5000 \
         ${configs[$key]} \
         few_shot_num=2 \
-        sample_num=5000 \
         gpu_ids="${gpu_ids}" \
         task=${task} \
         dataset=${dataset} \
