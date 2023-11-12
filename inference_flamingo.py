@@ -128,7 +128,7 @@ def init_retriever(retriever_name, dr, cfg):
             test_field=test_field,
             clip_model_name=cfg.mmtopk_clip_name,
             cache_file=cache_file,
-            reversed_order=cfg.mmtopk_reversed_order
+            reversed_order=cfg.mmtopk_reversed_order,
         )
     # Add other retrievers if needed
     return None
@@ -188,9 +188,7 @@ def inference_vqa(
     return acc
 
 
-@hydra.main(
-    version_base=None, config_path="./configs", config_name="inference.yaml"
-)
+@hydra.main(version_base=None, config_path="./configs", config_name="inference.yaml")
 def main(cfg: DictConfig):
     logger.info(f'{cfg=}')
     result_dir = os.path.join(
@@ -295,7 +293,9 @@ def main(cfg: DictConfig):
             logger.info(
                 f'detect iclm_path is None, now try to find in {cfg.result_dir}/model_cpk/{cfg.ex_name}'
             )
-            cpk_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.task.task_name, cfg.ex_name)
+            cpk_dir = os.path.join(
+                cfg.result_dir, 'model_cpk', cfg.task.task_name, cfg.ex_name
+            )
             cpk_list = []
             for f in os.listdir(cpk_dir):
                 cpk_list.append(os.path.join(cpk_dir, f))
@@ -372,56 +372,9 @@ def shuffle_2d_list(matrix):
     if len(new_matrix[0]) == 1:
         return new_matrix
     for i, row in enumerate(tqdm(new_matrix)):
-
         while row == matrix[i]:
             random.shuffle(row)
     return new_matrix
-
-
-@torch.inference_mode()
-def idx_iclm_generation(iclm_model, ds, img_processor, shot_num, device, eos_token_id):
-    iclm_model = iclm_model.to(device)
-    iclm_model.eval()
-    ice_idx_list = []
-    bos_token_id = eos_token_id + 1
-    query_token_id = eos_token_id + 2
-    init_ice_idx = torch.tensor([[bos_token_id, query_token_id]]).to(device)
-
-    for data in tqdm(ds, ncols=100):
-        img = data['image']
-        img = img_processor(images=img, return_tensors='pt').to(device)['pixel_values']
-
-        num_beams = 10
-        if shot_num == 1:
-            num_beams = 1
-
-        res = iclm_model.generation(
-            img,
-            init_ice_idx=init_ice_idx,
-            repetition_penalty=2.0,
-            max_new_tokens=shot_num,
-            num_beams=num_beams,
-            min_length=shot_num,
-            pad_token_id=eos_token_id,
-            eos_token_id=eos_token_id,
-        )[0]
-        res = res[2 : 2 + shot_num]
-        if eos_token_id in res:
-            res = iclm_model.generation(
-                img,
-                init_ice_idx=init_ice_idx,
-                repetition_penalty=2.0,
-                max_new_tokens=shot_num,
-                num_beams=num_beams,
-                bad_words_ids=[[eos_token_id]],
-                min_length=shot_num,
-            )[0]
-            res = res[2 : 2 + shot_num]
-
-        assert len(res) == shot_num, f'{len(res)=}'
-        assert eos_token_id not in res, f'{res=}'
-        ice_idx_list.append(res)
-    return ice_idx_list
 
 
 @torch.inference_mode()
