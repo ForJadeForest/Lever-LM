@@ -199,7 +199,13 @@ def gen_data(
 
     subset = subset.select(range(len(final_res), len(subset)))
     for i, test_data in enumerate(
-        tqdm(subset, disable=(rank != 0), total=subset_size, initial=len(final_res), ncols=100),
+        tqdm(
+            subset,
+            disable=(rank != 0),
+            total=subset_size,
+            initial=len(final_res),
+            ncols=100,
+        ),
     ):
         candidate_set = train_ds.select(sub_cand_set_idx[i])
         res = generate_single_sample_ice(
@@ -277,7 +283,7 @@ def main(cfg: DictConfig):
     if os.path.exists(candidate_set_cache_filename):
         logger.info('the candidate set cache exists, loding...')
         candidate_set_idx = json.load(open(candidate_set_cache_filename, 'r'))
-        candidate_set_idx = {int(k): v for k,v in candidate_set_idx.items()}
+        candidate_set_idx = {int(k): v for k, v in candidate_set_idx.items()}
     else:
         candidate_set_idx = {}
         if cfg.candidate_set_method == 'random':
