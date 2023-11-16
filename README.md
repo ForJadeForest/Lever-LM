@@ -5,8 +5,8 @@ Language Modeling
 ## Prepare
 ```
 git clone 
-conda create -n iclm python=3.10
-conda activate iclm
+conda create -n icdlm python=3.10
+conda activate icdlm
 pip install -r requirements.txt
 
 # install the openicl package
@@ -89,7 +89,7 @@ python generate_data.py candidate_set_num=128 beam_size=10 few_shot_num=4 bs=128
 
 ```
 
-#### 2. Train the ICLM Mode
+#### 2. Train the ICD-LM Mode
 ```
 python train.py
 ```
@@ -136,7 +136,7 @@ bash ./scripts/ablation/generate_data.sh vqa vqav2_local
 bash ./scripts/ablation/generate_data.sh vqa vqav2_local "[0,1,2,3]"
 ```
 
-### Train UniGen-ICLM
+### Train ICD-LM
 **for caption**
 ```sh
 # for one gpu defalut [0]
