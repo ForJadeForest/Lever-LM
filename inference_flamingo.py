@@ -1,6 +1,5 @@
 import datetime
 import json
-import logging
 import os
 import random
 import uuid
@@ -11,6 +10,7 @@ import hydra
 import pandas as pd
 import torch
 from dotenv import load_dotenv
+from loguru import logger
 from omegaconf import DictConfig
 from openicl import (
     DatasetReader,
@@ -30,8 +30,6 @@ from src.metrics.cider_calculator import compute_cider
 from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
 from src.models import GPT2ICLM, LSTMICLM
 from src.utils import init_flamingo
-
-logger = logging.getLogger(__name__)
 
 
 def record(result_json_path: str, new_data: dict):
@@ -443,5 +441,6 @@ def iclm_generation(
 
 
 if __name__ == '__main__':
+    logger.info('begin load env variables...')
     load_dotenv()
     main()

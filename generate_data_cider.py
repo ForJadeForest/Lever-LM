@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import random
 from time import sleep
@@ -9,6 +8,7 @@ import hydra
 import torch
 from datasets import Dataset, DatasetDict
 from dotenv import load_dotenv
+from loguru import logger
 from omegaconf import DictConfig
 from openicl import PromptTemplate
 from PIL import Image
@@ -18,20 +18,6 @@ from tqdm import tqdm
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import get_cider_score
 from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-# Remove all default handlers
-for handler in logger.handlers[:]:
-    logger.removeHandler(handler)
-
-handler = logging.StreamHandler()
-formatter = logging.Formatter(
-    '[%(asctime)s][%(name)s][%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S,%f'[:-3],
-)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
 
 
 def load_feature_cache(cfg, cache_path, encoding_method, train_ds, data_key):
@@ -371,5 +357,6 @@ def main(cfg: DictConfig):
 
 
 if __name__ == '__main__':
+    logger.info('begin load env variables')
     load_dotenv()
     main()
