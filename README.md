@@ -97,7 +97,7 @@ python train.py
 - `train`: Options are `query_img_ice_idx`, `query_img_ice_img_text`, `query_img_ice_img`, `query_img_ice_text`, `query_img_text_ice_img_text`. 'img' after 'query' indicates the addition of image information to the query sample. 'text' after 'query' indicates the addition of text information to the query sample. The same applies to 'ice'.
 - `dataset`: Defines the dataset for ICE. For caption tasks, you can choose either coco2017 or coco2014; for VQA tasks, choose between vqav2_local or vqav2_online. This parameter also includes the dataset path and other relevant information.
 - `task`: Options are `vqa` or `caption`, configuring parameters related to prompt
-- `data_files`: 指定第一步生成的json数据文件名。
+- `data_files`: Specifies the names of the JSON data files generated in the first step.
 - `trainer_args`: the lightning triner args
 - `lr`: learning rate
 - `ex_name`: Name of the current experiment, which is also the name of the folder for saving experimental results. 
