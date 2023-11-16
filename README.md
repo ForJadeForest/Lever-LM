@@ -93,7 +93,7 @@ python generate_data.py candidate_set_num=128 beam_size=10 few_shot_num=4 bs=128
 ```
 python train.py
 ```
-参数 (Args):
+Args:
 - `train`: Options are `query_img_ice_idx`, `query_img_ice_img_text`, `query_img_ice_img`, `query_img_ice_text`, `query_img_text_ice_img_text`. 'img' after 'query' indicates the addition of image information to the query sample. 'text' after 'query' indicates the addition of text information to the query sample. The same applies to 'ice'.
 - `dataset`: Defines the dataset for ICE. For caption tasks, you can choose either coco2017 or coco2014; for VQA tasks, choose between vqav2_local or vqav2_online. This parameter also includes the dataset path and other relevant information.
 - `task`: Options are `vqa` or `caption`, configuring parameters related to prompt
