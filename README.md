@@ -11,7 +11,7 @@ pip install -r requirements.txt
 # install the openicl package
 mkdir requirements_repo
 cd requirements_repo
-git clone https://github.com/ForJadeForest/OpenICL.git
+git clone https://github.com/xxxx/OpenICL.git
 cd OpenICL
 git checkout -b coco_caption origin/coco_caption
 pip install -e ./
