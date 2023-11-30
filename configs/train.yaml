@@ -11,25 +11,48 @@ defaults:
 
 # data args
 data_files: ???
-
-# train args:
-epochs: 20
 train_ratio: 0.9
-lr: 1e-4
 batch_size: 64
 num_workers: 16
-warm_up_ratio: 0.05
-val_step: 80
-save_nper_epoch: 5
+
+
+# Trainer
+trainer_args:
+  devices: 2
+  strategy: ddp
+  accelerator: gpu
+  precision: "16-mixed"
+  log_every_n_steps: 10
+  val_check_interval: 0.5
+  max_epochs: 20
+  fast_dev_run: false
+
+
+# train args:
+
+lr: 1e-4
+weight_decay: 1e-3
+warm_steps: 0.05
+
+
 
 # Others
-result_dir: "${oc.env:RESULT_DIR}"
 ex_name: "debug"
-device: "cuda"
-device_num: 1
-precision: 16
+result_dir: "${oc.env:RESULT_DIR}"
 seed: 42
+dirpath: "${oc.env:RESULT_DIR}/model_cpk/${task.task_name}/${ex_name}"
 
+
+
+
+# wandb_args
+wandb_args:
+  save_dir: "${oc.env:RESULT_DIR}/wandb_logs"
+  name: "${ex_name}"
+  project: "ICDLM"
+  log_model: false
+
+  
 
 hydra:
   run:

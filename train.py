@@ -1,208 +1,171 @@
 import json
-import logging
 import os
 from functools import partial
 
 import hydra
+import pytorch_lightning as pl
 import torch
 from dotenv import load_dotenv
-from lightning.fabric import Fabric
-from lightning.fabric.loggers import TensorBoardLogger
 from omegaconf import DictConfig
-from torch import nn
+from pytorch_lightning.callbacks import (
+    LearningRateMonitor,
+    ModelCheckpoint,
+    ModelSummary,
+    RichModelSummary,
+    RichProgressBar,
+)
+from pytorch_lightning.loggers.wandb import WandbLogger
+from torch import Tensor, nn, optim, utils
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
+from torchvision.datasets import MNIST
+from torchvision.transforms import ToTensor
 from tqdm import tqdm
 from transformers import CLIPProcessor, get_cosine_schedule_with_warmup
 
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.utils import collate_fn, data_split
 
-logger = logging.getLogger(__name__)
 
+# define the LightningModule
+class ICDLM(pl.LightningModule):
+    def __init__(self, icd_lm, lr, weight_decay=1e-2, warm_steps=0.1):
+        super().__init__()
+        self.save_hyperparameters(ignore=['icd_lm'])
+        self.icd_lm = icd_lm
 
-@torch.no_grad()
-def validation(model: nn.Module, val_dataloader: DataLoader, fabric: Fabric):
-    model.eval()
-    val_bar = tqdm(
-        val_dataloader,
-        desc=f'val Loss: xx.xxxx',
-        disable=(fabric.local_rank != 0),
-        ncols=100,
-    )
-    total_val_loss = 0.0
-    for val_data in val_bar:
-        output = model(**val_data)
+    def training_step(self, batch, batch_idx):
+        output = self.icd_lm(**batch)
         loss = output['loss']
-        val_bar.set_description(f'val Loss: {round(loss.item(), 4)}')
-        reduced_loss = fabric.all_reduce(loss, reduce_op='mean')
-        total_val_loss += reduced_loss.item()
+        self.log("train_loss", loss, batch_size=len(batch['ice_seq_idx']), sync_dist=True)
+        return loss
 
-    mean_val_loss = total_val_loss / len(val_bar)
-    return mean_val_loss
+    def validation_step(self, batch, batch_idx):
+        output = self.icd_lm(**batch)
+        loss = output['loss']
+        self.log("val_loss", loss, batch_size=len(batch['ice_seq_idx']), sync_dist=True)
+        return loss
 
-
-def train(
-    cfg: DictConfig,
-    train_dataloader: DataLoader,
-    val_dataloader: DataLoader,
-    model: nn.Module,
-    fabric: Fabric,
-    optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler.LambdaLR,
-    save_dir: str,
-):
-    step = 0
-    min_val_loss = float('inf')
-    old_save_path = None
-    for epoch in range(cfg.epochs):
-        bar = tqdm(
-            train_dataloader,
-            desc=f'epoch:{epoch}-Loss: xx.xxxx',
-            disable=(fabric.local_rank != 0),
-            ncols=100,
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(
+            self.icd_lm.parameters(),
+            lr=self.hparams.lr,
+            weight_decay=self.hparams.weight_decay,
         )
-        train_loss = 0.
-        for data in bar:
-            model.train()
-            output = model(**data)
-            loss = output['loss']
-            fabric.backward(loss)
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
-            bar.set_description(f'epoch:{epoch}-Loss: {round(loss.item(), 4)}')
 
-            fabric.log("train_loss", loss.item(), step)
-            fabric.log('lr', scheduler.get_last_lr()[0], step)
-            step += 1
-            train_loss += loss.item()
-            if step % cfg.val_step == 0:
-                val_loss = validation(model, val_dataloader, fabric)
-                fabric.log("val_loss", val_loss, step)
-                if val_loss < min_val_loss:
-                    min_val_loss = val_loss
-                    new_save_path = os.path.join(
-                        save_dir,
-                        f'{epoch=}-{step=}-min_loss:{round(min_val_loss, 4)}.pth',
-                    )
-                    state = {"model": model}
-
-                    fabric.save(new_save_path, state)
-                    if fabric.local_rank == 0:
-                        logger.info(f'new model has been saved in {new_save_path}')
-
-                    if old_save_path is None:
-                        old_save_path = new_save_path
-                    else:
-                        if fabric.local_rank == 0:
-                            os.remove(old_save_path)
-                            logger.info(f'old model has been deleted: {old_save_path}')
-                        old_save_path = new_save_path
-        logger.info('=' * 20 + f'{epoch} Epoch Done! ')
-        train_loss /= len(bar)
-        if cfg.save_nper_epoch and epoch % cfg.save_nper_epoch == 0:
-            new_save_path = os.path.join(
-                save_dir,
-                f'{epoch=}-{step=}-{train_loss=}.pth',
+        step_batches = self.trainer.estimated_stepping_batches
+        if isinstance(self.hparams.warm_steps, float):
+            warm_steps = self.hparams.warm_steps * step_batches
+        elif isinstance(self.hparams.warm_steps, int):
+            warm_steps = self.hparams.warm_steps
+        else:
+            raise ValueError(
+                f'the warm_steps should be int or float, but got {type(self.hparams.warm_steps)}'
             )
-            state = {"model": model}
-            fabric.save(new_save_path, state)
+        scheduler = get_cosine_schedule_with_warmup(
+            optimizer, num_warmup_steps=warm_steps, num_training_steps=step_batches
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {"scheduler": scheduler, "interval": "step"},
+        }
 
 
-    val_loss = validation(model, val_dataloader, fabric)
-    fabric.log("val_loss", val_loss, step)
-    state = {"model": model}
-    last_model_path = os.path.join(save_dir, f'last-val_loss:{round(val_loss, 4)}.pth')
-    fabric.save(last_model_path, state)
-    if fabric.local_rank == 0:
-        logger.info(f'last model has been saved: {last_model_path}')
-
-
-@hydra.main(version_base=None, config_path="./configs", config_name="train.yaml")
-def main(cfg: DictConfig):
-    global collate_fn
-    logger.info(f'{cfg=}')
-    save_dir = os.path.join(cfg.result_dir, 'model_cpk', cfg.task.task_name, cfg.ex_name)
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    cache_dir = os.path.join(cfg.result_dir, 'cache')
-    if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
-
-    # 1. load the ice_seq data
-    data_files_path = os.path.join(cfg.result_dir, 'generated_data', cfg.data_files)
-    with open(data_files_path, 'r') as f:
-        data = json.load(f)
-    train_data_list, val_data_list = data_split(data, cfg.train_ratio)
-
-    # load the index dataset
-    if cfg.task.task_name == 'caption':
-        index_ds = load_coco_ds(cfg, split='train')
-    elif cfg.task.task_name == 'vqa':
-        index_ds = load_vqav2_ds(cfg, split='train')
-
-    iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
-    logger.info(f'model: {type(iclm_model)} load succese')
-    ds_factory = hydra.utils.instantiate(cfg.train.iclm_ds, _partial_=True)
-
-    train_ds = ds_factory(data_list=train_data_list, index_ds=index_ds)
-    logger.info('train_ds load success')
-    val_ds = ds_factory(data_list=val_data_list, index_ds=index_ds)
-    logger.info('val_ds load success')
-
-    tensorboard_logger = TensorBoardLogger(
-        root_dir=os.path.join(cfg.result_dir, "tensorboard-logs"), name=cfg.ex_name
-    )
-
-    fabric = Fabric(
-        loggers=tensorboard_logger,
-        accelerator=cfg.device,
-        devices=cfg.device_num,
-        precision=cfg.precision,
-    )
-    fabric.launch()
-    fabric.seed_everything(cfg.seed)
-    processor = CLIPProcessor.from_pretrained(cfg.train.iclm_model.clip_name)
-    collate_fn = partial(collate_fn, processor=processor)
-    train_dataloader = DataLoader(
-        train_ds,
-        batch_size=cfg.batch_size,
-        num_workers=cfg.num_workers,
-        collate_fn=collate_fn,
-        shuffle=True,
-    )
-    val_dataloader = DataLoader(
-        val_ds,
-        batch_size=cfg.batch_size,
-        num_workers=cfg.num_workers,
-        collate_fn=collate_fn,
-        shuffle=False,
-    )
-    optimizer = AdamW(iclm_model.parameters(), cfg.lr)
-    model, optimizer = fabric.setup(iclm_model, optimizer)
-    train_dataloader, val_dataloader = fabric.setup_dataloaders(
-        train_dataloader, val_dataloader
-    )
-    total_steps = cfg.epochs * len(train_ds) // cfg.batch_size // cfg.device_num
-    scheduler = get_cosine_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=cfg.warm_up_ratio * total_steps,
-        num_training_steps=total_steps,
-    )
-
-    train(
+class ICDSeqDataModule(pl.LightningDataModule):
+    def __init__(
+        self,
         cfg,
-        train_dataloader,
-        val_dataloader,
-        model,
-        fabric,
-        optimizer,
-        scheduler,
-        save_dir,
+    ):
+        """
+        dataset_para: The dataset parameters
+        dataset: The *.py file name of the dataset class
+        dataset_name: The dataset Class name
+        """
+        super().__init__()
+        data_files_path = os.path.join(cfg.result_dir, 'generated_data', cfg.data_files)
+        with open(data_files_path, 'r') as f:
+            data = json.load(f)
+        self.train_data_list, self.val_data_list = data_split(data, cfg.train_ratio)
+        self.ds_factory = hydra.utils.instantiate(cfg.train.iclm_ds, _partial_=True)
+        if cfg.task.task_name == 'caption':
+            self.index_ds = load_coco_ds(cfg, split='train')
+        elif cfg.task.task_name == 'vqa':
+            self.index_ds = load_vqav2_ds(cfg, split='train')
+        self.processor = CLIPProcessor.from_pretrained(cfg.train.iclm_model.clip_name)
+        
+        self.save_hyperparameters()
+
+    def setup(self, stage: str) -> None:
+        if stage == 'fit' or stage is None:
+            self.trainset = self.ds_factory(
+                data_list=self.train_data_list, index_ds=self.index_ds
+            )
+            self.valset = self.ds_factory(
+                data_list=self.val_data_list, index_ds=self.index_ds
+            )
+
+    def train_dataloader(self):
+        global collate_fn
+        return DataLoader(
+            self.trainset,
+            batch_size=self.hparams.cfg.batch_size,
+            num_workers=self.hparams.cfg.num_workers,
+            shuffle=True,
+            collate_fn=partial(collate_fn, processor=self.processor),
+            pin_memory=True,
+        )
+
+    def val_dataloader(self):
+        global collate_fn
+        return DataLoader(
+            self.valset,
+            batch_size=self.hparams.cfg.batch_size,
+            num_workers=self.hparams.cfg.num_workers,
+            collate_fn=partial(collate_fn, processor=self.processor),
+            shuffle=False,
+        )
+
+
+@hydra.main(
+    version_base=None, config_path="./configs", config_name="train.yaml"
+)
+def main(cfg: DictConfig):
+    pl.seed_everything(cfg.seed)
+
+    logger = WandbLogger(**cfg.wandb_args)
+    tl_model_cpk_callback = ModelCheckpoint(
+        filename='min_tl-{epoch}-{train_loss:.5f}-{val_loss:.5f}',
+        monitor='train_loss',
+        save_last=True,
+        save_top_k=1,
+        mode='min',
+        dirpath=cfg.dirpath
     )
+    vl_model_cpk_callback = ModelCheckpoint(
+        filename='min_vl-{epoch}-{train_loss:.5f}-{val_loss:.5f}',
+        monitor='val_loss',
+        save_last=True,
+        save_top_k=1,
+        mode='min',
+        dirpath=cfg.dirpath
+    )
+    trainer = pl.Trainer(
+        logger=logger,
+        callbacks=[
+            LearningRateMonitor(),
+            RichModelSummary(max_depth=2),
+            RichProgressBar(),
+            tl_model_cpk_callback,
+            vl_model_cpk_callback,
+        ],
+        **cfg.trainer_args,
+    )
+    iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
+    model = ICDLM(iclm_model, cfg.lr, cfg.weight_decay, cfg.warm_steps)
+    data_module = ICDSeqDataModule(cfg)
+    trainer.fit(model, data_module)
 
 
 if __name__ == '__main__':
-    load_dotenv(override=True)
+    load_dotenv()
     main()

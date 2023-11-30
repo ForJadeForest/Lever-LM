@@ -5,25 +5,39 @@ defaults:
   - train: query_img_ice_text
   - task: caption
 
+
+# for fast version:
+num_workers: 16
+num_proc: 16
+preprocessor_bs: 100
+
+
 # generation config
 precision: bf16
 device: cuda
 index_data_num: -1
 test_data_num: -1
 
-inference_bs: 1
+inference_bs: 4
 
 # MMTopK config:
-mmtopk_clip_name: openai/clip-vit-large-patch14
+mmtopk_clip_name: openai/clip-vit-base-patch32
+mmtopk_reversed_order: false
+seed: 42
 
 # iclm config:
-iclm_path: "result/model_cpk/idx_base_iclm_2shot_with_imgToken_loss/last-val_loss:5.5326.pth"
+iclm_path: null
+default_cpk_key: "last"
+random_order_iclm_ice: false
+iclm_bs: 20
+iclm_num_workers: 4
+
 eos_token_id: ${dataset.train_ds_len}
 
 # Others
-result_dir: "./result"
+result_dir: "${oc.env:RESULT_DIR}"
 ex_name: "debug"
-shot_num_list: [1, 2, 4, 8, 16]
+shot_num_list: [1, 2, 3, 4, 6, 8]
 test_zero_shot: false
 test_random: false
 test_iclm: false
