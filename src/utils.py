@@ -1,4 +1,3 @@
-import logging
 import os
 from contextlib import suppress
 
@@ -7,8 +6,8 @@ import more_itertools
 import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
+from loguru import logger
 from open_flamingo import create_model_and_transforms
-from PIL import Image
 from tqdm import tqdm
 from transformers import (
     AutoProcessor,
@@ -17,8 +16,6 @@ from transformers import (
     CLIPTextModelWithProjection,
     CLIPVisionModelWithProjection,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def cast_type(precision):
@@ -175,9 +172,7 @@ def collate_fn(batch, processor: CLIPProcessor):
         [q['text'] for q in query_input] if 'text' in query_input[0] else None
     )
     query_image_input = (
-        [q['images'] for q in query_input]
-        if 'images' in query_input[0]
-        else None
+        [q['images'] for q in query_input] if 'images' in query_input[0] else None
     )
     if query_text_input or query_image_input:
         query_input = processor(
@@ -219,76 +214,22 @@ def collate_fn(batch, processor: CLIPProcessor):
     return collate_dict
 
 
-@torch.inference_mode()
-def encode_dataset(
-    coco_dataset,
-    pool_method,
-    dataset_embedding_cache_path,
-    batch_size,
-    lang_encoder_path,
-    tokenizer_path,
-    flamingo_checkpoint_dir,
-    cross_attn_every_n_layers,
-    hf_root,
-    precision,
-    device,
-):
-    if os.path.exists(dataset_embedding_cache_path):
-        dataset_embeddings_map = torch.load(dataset_embedding_cache_path)
-        return dataset_embeddings_map
+def load_feature_cache(cfg, cache_path, encoding_method, train_ds, data_key):
+    if os.path.exists(cache_path):
+        features = torch.load(cache_path)
+    else:
+        features = encoding_method(
+            train_ds,
+            data_key,
+            cfg.device,
+            cfg.sim_model_type,
+            cfg.candidate_set_encode_bs,
+        )
+        torch.save(features, cache_path)
+    return features
 
-    # load flamingo
-    flamingo, image_processor, tokenizer, autocast_context = init_flamingo(
-        lang_encoder_path,
-        tokenizer_path,
-        flamingo_checkpoint_dir,
-        cross_attn_every_n_layers,
-        hf_root,
-        precision,
-        device,
-    )
 
-    if pool_method == 'first':
-        tokenizer.padding_side = 'right'
-    elif pool_method == 'last':
-        tokenizer.padding_side = 'left'
-
-    dataset_embeddings_map = {}
-    with autocast_context():
-        for batch_data in more_itertools.chunked(tqdm(coco_dataset), batch_size):
-            lang_x = [d['caption'] for d in batch_data]
-            lang_x_input = tokenizer(lang_x, return_tensors='pt', padding=True).to(
-                device
-            )
-
-            image_input = [Image.open(d['image']).convert('RGB') for d in batch_data]
-            vision_x = torch.stack(
-                [image_processor(image) for image in image_input], dim=0
-            )
-            vision_x = vision_x.unsqueeze(dim=1).unsqueeze(dim=1).to(device)
-
-            features = flamingo(
-                vision_x=vision_x,
-                lang_x=lang_x_input['input_ids'],
-                attention_mask=lang_x_input['attention_mask'],
-                output_hidden_states=True,
-            ).hidden_states[-1]
-            if pool_method == 'last':
-                features = features[:, -1, :].detach().cpu().float()
-            elif pool_method == 'mean':
-                mask = (lang_x_input['attention_mask'] != 0).float()
-                masked_features = features * mask.unsqueeze(-1)
-                sum_features = masked_features.sum(dim=1)
-                count = mask.sum(dim=1, keepdim=True)
-                mean_features = sum_features / count
-                features = mean_features.detach().cpu().float()
-            elif pool_method == 'first':
-                features = features[:, 0, :].detach().cpu().float()
-            else:
-                raise ValueError(f'the pool_method got {pool_method}')
-            idx_list = [d['idx'] for d in batch_data]
-            for i, idx in enumerate(idx_list):
-                dataset_embeddings_map[idx] = features[i]
-
-    torch.save(dataset_embeddings_map, dataset_embedding_cache_path)
-    return dataset_embeddings_map
+def beam_filter(score_list, data_id_list, beam_size):
+    score_list = torch.tensor(score_list)
+    score_value, indices = torch.topk(score_list, beam_size)
+    return score_value.tolist(), [data_id_list[idx] for idx in indices]

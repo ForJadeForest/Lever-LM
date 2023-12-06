@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import random
 from time import sleep
@@ -9,50 +8,15 @@ import hydra
 import torch
 from datasets import Dataset, DatasetDict
 from dotenv import load_dotenv
+from loguru import logger
 from omegaconf import DictConfig
 from openicl import PromptTemplate
-from PIL import Image
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.info_score import get_info_score
-from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-# Remove all default handlers
-for handler in logger.handlers[:]:
-    logger.removeHandler(handler)
-
-handler = logging.StreamHandler()
-formatter = logging.Formatter(
-    '[%(asctime)s][%(name)s][%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S,%f'[:-3],
-)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-
-
-def load_feature_cache(cfg, cache_path, encoding_method, train_ds, data_key):
-    if os.path.exists(cache_path):
-        features = torch.load(cache_path)
-    else:
-        features = encoding_method(
-            train_ds,
-            data_key,
-            cfg.device,
-            cfg.sim_model_type,
-            cfg.candidate_set_encode_bs,
-        )
-        torch.save(features, cache_path)
-    return features
-
-
-def beam_filter(score_list, data_id_list, beam_size):
-    score_list = torch.tensor(score_list)
-    score_value, indices = torch.topk(score_list, beam_size)
-    return score_value.tolist(), [data_id_list[idx] for idx in indices]
+from src.utils import beam_filter, init_flamingo
 
 
 @torch.inference_mode()
@@ -121,7 +85,6 @@ def generate_single_sample_ice(
                 candidate_set=filtered_candidateidx2data,
                 batch_size=cfg.batch_size,
                 autocast_context=autocast_context,
-                only_y_loss=cfg.only_y_loss,
                 split_token=cfg.task.split_token,
             )
 
@@ -231,7 +194,7 @@ def main(cfg: DictConfig):
     logger.info(f'{cfg=}')
     if not os.path.exists(cfg.result_dir):
         os.makedirs(cfg.result_dir)
-    cache_dir = os.path.join(cfg.result_dir, 'cache')
+    cache_dir = cfg.sampler.cache_dir
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
     save_dir = os.path.join(cfg.result_dir, 'generated_data')
@@ -242,8 +205,8 @@ def main(cfg: DictConfig):
         os.makedirs(sub_proc_save_dir)
 
     save_file_name = (
-        f'{cfg.task.task_name}-{cfg.dataset.name}-{"only_y_loss" if cfg.only_y_loss else ""}-'
-        f'{cfg.flamingo.hf_root}-{cfg.candidate_set_method}-'
+        f'{cfg.task.task_name}-{cfg.dataset.name}-'
+        f'{cfg.flamingo.hf_root}-{cfg.sampler.sampler_name}-'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
         f'candidate_set_num:{cfg.candidate_set_num}-sample_num:{cfg.sample_num}.json'
     )
@@ -261,15 +224,8 @@ def main(cfg: DictConfig):
 
     # sample from train idx
     anchor_set_cache_filename = os.path.join(
-        cache_dir, f'{cfg.dataset.name}-sample_num:{cfg.sample_num}.json'
+        cache_dir, f'{cfg.dataset.name}-anchor_sample_num:{cfg.sample_num}.json'
     )
-
-    candidate_set_cache_filename = os.path.join(
-        cache_dir,
-        f'{cfg.dataset.name}-sample_num:{cfg.sample_num}-'
-        f'candidate_set_num:{cfg.candidate_set_num}-method:{cfg.candidate_set_method}.json',
-    )
-
     if os.path.exists(anchor_set_cache_filename):
         logger.info('the anchor_set_cache_filename exists, loding...')
         anchor_idx_list = json.load(open(anchor_set_cache_filename, 'r'))
@@ -280,53 +236,9 @@ def main(cfg: DictConfig):
             json.dump(anchor_idx_list, f)
     anchor_data = train_ds.select(anchor_idx_list)
 
-    if os.path.exists(candidate_set_cache_filename):
-        logger.info('the candidate set cache exists, loding...')
-        candidate_set_idx = json.load(open(candidate_set_cache_filename, 'r'))
-        candidate_set_idx = {int(k): v for k, v in candidate_set_idx.items()}
-    else:
-        candidate_set_idx = {}
-        if cfg.candidate_set_method == 'random':
-            for s_idx in anchor_idx_list:
-                random_candidate_set = random.sample(
-                    range(0, len(train_ds)), cfg.candidate_set_num
-                )
-                while s_idx in random_candidate_set:
-                    random_candidate_set = random.sample(
-                        list(range(0, len(train_ds))), cfg.candidate_set_num
-                    )
-                candidate_set_idx[s_idx] = random_candidate_set
-        else:
-            # pre-calculate the cache feature for knn search
-            if cfg.candidate_set_method == 'text-sim':
-                encoding_method = encode_text
-                data_key = cfg.task.sim_text_field
-            elif cfg.candidate_set_method == 'image-sim':
-                encoding_method = encode_image
-                data_key = cfg.task.sim_image_field
-            else:
-                raise ValueError('the candidate_set_method error')
-            sim_model_name = cfg.sim_model_type.split('/')[-1]
-            train_cache_path = os.path.join(
-                cache_dir,
-                f'{cfg.task.task_name}-{cfg.dataset.name}-'
-                f'{cfg.candidate_set_method}-{sim_model_name}-feature.pth',
-            )
-            train_feature = load_feature_cache(
-                cfg, train_cache_path, encoding_method, train_ds, data_key
-            )
-            test_feature = train_feature[anchor_idx_list]
-            _, sim_sample_idx = recall_sim_feature(
-                test_feature, train_feature, top_k=cfg.candidate_set_num + 1
-            )
+    candidate_sampler = hydra.utils.instantiate(cfg.sampler)
+    candidate_set_idx = candidate_sampler(anchor_idx_list, train_ds)
 
-            sim_sample_idx = sim_sample_idx[:, 1:].tolist()
-            candidate_set_idx = {
-                idx: cand for idx, cand in zip(anchor_idx_list, sim_sample_idx)
-            }
-        with open(candidate_set_cache_filename, 'w') as f:
-            logger.info(f'save {candidate_set_cache_filename}...')
-            json.dump(candidate_set_idx, f)
     candidate_set_idx = [candidate_set_idx[k] for k in anchor_idx_list]
     spawn(
         gen_data,
