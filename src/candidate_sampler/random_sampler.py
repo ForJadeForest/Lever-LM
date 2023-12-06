@@ -4,8 +4,9 @@ from .base_sampler import BaseSampler
 
 
 class RandSampler(BaseSampler):
-    def __init__(self, candidate_num, sampler_name, cache_dir, overwrite):
+    def __init__(self, candidate_num, sampler_name, dataset_name, cache_dir, overwrite):
         super().__init__(candidate_num=candidate_num,
+                         dataset_name=dataset_name,
                          sampler_name=sampler_name,
                          cache_dir=cache_dir,
                          overwrite=overwrite)

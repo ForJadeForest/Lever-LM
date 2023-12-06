@@ -15,6 +15,7 @@ class TextSimSampler(BaseSampler):
         candidate_num,
         sampler_name,
         cache_dir,
+        dataset_name,
         overwrite,
         clip_model_name,
         feature_cache_filename,
@@ -25,6 +26,7 @@ class TextSimSampler(BaseSampler):
         super().__init__(
             candidate_num=candidate_num,
             sampler_name=sampler_name,
+            dataset_name=dataset_name,
             cache_dir=cache_dir,
             overwrite=overwrite,
             other_info=feature_cache_filename.replace('openai/', '')

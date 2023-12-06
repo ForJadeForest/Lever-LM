@@ -7,7 +7,7 @@ from loguru import logger
 
 class BaseSampler:
     def __init__(
-        self, candidate_num, sampler_name, cache_dir, overwrite, other_info=''
+        self, candidate_num, sampler_name, cache_dir, overwrite, dataset_name, other_info=''
     ) -> None:
         self.candidate_num = candidate_num
         self.sampler_name = sampler_name
@@ -17,7 +17,7 @@ class BaseSampler:
         self.overwrite = overwrite
         self.cache_file = os.path.join(
             self.cache_dir,
-            f"{self.sampler_name}-{other_info}:{self.candidate_num}.json",
+            f"{dataset_name}-{self.sampler_name}-{other_info}:{self.candidate_num}.json",
         )
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
