@@ -56,7 +56,7 @@ class TextSimSampler(BaseSampler):
             logger.info(
                 f'saving the features cache in {self.feature_cache} ...'
             )
-            torch.save(features, self.feature_cache_filename)
+            torch.save(features, self.feature_cache)
         test_feature = features[anchor_set]
         _, sim_sample_idx = recall_sim_feature(
             test_feature, features, top_k=self.candidate_num + 1
