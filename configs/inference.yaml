@@ -22,13 +22,13 @@ inference_bs: 4
 
 # MMTopK config:
 mmtopk_clip_name: openai/clip-vit-base-patch32
-mmtopk_reversed_order: false
+mmtopk_reversed_order: true
 seed: 42
 
 # icd_lm config:
 icd_lm_path: null
 default_cpk_key: "last"
-random_order_icd_lm_icd: false
+random_order_icd_lm: false
 icd_lm_bs: 20
 icd_lm_num_workers: 4
 

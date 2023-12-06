@@ -331,7 +331,7 @@ def main(cfg: DictConfig):
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
             output_files = info + f'-{shot_num=}'
             need_icd_idx_list = [icd_idx[:shot_num] for icd_idx in icd_idx_list]
-            if cfg.random_order_icd_lm_icd:
+            if cfg.random_order_icd_lm:
                 need_icd_idx_list = shuffle_2d_list(need_icd_idx_list)
             retriever = DirRetriever(
                 dr,
