@@ -58,7 +58,6 @@ def get_info_score(
     candidate_set: Dict,
     batch_size: int,
     autocast_context,
-    only_y_loss: bool = False,
     split_token: Optional[str] = None,
 ):
     model.eval()
@@ -69,24 +68,16 @@ def get_info_score(
     test_lang_x_input = lang_x[-1]
     chosen_ice_input = ice_join_char.join(lang_x[:-1])
     if chosen_ice_input:
-        chosen_ice_input += '<|endofchunk|>'
-    left_padding_token = 0
-    if not chosen_ice_input and not only_y_loss:
-        chosen_ice_input = '<|endoftext|>'
-        left_padding_token = 1
+        chosen_ice_input += ice_join_char
 
-    if only_y_loss:
-        query_test_lang_x_input = test_lang_x_input.split(split_token)[0] + split_token
-        mask_context = chosen_ice_input + query_test_lang_x_input
-    else:
-        mask_context = chosen_ice_input
+    query_test_lang_x_input = test_lang_x_input.split(split_token)[0] + split_token
+    mask_context = chosen_ice_input + query_test_lang_x_input
 
     mask_length = get_input_token_num(tokenizer, mask_context)
 
     lang_x_input = chosen_ice_input + test_lang_x_input + ice_join_char
     lang_x_input = tokenizer(lang_x_input, return_tensors='pt').to(device=device)
     lang_x_input['attention_mask'][lang_x_input['input_ids'] == 0] = 0
-    
 
     # 1.2 拼接图像输入
     image_x = [image_processor(image) for image in image_x]
@@ -104,7 +95,6 @@ def get_info_score(
         autocast_context,
         ice_token_length=[mask_length],
         pad_token_id=tokenizer.pad_token_id,
-        left_padding_len=left_padding_token,
     )
 
     # 2. 计算P(y|x, c)
@@ -128,16 +118,11 @@ def get_info_score(
             ice_join_char.join([ice_lang_x] + lang_x[:-1]) + ice_join_char
             for ice_lang_x in new_ice_lang_x
         ]
-        if only_y_loss:
-            total_ice_input_token_num = [
-                get_input_token_num(tokenizer, ice_lang_x + query_test_lang_x_input)
-                for ice_lang_x in ice_text_list
-            ]
-        else:
-            total_ice_input_token_num = [
-                get_input_token_num(tokenizer, ice_lang_x)
-                for ice_lang_x in ice_text_list
-            ]
+
+        total_ice_input_token_num = [
+            get_input_token_num(tokenizer, ice_lang_x + query_test_lang_x_input)
+            for ice_lang_x in ice_text_list
+        ]
 
         # 2.2 拼接图像输入
         batch_total_vision_x = [
