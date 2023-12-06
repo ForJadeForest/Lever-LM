@@ -82,11 +82,14 @@ Then, set the `VQAV2_PATH` environment variable in `.env`.
 
 #### 1. Generation the train dataset
 
-```
-python generate_data.py candidate_set_num=128 beam_size=10 few_shot_num=4 bs=128 gpu_ids="[0,1,2,3,4,5,6,7]"
+```shell
+# for coco2017 caption
+bash scripts/generate_data.sh caption coco2017 "[0,1,2,3]" 
 
-python generate_data.py candidate_set_num=128 beam_size=10 few_shot_num=4 bs=128 gpu_ids="[0,1,2,3,4,5,6,7]" random_sample_candidate_set=true
-
+# for vqav2
+bash scripts/generate_data.sh vqa vqav2_local "[0,1,2,3]"
+# We support vqav2 dataset of hf. It will download the dataset automatically.
+bash scripts/generate_data.sh vqa vqav2_online "[0,1,2,3]"
 ```
 
 #### 2. Train the ICD-LM Mode
@@ -94,7 +97,7 @@ python generate_data.py candidate_set_num=128 beam_size=10 few_shot_num=4 bs=128
 python train.py
 ```
 Args:
-- `train`: Options are `query_img_ice_idx`, `query_img_ice_img_text`, `query_img_ice_img`, `query_img_ice_text`, `query_img_text_ice_img_text`. 'img' after 'query' indicates the addition of image information to the query sample. 'text' after 'query' indicates the addition of text information to the query sample. The same applies to 'ice'.
+- `train`: Options are `query_img_icd_idx`, `query_img_icd_img_text`, `query_img_icd_img`, `query_img_icd_text`, `query_img_text_icd_img_text`. 'img' after 'query' indicates the addition of image information to the query sample. 'text' after 'query' indicates the addition of text information to the query sample. The same applies to 'icd'.
 - `dataset`: Defines the dataset for ICE. For caption tasks, you can choose either coco2017 or coco2014; for VQA tasks, choose between vqav2_local or vqav2_online. This parameter also includes the dataset path and other relevant information.
 - `task`: Options are `vqa` or `caption`, configuring parameters related to prompt
 - `data_files`: Specifies the names of the JSON data files generated in the first step.
@@ -104,10 +107,10 @@ Args:
 - `seed`: Sets the seed for random number generation.
 
 #### 3. Use Flamingo Inference
-If test the iclm model, you should set:
-- `train`: Options are `query_img_ice_idx`, `query_img_ice_img_text`, `query_img_ice_img`, `query_img_ice_text`, `query_img_text_ice_img_text`. 'img' after 'query' indicates the addition of image information to the query sample. 'text' after 'query' indicates the addition of text information to the query sample. The same applies to 'ice'.
-- `iclm_path`: Path to the model checkpoint.
-- `test_iclm`: Set to true.
+If test the icd_lm model, you should set:
+- `train`: Options are `query_img_icd_idx`, `query_img_icd_img_text`, `query_img_icd_img`, `query_img_icd_text`, `query_img_text_icd_img_text`. 'img' after 'query' indicates the addition of image information to the query sample. 'text' after 'query' indicates the addition of text information to the query sample. The same applies to 'icd'.
+- `icd_lm_path`: Path to the model checkpoint.
+- `test_icd_lm`: Set to true.
 
 Other args;
 - `dataset`: Defines the dataset for ICE. For caption tasks, choose either coco2017 or coco2014; for VQA tasks, choose between vqav2_local or vqav2_online.
@@ -140,16 +143,16 @@ bash ./scripts/ablation/generate_data.sh vqa vqav2_local "[0,1,2,3]"
 **for caption**
 ```sh
 # for one gpu defalut [0]
-bash ./scripts/ablation/train_iclm.sh caption coco2017 
+bash ./scripts/ablation/train_icd_lm.sh caption coco2017 
 # for multi gpu (4 gpus):
 bash ./scripts/ablation/generate_data.sh caption coco2017 4
 ```
 **for vqav2**
 ```sh
 # for one gpu defalut [0]
-bash ./scripts/ablation/train_iclm.sh vqa vqav2_local
+bash ./scripts/ablation/train_icd_lm.sh vqa vqav2_local
 # for multi gpu (4 gpus):
-bash ./scripts/ablation/train_iclm.sh vqa vqav2_local 4
+bash ./scripts/ablation/train_icd_lm.sh vqa vqav2_local 4
 ```
 
 

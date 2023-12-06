@@ -7,10 +7,7 @@ defaults:
   - flamingo: flamingo_9B
   - dataset: coco2017
   - task: caption
-  - sampler: mix_sampler
-
-# get candidate_set args
-candidate_set_num: 64
+  - sampler: rand_sampler
 
 
 # generation args:

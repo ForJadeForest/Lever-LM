@@ -1,3 +1,3 @@
 from .coco_ds import CocoDataset
-from .iclm_ds import ICLMDataset
-from .idx_iclm_ds import IdxICLMDataset
+from .icd_lm_ds import ICDLMDataset
+from .idx_icd_lm_ds import IdxICDLMDataset

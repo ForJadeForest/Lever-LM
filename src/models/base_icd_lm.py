@@ -2,13 +2,13 @@ import torch
 from torch import nn
 
 
-class BaseICLM(nn.Module):
+class BaseICDLM(nn.Module):
     def __init__(
         self,
         adpter: bool = False,
         norm: bool = False,
         query_encoding_flag: list = None,
-        ice_encoding_flag: list = None,
+        icd_encoding_flag: list = None,
     ) -> None:
         super().__init__()
         if query_encoding_flag is None:
@@ -17,7 +17,7 @@ class BaseICLM(nn.Module):
         self._adpter = adpter
         self._norm = norm
         self.query_encoding_flag = query_encoding_flag
-        self.ice_encoding_flag = ice_encoding_flag
+        self.icd_encoding_flag = icd_encoding_flag
 
     def forward(*args, **kwargs):
         raise NotImplemented()

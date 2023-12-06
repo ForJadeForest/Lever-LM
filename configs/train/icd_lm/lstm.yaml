@@ -1,4 +1,4 @@
-_target_: src.models.lstm_iclm.LSTMICLM
+_target_: src.models.lstm_icd_lm.LSTMICDLM
 
 emb_dim: 128
 dropout: 0.1
@@ -10,4 +10,4 @@ freeze_prefix_list: null
 adpter: False
 norm: true
 query_encoding_flag: ???
-ice_encoding_flag: ???
+icd_encoding_flag: ???

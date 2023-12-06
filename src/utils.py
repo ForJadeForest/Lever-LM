@@ -164,7 +164,7 @@ def data_split(generated_data, train_ratio):
 def collate_fn(batch, processor: CLIPProcessor):
     bs = len(batch)
     collate_dict = {
-        'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
+        'icd_seq_idx': torch.stack([item['icd_seq_idx'] for item in batch]),
     }
     query_input = [d['query_input'] for d in batch]
 
@@ -183,34 +183,34 @@ def collate_fn(batch, processor: CLIPProcessor):
         )
         collate_dict['query_input'] = query_input
 
-    ice_input_list = [d['ice_input'] for d in batch]
-    ice_image_input = ice_text_input = None
-    if 'text' in ice_input_list[0]:
-        ice_num = len(ice_input_list[0]['text'])
-        ice_text_input = [i['text'] for i in ice_input_list]
-        ice_text_input = [i for ice_text in ice_text_input for i in ice_text]
-    if 'images' in ice_input_list[0]:
-        ice_num = len(ice_input_list[0]['images'])
-        ice_image_input = [i['images'] for i in ice_input_list]
-        ice_image_input = [i for ice_image in ice_image_input for i in ice_image]
+    icd_input_list = [d['icd_input'] for d in batch]
+    icd_image_input = icd_text_input = None
+    if 'text' in icd_input_list[0]:
+        icd_num = len(icd_input_list[0]['text'])
+        icd_text_input = [i['text'] for i in icd_input_list]
+        icd_text_input = [i for icd_text in icd_text_input for i in icd_text]
+    if 'images' in icd_input_list[0]:
+        icd_num = len(icd_input_list[0]['images'])
+        icd_image_input = [i['images'] for i in icd_input_list]
+        icd_image_input = [i for icd_image in icd_image_input for i in icd_image]
 
-    if ice_image_input or ice_text_input:
-        ice_input = processor(
-            images=ice_image_input,
-            text=ice_text_input,
+    if icd_image_input or icd_text_input:
+        icd_input = processor(
+            images=icd_image_input,
+            text=icd_text_input,
             padding=True,
             return_tensors='pt',
         )
-        if 'input_ids' in ice_input:
-            ice_input['input_ids'] = ice_input['input_ids'].view(bs, ice_num, -1)
-            ice_input['attention_mask'] = ice_input['attention_mask'].view(
-                bs, ice_num, -1
+        if 'input_ids' in icd_input:
+            icd_input['input_ids'] = icd_input['input_ids'].view(bs, icd_num, -1)
+            icd_input['attention_mask'] = icd_input['attention_mask'].view(
+                bs, icd_num, -1
             )
-        if 'pixel_values' in ice_input:
-            ice_input['pixel_values'] = ice_input['pixel_values'].view(
-                bs, ice_num, *ice_input['pixel_values'].shape[1:]
+        if 'pixel_values' in icd_input:
+            icd_input['pixel_values'] = icd_input['pixel_values'].view(
+                bs, icd_num, *icd_input['pixel_values'].shape[1:]
             )
-        collate_dict['ice_input'] = ice_input
+        collate_dict['icd_input'] = icd_input
     return collate_dict
 
 

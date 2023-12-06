@@ -3,10 +3,9 @@ from typing import List
 import datasets
 import torch
 from torch.utils.data import Dataset
-from transformers import CLIPProcessor
 
 
-class BaseICLMDataset(Dataset):
+class BaseICDLMDataset(Dataset):
     def __init__(
         self,
         data_list: List,
@@ -18,7 +17,7 @@ class BaseICLMDataset(Dataset):
         query_text_field: str = None,
     ):
         super().__init__()
-        self.ice_idx_seq_list = []
+        self.icd_idx_seq_list = []
         self.x_id_list = []
 
         self.eos_token_id = eos_token_id
@@ -31,13 +30,13 @@ class BaseICLMDataset(Dataset):
         self.index_ds = index_ds
         for idx_seq in data_list:
             idx_list = idx_seq[:-1]
-            self.ice_idx_seq_list.append(list(idx_list))
+            self.icd_idx_seq_list.append(list(idx_list))
             self.x_id_list.append(idx_seq[-1])
 
     def __getitem__(self, index):
-        ice_seq_idx = self.ice_idx_seq_list[index]
+        icd_seq_idx = self.icd_idx_seq_list[index]
         add_sp_token_seq_idx = (
-            [self.bos_token_id, self.query_token_id] + ice_seq_idx + [self.eos_token_id]
+            [self.bos_token_id, self.query_token_id] + icd_seq_idx + [self.eos_token_id]
         )
 
         test_sample_id = self.x_id_list[index]
@@ -50,7 +49,7 @@ class BaseICLMDataset(Dataset):
             query_input['text'] = text
         return {
             'query_input': query_input,
-            'ice_seq_idx': torch.tensor(add_sp_token_seq_idx, dtype=torch.long),
+            'icd_seq_idx': torch.tensor(add_sp_token_seq_idx, dtype=torch.long),
         }
 
     def __len__(self):

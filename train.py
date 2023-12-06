@@ -37,13 +37,13 @@ class ICDLM(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         output = self.icd_lm(**batch)
         loss = output['loss']
-        self.log("train_loss", loss, batch_size=len(batch['ice_seq_idx']), sync_dist=True)
+        self.log("train_loss", loss, batch_size=len(batch['icd_seq_idx']), sync_dist=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         output = self.icd_lm(**batch)
         loss = output['loss']
-        self.log("val_loss", loss, batch_size=len(batch['ice_seq_idx']), sync_dist=True)
+        self.log("val_loss", loss, batch_size=len(batch['icd_seq_idx']), sync_dist=True)
         return loss
 
     def configure_optimizers(self):
@@ -86,12 +86,12 @@ class ICDSeqDataModule(pl.LightningDataModule):
         with open(data_files_path, 'r') as f:
             data = json.load(f)
         self.train_data_list, self.val_data_list = data_split(data, cfg.train_ratio)
-        self.ds_factory = hydra.utils.instantiate(cfg.train.iclm_ds, _partial_=True)
+        self.ds_factory = hydra.utils.instantiate(cfg.train.icd_lm_ds, _partial_=True)
         if cfg.task.task_name == 'caption':
             self.index_ds = load_coco_ds(cfg, split='train')
         elif cfg.task.task_name == 'vqa':
             self.index_ds = load_vqav2_ds(cfg, split='train')
-        self.processor = CLIPProcessor.from_pretrained(cfg.train.iclm_model.clip_name)
+        self.processor = CLIPProcessor.from_pretrained(cfg.train.icd_lm.clip_name)
         
         self.save_hyperparameters()
 
@@ -160,8 +160,8 @@ def main(cfg: DictConfig):
         ],
         **cfg.trainer_args,
     )
-    iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
-    model = ICDLM(iclm_model, cfg.lr, cfg.weight_decay, cfg.warm_steps)
+    icd_lm = hydra.utils.instantiate(cfg.train.icd_lm)
+    model = ICDLM(icd_lm, cfg.lr, cfg.weight_decay, cfg.warm_steps)
     data_module = ICDSeqDataModule(cfg)
     trainer.fit(model, data_module)
 
