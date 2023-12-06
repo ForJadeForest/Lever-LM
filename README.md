@@ -13,7 +13,7 @@ pip install -r requirements.txt
 mkdir requirements_repo
 cd requirements_repo
 # for anonymous submit, it will fix in Formal version
-git clone https://github.com/xxxx/OpenICL.git
+git clone https://github.com/ForJadeForest/OpenICL.git
 cd OpenICL
 git checkout -b coco_caption origin/coco_caption
 pip install -e ./
