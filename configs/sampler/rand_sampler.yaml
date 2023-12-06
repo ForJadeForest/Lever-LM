@@ -1,0 +1,7 @@
+_target_: src.candidate_sampler.random_sampler.RandSampler
+
+sampler_name: RandSampler
+candidate_num: 64
+cache_dir: "${result_dir}/cache"
+overwrite: false
+

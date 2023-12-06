@@ -1,0 +1,12 @@
+_target_: src.candidate_sampler.text_sim_sampler.TextSimSampler
+
+sampler_name: TextSimSampler
+candidate_num: 64
+cache_dir: "${result_dir}/cache"
+overwrite: false
+clip_model_name: "openai/clip-vit-large-patch14"
+
+feature_cache_filename: "${task.task_name}-${dataset.name}-${sampler.clip_model_name}-TextFeatures.pth"
+text_field_name: "${task.sim_text_field}"
+device: ${device}
+candidate_set_encode_bs: 128

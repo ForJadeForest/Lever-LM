@@ -7,15 +7,10 @@ defaults:
   - flamingo: flamingo_9B
   - dataset: coco2017
   - task: caption
-
+  - sampler: mix_sampler
 
 # get candidate_set args
 candidate_set_num: 64
-candidate_set_method: "random"
-
-# recall args
-sim_model_type: "openai/clip-vit-large-patch14"
-candidate_set_encode_bs: 64
 
 
 # generation args:
@@ -33,8 +28,6 @@ gpu_ids: [0]
 # use sleep to load one by one.
 sleep_time: 90
 
- 
-only_y_loss: true
 
 
 # hydra
