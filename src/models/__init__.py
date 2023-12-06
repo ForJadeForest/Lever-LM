@@ -1,2 +1,2 @@
-from .gpt2_iclm import GPT2ICLM
-from .lstm_iclm import LSTMICLM
+from .gpt2_icd_lm import GPT2ICDLM
+from .lstm_icd_lm import LSTMICDLM

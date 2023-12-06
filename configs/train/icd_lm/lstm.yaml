@@ -1,0 +1,13 @@
+_target_: src.models.lstm_icd_lm.LSTMICDLM
+
+emb_dim: 128
+dropout: 0.1
+num_layers: 2
+
+index_ds_size: ${dataset.train_ds_len}
+clip_name: openai/clip-vit-base-patch32
+freeze_prefix_list: null
+adpter: False
+norm: true
+query_encoding_flag: ???
+icd_encoding_flag: ???

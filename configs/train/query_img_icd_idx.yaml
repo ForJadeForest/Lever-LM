@@ -1,0 +1,4 @@
+
+defaults:
+  - icd_lm_ds: query_img_icd_idx_ds
+  - icd_lm: query_img_icd_idx_icd_lm

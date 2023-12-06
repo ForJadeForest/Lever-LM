@@ -2,7 +2,7 @@ defaults:
   - _self_
   - dataset: coco2017
   - flamingo: flamingo_9B
-  - train: query_img_ice_text
+  - train: query_img_icd_text
   - task: caption
 
 
@@ -22,15 +22,15 @@ inference_bs: 4
 
 # MMTopK config:
 mmtopk_clip_name: openai/clip-vit-base-patch32
-mmtopk_reversed_order: false
+mmtopk_reversed_order: true
 seed: 42
 
-# iclm config:
-iclm_path: null
+# icd_lm config:
+icd_lm_path: null
 default_cpk_key: "last"
-random_order_iclm_ice: false
-iclm_bs: 20
-iclm_num_workers: 4
+random_order_icd_lm: false
+icd_lm_bs: 20
+icd_lm_num_workers: 4
 
 eos_token_id: ${dataset.train_ds_len}
 
@@ -40,7 +40,7 @@ ex_name: "debug"
 shot_num_list: [1, 2, 3, 4, 6, 8]
 test_zero_shot: false
 test_random: false
-test_iclm: false
+test_icd_lm: false
 test_t2t: false
 test_i2t: false
 test_i2i: false

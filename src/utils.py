@@ -1,4 +1,3 @@
-import logging
 import os
 from contextlib import suppress
 
@@ -7,8 +6,8 @@ import more_itertools
 import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
+from loguru import logger
 from open_flamingo import create_model_and_transforms
-from PIL import Image
 from tqdm import tqdm
 from transformers import (
     AutoProcessor,
@@ -17,8 +16,6 @@ from transformers import (
     CLIPTextModelWithProjection,
     CLIPVisionModelWithProjection,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def cast_type(precision):
@@ -167,7 +164,7 @@ def data_split(generated_data, train_ratio):
 def collate_fn(batch, processor: CLIPProcessor):
     bs = len(batch)
     collate_dict = {
-        'ice_seq_idx': torch.stack([item['ice_seq_idx'] for item in batch]),
+        'icd_seq_idx': torch.stack([item['icd_seq_idx'] for item in batch]),
     }
     query_input = [d['query_input'] for d in batch]
 
@@ -175,9 +172,7 @@ def collate_fn(batch, processor: CLIPProcessor):
         [q['text'] for q in query_input] if 'text' in query_input[0] else None
     )
     query_image_input = (
-        [q['images'] for q in query_input]
-        if 'images' in query_input[0]
-        else None
+        [q['images'] for q in query_input] if 'images' in query_input[0] else None
     )
     if query_text_input or query_image_input:
         query_input = processor(
@@ -188,107 +183,53 @@ def collate_fn(batch, processor: CLIPProcessor):
         )
         collate_dict['query_input'] = query_input
 
-    ice_input_list = [d['ice_input'] for d in batch]
-    ice_image_input = ice_text_input = None
-    if 'text' in ice_input_list[0]:
-        ice_num = len(ice_input_list[0]['text'])
-        ice_text_input = [i['text'] for i in ice_input_list]
-        ice_text_input = [i for ice_text in ice_text_input for i in ice_text]
-    if 'images' in ice_input_list[0]:
-        ice_num = len(ice_input_list[0]['images'])
-        ice_image_input = [i['images'] for i in ice_input_list]
-        ice_image_input = [i for ice_image in ice_image_input for i in ice_image]
+    icd_input_list = [d['icd_input'] for d in batch]
+    icd_image_input = icd_text_input = None
+    if 'text' in icd_input_list[0]:
+        icd_num = len(icd_input_list[0]['text'])
+        icd_text_input = [i['text'] for i in icd_input_list]
+        icd_text_input = [i for icd_text in icd_text_input for i in icd_text]
+    if 'images' in icd_input_list[0]:
+        icd_num = len(icd_input_list[0]['images'])
+        icd_image_input = [i['images'] for i in icd_input_list]
+        icd_image_input = [i for icd_image in icd_image_input for i in icd_image]
 
-    if ice_image_input or ice_text_input:
-        ice_input = processor(
-            images=ice_image_input,
-            text=ice_text_input,
+    if icd_image_input or icd_text_input:
+        icd_input = processor(
+            images=icd_image_input,
+            text=icd_text_input,
             padding=True,
             return_tensors='pt',
         )
-        if 'input_ids' in ice_input:
-            ice_input['input_ids'] = ice_input['input_ids'].view(bs, ice_num, -1)
-            ice_input['attention_mask'] = ice_input['attention_mask'].view(
-                bs, ice_num, -1
+        if 'input_ids' in icd_input:
+            icd_input['input_ids'] = icd_input['input_ids'].view(bs, icd_num, -1)
+            icd_input['attention_mask'] = icd_input['attention_mask'].view(
+                bs, icd_num, -1
             )
-        if 'pixel_values' in ice_input:
-            ice_input['pixel_values'] = ice_input['pixel_values'].view(
-                bs, ice_num, *ice_input['pixel_values'].shape[1:]
+        if 'pixel_values' in icd_input:
+            icd_input['pixel_values'] = icd_input['pixel_values'].view(
+                bs, icd_num, *icd_input['pixel_values'].shape[1:]
             )
-        collate_dict['ice_input'] = ice_input
+        collate_dict['icd_input'] = icd_input
     return collate_dict
 
 
-@torch.inference_mode()
-def encode_dataset(
-    coco_dataset,
-    pool_method,
-    dataset_embedding_cache_path,
-    batch_size,
-    lang_encoder_path,
-    tokenizer_path,
-    flamingo_checkpoint_dir,
-    cross_attn_every_n_layers,
-    hf_root,
-    precision,
-    device,
-):
-    if os.path.exists(dataset_embedding_cache_path):
-        dataset_embeddings_map = torch.load(dataset_embedding_cache_path)
-        return dataset_embeddings_map
+def load_feature_cache(cfg, cache_path, encoding_method, train_ds, data_key):
+    if os.path.exists(cache_path):
+        features = torch.load(cache_path)
+    else:
+        features = encoding_method(
+            train_ds,
+            data_key,
+            cfg.device,
+            cfg.sim_model_type,
+            cfg.candidate_set_encode_bs,
+        )
+        torch.save(features, cache_path)
+    return features
 
-    # load flamingo
-    flamingo, image_processor, tokenizer, autocast_context = init_flamingo(
-        lang_encoder_path,
-        tokenizer_path,
-        flamingo_checkpoint_dir,
-        cross_attn_every_n_layers,
-        hf_root,
-        precision,
-        device,
-    )
 
-    if pool_method == 'first':
-        tokenizer.padding_side = 'right'
-    elif pool_method == 'last':
-        tokenizer.padding_side = 'left'
-
-    dataset_embeddings_map = {}
-    with autocast_context():
-        for batch_data in more_itertools.chunked(tqdm(coco_dataset), batch_size):
-            lang_x = [d['caption'] for d in batch_data]
-            lang_x_input = tokenizer(lang_x, return_tensors='pt', padding=True).to(
-                device
-            )
-
-            image_input = [Image.open(d['image']).convert('RGB') for d in batch_data]
-            vision_x = torch.stack(
-                [image_processor(image) for image in image_input], dim=0
-            )
-            vision_x = vision_x.unsqueeze(dim=1).unsqueeze(dim=1).to(device)
-
-            features = flamingo(
-                vision_x=vision_x,
-                lang_x=lang_x_input['input_ids'],
-                attention_mask=lang_x_input['attention_mask'],
-                output_hidden_states=True,
-            ).hidden_states[-1]
-            if pool_method == 'last':
-                features = features[:, -1, :].detach().cpu().float()
-            elif pool_method == 'mean':
-                mask = (lang_x_input['attention_mask'] != 0).float()
-                masked_features = features * mask.unsqueeze(-1)
-                sum_features = masked_features.sum(dim=1)
-                count = mask.sum(dim=1, keepdim=True)
-                mean_features = sum_features / count
-                features = mean_features.detach().cpu().float()
-            elif pool_method == 'first':
-                features = features[:, 0, :].detach().cpu().float()
-            else:
-                raise ValueError(f'the pool_method got {pool_method}')
-            idx_list = [d['idx'] for d in batch_data]
-            for i, idx in enumerate(idx_list):
-                dataset_embeddings_map[idx] = features[i]
-
-    torch.save(dataset_embeddings_map, dataset_embedding_cache_path)
-    return dataset_embeddings_map
+def beam_filter(score_list, data_id_list, beam_size):
+    score_list = torch.tensor(score_list)
+    score_value, indices = torch.topk(score_list, beam_size)
+    return score_value.tolist(), [data_id_list[idx] for idx in indices]

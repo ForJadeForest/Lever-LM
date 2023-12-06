@@ -2,18 +2,18 @@ task_name: vqa
 # use for get prompt for flamingo
 # for get prompt of openicl
 template: "</E><image>Question:<Q> Short answer:<A>"
-ice_token: "</E>"
+icd_token: "</E>"
 column_token_map:
   question: "<Q>"
   answer: "<A>"
 
 input_columns: ["question", "answer"]
 output_column: "answer"
-ice_join_char: "<|endofchunk|>"
+icd_join_char: "<|endofchunk|>"
 image_field: "image"
 
-# use for train model and inference ice feature field
-ice_text_feature_field: "question"
+# use for train model and inference icd feature field
+icd_text_feature_field: "question"
 query_text_feature_field: "question"
 
 # sim fields:

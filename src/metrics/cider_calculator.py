@@ -29,7 +29,7 @@ def get_cider_score(
     tokenizer,
     image_processor,
     device: str,
-    ice_join_char: str,
+    icd_join_char: str,
     lang_x: List[str],
     image_x: List[Image.Image],
     candidate_set: Dict,
@@ -43,20 +43,20 @@ def get_cider_score(
     cand_idx = sorted(list(candidate_set.keys()))
     for batch in more_itertools.chunked(cand_idx, batch_size):
         batch_data = [candidate_set[i] for i in batch]
-        new_ice_lang_x = [data['text_input'] for data in batch_data]
-        new_ice_image_x = [data['image'] for data in batch_data]
+        new_icd_lang_x = [data['text_input'] for data in batch_data]
+        new_icd_image_x = [data['image'] for data in batch_data]
 
         # 2.1 拼接文本输入
-        total_ice_lang_x_input = [
-            ice_join_char.join([ice_lang_x] + lang_x) for ice_lang_x in new_ice_lang_x
+        total_icd_lang_x_input = [
+            icd_join_char.join([icd_lang_x] + lang_x) for icd_lang_x in new_icd_lang_x
         ]
-        total_ice_lang_x_input = tokenizer(
-            total_ice_lang_x_input, return_tensors='pt', padding=True
+        total_icd_lang_x_input = tokenizer(
+            total_icd_lang_x_input, return_tensors='pt', padding=True
         ).to(device=device)
 
         batch_total_vision_x = [
-            torch.stack([image_processor(ice_image_x)] + image_x, dim=0)
-            for ice_image_x in new_ice_image_x
+            torch.stack([image_processor(icd_image_x)] + image_x, dim=0)
+            for icd_image_x in new_icd_image_x
         ]
         total_vision_x = torch.stack(batch_total_vision_x, dim=0)
 
@@ -66,14 +66,14 @@ def get_cider_score(
         with autocast_context:
             outputs = model.generate(
                 vision_x=total_vision_x,
-                lang_x=total_ice_lang_x_input['input_ids'],
-                attention_mask=total_ice_lang_x_input['attention_mask'].bool(),
+                lang_x=total_icd_lang_x_input['input_ids'],
+                attention_mask=total_icd_lang_x_input['attention_mask'].bool(),
                 eos_token_id=tokenizer.eos_token_id,
                 pad_token_id=tokenizer.pad_token_id,
                 **gen_kwargs,
             )
         outputs = outputs.tolist()
-        prompt_len = int(total_ice_lang_x_input['attention_mask'].shape[1])
+        prompt_len = int(total_icd_lang_x_input['attention_mask'].shape[1])
 
         generated = tokenizer.batch_decode(
             [output[prompt_len:] for output in outputs],

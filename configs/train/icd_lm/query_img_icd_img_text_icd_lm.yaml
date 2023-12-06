@@ -1,0 +1,14 @@
+_target_: src.models.gpt2_icd_lm.GPT2ICDLM
+
+lm_config: 
+  n_embd: 512
+  n_head: 8
+  n_layer: 2
+  
+index_ds_size: ${dataset.train_ds_len}
+clip_name: openai/clip-vit-base-patch32
+freeze_prefix_list: null
+adpter: False
+norm: true
+query_encoding_flag: ["image"]
+icd_encoding_flag: ["image", "text"]

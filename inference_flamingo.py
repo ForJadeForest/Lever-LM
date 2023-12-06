@@ -28,7 +28,7 @@ from transformers import AutoProcessor
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import compute_cider
 from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
-from src.models import GPT2ICLM, LSTMICLM
+from src.models import GPT2ICDLM, LSTMICDLM
 from src.utils import init_flamingo
 
 
@@ -47,7 +47,7 @@ def evaluate_retriever(
     retriever_name,
     inferencer,
     retriever,
-    ice_prompt,
+    icd_prompt,
     base_info,
     shot_num_list,
     result_json_path,
@@ -60,12 +60,12 @@ def evaluate_retriever(
             f'Now begin test {cfg.task.task_name}: {retriever_name} with {shot_num=}'
         )
         output_files = info + f'-bs:{cfg.inference_bs}-{shot_num=}'
-        retriever.ice_num = shot_num
+        retriever.icd_num = shot_num
         if cfg.task.task_name == 'caption':
             metric = inference_caption(
                 inferencer,
                 retriever,
-                ice_prompt,
+                icd_prompt,
                 cfg.dataset.val_coco_annotation_file,
                 output_files,
             )
@@ -73,7 +73,7 @@ def evaluate_retriever(
             metric = inference_vqa(
                 inferencer=inferencer,
                 retriever=retriever,
-                ice_prompt=ice_prompt,
+                icd_prompt=icd_prompt,
                 val_ques_path=cfg.dataset.val_ques_path,
                 val_ann_path=cfg.dataset.val_ann_path,
                 output_json_filename=output_files,
@@ -89,22 +89,22 @@ def init_retriever(retriever_name, dr, cfg):
     elif retriever_name == 'RandomSample':
         return RandomRetriever(
             dr,
-            ice_separator='<|endofchunk|>',
-            ice_eos_token='<|endofchunk|>',
+            icd_separator='<|endofchunk|>',
+            icd_eos_token='<|endofchunk|>',
             test_split='validation',
             seed=cfg.seed,
         )
     elif retriever_name.startswith('MMTopKRetriever'):
         mode = retriever_name.split('-')[-1]
         index_field = (
-            cfg.task.ice_text_feature_field
+            cfg.task.icd_text_feature_field
             if mode.endswith('t')
             else cfg.task.image_field
         )
         test_field = (
             cfg.task.image_field
             if mode.startswith('i')
-            else cfg.task.ice_text_feature_field
+            else cfg.task.icd_text_feature_field
         )
 
         cache_file = os.path.join(
@@ -116,8 +116,8 @@ def init_retriever(retriever_name, dr, cfg):
         )
         return MMTopkRetriever(
             dr,
-            ice_separator='<|endofchunk|>',
-            ice_eos_token='<|endofchunk|>',
+            icd_separator='<|endofchunk|>',
+            icd_eos_token='<|endofchunk|>',
             test_split='validation',
             batch_size=32,
             num_workers=8,
@@ -135,13 +135,13 @@ def init_retriever(retriever_name, dr, cfg):
 def inference_caption(
     inferencer,
     retriever,
-    ice_prompt,
+    icd_prompt,
     val_ann_path,
     output_json_filename,
 ):
     output_dict = inferencer.inference(
         retriever,
-        ice_prompt,
+        icd_prompt,
         output_json_filename=output_json_filename,
         return_dict=True,
     )
@@ -160,11 +160,11 @@ def inference_caption(
 
 
 def inference_vqa(
-    inferencer, retriever, ice_prompt, val_ques_path, val_ann_path, output_json_filename
+    inferencer, retriever, icd_prompt, val_ques_path, val_ann_path, output_json_filename
 ):
     output_dict = inferencer.inference(
         retriever,
-        ice_prompt,
+        icd_prompt,
         output_json_filename=output_json_filename,
         return_dict=True,
     )
@@ -197,9 +197,9 @@ def main(cfg: DictConfig):
     )
     result_json_path = os.path.join(result_dir, 'metrics.json')
 
-    ice_prompt = PromptTemplate(
+    icd_prompt = PromptTemplate(
         template=cfg.task.template,
-        ice_token=cfg.task.ice_token,
+        icd_token=cfg.task.icd_token,
         column_token_map=dict(cfg.task.column_token_map),
     )
     test_data_num = cfg.test_data_num
@@ -277,19 +277,19 @@ def main(cfg: DictConfig):
                 retriever_name,
                 inferencer,
                 retriever_instance,
-                ice_prompt,
+                icd_prompt,
                 base_info,
                 shot_nums,
                 result_json_path,
                 cfg,
             )
-    # ICLM sample test
-    if cfg.test_iclm:
+    # ICDLM sample test
+    if cfg.test_icd_lm:
         retriever_res = {}
-        iclm_model = hydra.utils.instantiate(cfg.train.iclm_model)
-        if cfg.iclm_path is None:
+        icd_lm = hydra.utils.instantiate(cfg.train.icd_lm)
+        if cfg.icd_lm_path is None:
             logger.info(
-                f'detect iclm_path is None, now try to find in {cfg.result_dir}/model_cpk/{cfg.ex_name}'
+                f'detect icd_lm_path is None, now try to find in {cfg.result_dir}/model_cpk/{cfg.ex_name}'
             )
             cpk_dir = os.path.join(
                 cfg.result_dir, 'model_cpk', cfg.task.task_name, cfg.ex_name
@@ -300,26 +300,26 @@ def main(cfg: DictConfig):
             cpk_list = list(filter(lambda x: cfg.default_cpk_key in x, cpk_list))
             if cpk_list:
                 logger.info(f'Detect {cpk_list[0]}, now begin to load cpk...')
-                iclm_path = cpk_list[0]
+                icd_lm_path = cpk_list[0]
             else:
                 raise ValueError(
-                    f'The iclm_path is None and detect no checkpoint can use in {cpk_dir}'
+                    f'The icd_lm_path is None and detect no checkpoint can use in {cpk_dir}'
                 )
         else:
-            iclm_path = cfg.iclm_path
-        iclm_model.load_state_dict(torch.load(iclm_path)['model'])
+            icd_lm_path = cfg.icd_lm_path
+        icd_lm.load_state_dict(torch.load(icd_lm_path)['model'])
 
-        processor = AutoProcessor.from_pretrained(cfg.train.iclm_model.clip_name)
-        retriever_info = 'ICLM-' + os.path.splitext(os.path.basename(iclm_path))[0]
+        processor = AutoProcessor.from_pretrained(cfg.train.icd_lm.clip_name)
+        retriever_info = 'ICDLM-' + os.path.splitext(os.path.basename(icd_lm_path))[0]
 
         info = (
             base_info
             + retriever_info
-            + f'-{iclm_model.query_encoding_flag=}-{iclm_model.ice_encoding_flag=}-bs:{cfg.inference_bs}'
+            + f'-{icd_lm.query_encoding_flag=}-{icd_lm.icd_encoding_flag=}-bs:{cfg.inference_bs}'
         )
 
-        ice_idx_list = iclm_generation(
-            iclm_model=iclm_model,
+        icd_idx_list = icd_lm_generation(
+            icd_lm=icd_lm,
             val_ds=ds[test_split],
             train_ds=ds['train'],
             processor=processor,
@@ -330,24 +330,24 @@ def main(cfg: DictConfig):
         for shot_num in cfg.shot_num_list:
             logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
             output_files = info + f'-{shot_num=}'
-            need_ice_idx_list = [ice_idx[:shot_num] for ice_idx in ice_idx_list]
-            if cfg.random_order_iclm_ice:
-                need_ice_idx_list = shuffle_2d_list(need_ice_idx_list)
+            need_icd_idx_list = [icd_idx[:shot_num] for icd_idx in icd_idx_list]
+            if cfg.random_order_icd_lm:
+                need_icd_idx_list = shuffle_2d_list(need_icd_idx_list)
             retriever = DirRetriever(
                 dr,
-                need_ice_idx_list,
-                ice_separator='<|endofchunk|>',
-                ice_eos_token='<|endofchunk|>',
+                need_icd_idx_list,
+                icd_separator='<|endofchunk|>',
+                icd_eos_token='<|endofchunk|>',
                 prompt_eos_token='',
                 test_split=test_split,
             )
-            retriever_info = 'ICLM'
-            retriever.ice_num = shot_num
+            retriever_info = 'ICDLM'
+            retriever.icd_num = shot_num
             if cfg.task.task_name == 'caption':
                 metric = inference_caption(
                     inferencer,
                     retriever,
-                    ice_prompt,
+                    icd_prompt,
                     cfg.dataset.val_coco_annotation_file,
                     output_files,
                 )
@@ -355,7 +355,7 @@ def main(cfg: DictConfig):
                 metric = inference_vqa(
                     inferencer=inferencer,
                     retriever=retriever,
-                    ice_prompt=ice_prompt,
+                    icd_prompt=icd_prompt,
                     val_ques_path=cfg.dataset.val_ques_path,
                     val_ann_path=cfg.dataset.val_ann_path,
                     output_json_filename=output_files,
@@ -376,22 +376,22 @@ def shuffle_2d_list(matrix):
 
 
 @torch.inference_mode()
-def iclm_generation(
-    iclm_model: Union[GPT2ICLM, LSTMICLM],
+def icd_lm_generation(
+    icd_lm: Union[GPT2ICDLM, LSTMICDLM],
     val_ds: datasets.Dataset,
     train_ds: datasets.Dataset,
     processor,
     shot_num,
     cfg,
 ):
-    iclm_model = iclm_model.to(cfg.device)
-    iclm_model.eval()
-    ice_idx_list = []
+    icd_lm = icd_lm.to(cfg.device)
+    icd_lm.eval()
+    icd_idx_list = []
     bos_token_id = len(train_ds) + 1
     query_token_id = len(train_ds) + 2
 
-    query_image_field = cfg.train.iclm_ds.query_image_field
-    query_text_field = cfg.train.iclm_ds.query_text_field
+    query_image_field = cfg.train.icd_lm_ds.query_image_field
+    query_text_field = cfg.train.icd_lm_ds.query_text_field
 
     val_ds_ = val_ds.map()
 
@@ -413,31 +413,31 @@ def iclm_generation(
     val_ds_.set_transform(prepare)
     dataloader = DataLoader(
         val_ds_,
-        batch_size=cfg.iclm_bs,
+        batch_size=cfg.icd_lm_bs,
         shuffle=False,
-        num_workers=cfg.iclm_num_workers,
+        num_workers=cfg.icd_lm_num_workers,
     )
 
     for query_input in tqdm(dataloader, ncols=100):
         query_input = {k: v.to(cfg.device) for k, v in query_input.items()}
         bs = len(query_input[list(query_input.keys())[0]])
-        init_ice_idx = torch.tensor(
+        init_icd_idx = torch.tensor(
             [[bos_token_id, query_token_id] for _ in range(bs)]
         ).to(cfg.device)
-        res = iclm_model.generation(
+        res = icd_lm.generation(
             query_input=query_input,
-            init_ice_idx=init_ice_idx,
+            init_icd_idx=init_icd_idx,
             shot_num=shot_num,
             index_ds=train_ds,
             processor=processor,
-            ice_image_field=cfg.train.iclm_ds.ice_image_field,
-            ice_text_field=cfg.train.iclm_ds.ice_text_field,
+            icd_image_field=cfg.train.icd_lm_ds.icd_image_field,
+            icd_text_field=cfg.train.icd_lm_ds.icd_text_field,
             device=cfg.device,
         )
         res = [r[2 : 2 + shot_num] for r in res]
-        ice_idx_list.extend(res)
+        icd_idx_list.extend(res)
 
-    return ice_idx_list
+    return icd_idx_list
 
 
 if __name__ == '__main__':

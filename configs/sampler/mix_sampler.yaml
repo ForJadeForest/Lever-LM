@@ -1,0 +1,18 @@
+_target_: src.candidate_sampler.mix_sampler.MixSimSampler
+
+sampler_name: MixSampler
+candidate_num: 64
+cache_dir: "${result_dir}/cache"
+overwrite: false
+dataset_name: ${dataset.name}
+clip_model_name: "openai/clip-vit-large-patch14"
+
+feature_cache_filename: "${task.task_name}-${dataset.name}-${sampler.clip_model_name}"
+text_field_name: "${task.sim_text_field}"
+img_field_name: "${task.sim_image_field}"
+device: ${device}
+candidate_set_encode_bs: 128
+sampler_ratio: 
+  RandSampler: 0.5
+  TextSimSampler: 0.25
+  ImgSimSampler: 0.25

@@ -4,18 +4,18 @@ task_name: caption
 image_field: "image"
 
 template: "</E><image>Output:<X>"
-ice_token: "</E>"
+icd_token: "</E>"
 column_token_map:
   single_caption: <X>
 input_columns: ["single_caption"]
 output_column: "single_caption"
 
-ice_join_char: "<|endofchunk|>"
+icd_join_char: "<|endofchunk|>"
 
 sim_text_field: "single_caption"
 sim_image_field: "image"
 
-ice_text_feature_field: "single_caption"  # use for as encoding data feature
+icd_text_feature_field: "single_caption"  # use for as encoding data feature
 query_text_feature_field: null
 
 # for flamingo inference

@@ -42,7 +42,7 @@ def beam_filter(score_list, data_id_list, beam_size):
 
 
 @torch.inference_mode()
-def generate_single_sample_ice(
+def generate_single_sample_icd(
     model,
     tokenizer,
     image_processor,
@@ -55,7 +55,7 @@ def generate_single_sample_ice(
     template = PromptTemplate(
         cfg.task.template,
         column_token_map=dict(cfg.task.column_token_map),
-        ice_token=cfg.task.ice_token,
+        icd_token=cfg.task.icd_token,
     )
 
     # 构建test sample prompt
@@ -89,12 +89,12 @@ def generate_single_sample_ice(
                 for i in filter_id_list:
                     filtered_candidateidx2data.pop(i)
 
-            # 构建已经选好的ice + 测试样本的输入
-            ice_id_seq = test_data_id_seq[:-1]
-            lang_x = [candidateidx2data[idx]['text_input'] for idx in ice_id_seq] + [
+            # 构建已经选好的icd + 测试样本的输入
+            icd_id_seq = test_data_id_seq[:-1]
+            lang_x = [candidateidx2data[idx]['text_input'] for idx in icd_id_seq] + [
                 test_data_text
             ]
-            image_x = [candidateidx2data[idx]['image'] for idx in ice_id_seq] + [
+            image_x = [candidateidx2data[idx]['image'] for idx in icd_id_seq] + [
                 test_data_image
             ]
 
@@ -104,7 +104,7 @@ def generate_single_sample_ice(
                 tokenizer,
                 image_processor,
                 device,
-                ice_join_char=cfg.task.ice_join_char,
+                icd_join_char=cfg.task.icd_join_char,
                 lang_x=lang_x,
                 image_x=image_x,
                 candidate_set=filtered_candidateidx2data,
@@ -197,7 +197,7 @@ def gen_data(
         ),
     ):
         candidate_set = train_ds.select(sub_cand_set_idx[i])
-        res = generate_single_sample_ice(
+        res = generate_single_sample_icd(
             model=model,
             tokenizer=tokenizer,
             image_processor=image_processor,

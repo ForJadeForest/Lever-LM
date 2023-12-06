@@ -1,0 +1,13 @@
+_target_: src.candidate_sampler.img_sim_sampler.ImgSimSampler
+
+sampler_name: ImgSimSampler
+candidate_num: ${candidate_set_num}
+cache_dir: "${result_dir}/cache"
+overwrite: false
+dataset_name: ${dataset.name}
+clip_model_name: "openai/clip-vit-large-patch14"
+
+feature_cache_filename: "${task.task_name}-${dataset.name}-${clip_model_name}-ImgFeatures.pth"
+img_field_name: "${task.sim_image_field}"
+device: ${device}
+candidate_set_encode_bs: 128

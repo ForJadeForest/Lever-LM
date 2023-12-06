@@ -1,15 +1,8 @@
 import copy
 import datetime
 import json
-import os
-import random
 import re
 import sys
-from typing import Dict, List
-
-import more_itertools
-import torch
-from PIL import Image
 
 # Interface for accessing the VQA dataset.
 
@@ -566,82 +559,3 @@ def postprocess_vqa_generation(predictions):
     answer = re.split("Question|Answer|Short", predictions, 1)[0]
     answer = re.split(", ", answer, 1)[0]
     return answer
-
-
-@torch.inference_mode()
-def get_acc_score(
-    model,
-    tokenizer,
-    image_processor,
-    device: str,
-    ice_join_char: str,
-    lang_x: List[str],
-    image_x: List[Image.Image],
-    candidate_set: Dict,
-    batch_size: int,
-    train_ques_path: str,
-    train_ann_path: str,
-    gen_kwargs: Dict,
-    autocast_context,
-):
-    output_dict = {}
-    image_x = [image_processor(image) for image in image_x]
-    cand_idx = sorted(list(candidate_set.keys()))
-    for batch in more_itertools.chunked(cand_idx, batch_size):
-        batch_data = [candidate_set[i] for i in batch]
-        new_ice_lang_x = [data['text_input'] for data in batch_data]
-        new_ice_image_x = [data['image'] for data in batch_data]
-
-        # 2.1 拼接文本输入
-        total_ice_lang_x_input = [
-            ice_join_char.join([ice_lang_x] + lang_x) for ice_lang_x in new_ice_lang_x
-        ]
-        total_ice_lang_x_input = tokenizer(
-            total_ice_lang_x_input, return_tensors='pt', padding=True
-        ).to(device=device)
-
-        batch_total_vision_x = [
-            torch.stack([image_processor(ice_image_x)] + image_x, dim=0)
-            for ice_image_x in new_ice_image_x
-        ]
-        total_vision_x = torch.stack(batch_total_vision_x, dim=0)
-
-        total_vision_x = total_vision_x.unsqueeze(2).to(
-            device=device, non_blocking=True
-        )
-        with autocast_context:
-            outputs = model.generate(
-                vision_x=total_vision_x,
-                lang_x=total_ice_lang_x_input['input_ids'],
-                attention_mask=total_ice_lang_x_input['attention_mask'].bool(),
-                eos_token_id=tokenizer.eos_token_id,
-                pad_token_id=tokenizer.pad_token_id,
-                **gen_kwargs,
-            )
-        outputs = outputs.tolist()
-        prompt_len = int(total_ice_lang_x_input['attention_mask'].shape[1])
-
-        generated = tokenizer.batch_decode(
-            [output[prompt_len:] for output in outputs],
-            skip_special_tokens=True,
-        )
-        for i, data in enumerate(batch_data):
-            output_dict[data['idx']] = {}
-            output_dict[data['idx']]['prediction'] = generated[i]
-            output_dict[data['idx']]['image_id'] = data['image_id']
-
-    preds = []
-    for idx in output_dict:
-        preds.append(
-            {
-                'answer': postprocess_vqa_generation(output_dict[idx]['prediction']),
-                'question_id': output_dict[idx]['question_id'],
-            }
-        )
-    acc = compute_vqa_accuracy(preds, train_ques_path, train_ann_path)
-    cider_score = []
-    for idx in cand_idx:
-        img_id = candidate_set[idx]['image_id']
-        cider_score.append(acc[img_id])
-
-    return torch.tensor(cider_score)
