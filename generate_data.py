@@ -33,7 +33,7 @@ def generate_single_sample_icd(
     template = PromptTemplate(
         cfg.task.template,
         column_token_map=dict(cfg.task.column_token_map),
-        icd_token=cfg.task.icd_token,
+        ice_token=cfg.task.icd_token,
     )
 
     # 构建test sample prompt

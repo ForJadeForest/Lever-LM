@@ -199,7 +199,7 @@ def main(cfg: DictConfig):
 
     icd_prompt = PromptTemplate(
         template=cfg.task.template,
-        icd_token=cfg.task.icd_token,
+        ice_token=cfg.task.icd_token,
         column_token_map=dict(cfg.task.column_token_map),
     )
     test_data_num = cfg.test_data_num
