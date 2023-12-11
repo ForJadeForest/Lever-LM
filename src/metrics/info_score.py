@@ -1,151 +1,108 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import more_itertools
-import numpy as np
 import torch
 from PIL import Image
 
-
-def get_input_token_num(tokenizer, inputs: str):
-    return len(tokenizer(inputs, verbose=False)['input_ids'])
-
-
-@torch.inference_mode()
-def get_ppl(
-    model,
-    model_input,
-    autocast_context,
-    icd_token_length=None,
-    pad_token_id=0,
-    left_padding_len=0,
-):
-    with autocast_context:
-        outputs = model(**model_input)
-
-        shift_logits = outputs.logits[..., :-1, :].contiguous()
-        shift_labels = model_input["lang_x"][..., 1:].contiguous()
-        loss_fct = torch.nn.CrossEntropyLoss(
-            reduction='none', ignore_index=pad_token_id
-        )
-        loss = loss_fct(
-            shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1)
-        )
-        loss = loss.view(shift_labels.size())
-
-        if icd_token_length is not None:
-            loss_mask = torch.zeros_like(shift_labels)  # [batch, seqlen]
-            for i in range(len(loss_mask)):
-                for j in range(icd_token_length[i] - 1, len(loss_mask[i])):
-                    loss_mask[i][j] = 1
-            loss = loss * loss_mask
-        lens = (model_input["lang_x"] != pad_token_id).sum(-1)
-        if icd_token_length is not None:
-            lens -= torch.tensor(icd_token_length, device=lens.device)
-        lens += left_padding_len
-        ce_loss = loss.sum(-1) / lens
-    return ce_loss
+from src.models.lvlms import FlamingoInterface, IDEFICSInterface
 
 
 @torch.inference_mode()
 def get_info_score(
-    model,
-    tokenizer,
-    image_processor,
-    device: str,
-    icd_join_char: str,
-    lang_x: List[str],
-    image_x: List[Image.Image],
+    interface: Union[FlamingoInterface, IDEFICSInterface],
+    text_input_list: List[str],
+    image_input_list: List[Image.Image],
     candidate_set: Dict,
     batch_size: int,
-    autocast_context,
     split_token: Optional[str] = None,
+    construct_order='left',
 ):
-    model.eval()
-    tokenizer.padding_side = "right"
-
     # 1. 计算P(y|x)
     # 1.1 拼接文本输入
-    test_lang_x_input = lang_x[-1]
-    chosen_icd_input = icd_join_char.join(lang_x[:-1])
-    if chosen_icd_input:
-        chosen_icd_input += icd_join_char
+    test_lang_x_input = text_input_list[-1]
+    prompts = interface.transfer_prompts(text_input_list, image_input_list)
 
-    query_test_lang_x_input = test_lang_x_input.split(split_token)[0] + split_token
-    mask_context = chosen_icd_input + query_test_lang_x_input
-
-    mask_length = get_input_token_num(tokenizer, mask_context)
-
-    lang_x_input = chosen_icd_input + test_lang_x_input + icd_join_char
-    lang_x_input = tokenizer(lang_x_input, return_tensors='pt').to(device=device)
-    lang_x_input['attention_mask'][lang_x_input['input_ids'] == 0] = 0
-
-    # 1.2 拼接图像输入
-    image_x = [image_processor(image) for image in image_x]
-    vision_x = torch.stack(image_x, dim=0)
-    vision_x = vision_x.unsqueeze(1).unsqueeze(0).to(device=device, non_blocking=True)
-
-    model_input = {
-        'vision_x': vision_x,
-        'lang_x': lang_x_input['input_ids'],
-        'attention_mask': lang_x_input['attention_mask'].bool(),
-    }
-    ppl = get_ppl(
-        model,
-        model_input,
-        autocast_context,
-        icd_token_length=[mask_length],
-        pad_token_id=tokenizer.pad_token_id,
+    x_input = interface.prepare_input(
+        prompts, add_join_token_end=True, add_eos_token=True
     )
+
+    icd_mask_prompt = interface.construct_prompt(
+        text_input_list[:-1],
+        add_join_token_end=True,
+        add_eos_token=False,
+        add_image_token=True,
+    )
+    query_mask_part = interface.add_image_token(
+        test_lang_x_input.split(split_token)[0] + split_token
+    )
+    mask_context = icd_mask_prompt + query_mask_part
+
+    mask_length = interface.get_input_token_num(mask_context)
+    cond_prob = interface.get_cond_prob(x_input, mask_length=[mask_length])
 
     # 2. 计算P(y|x, c)
     info_score_list = []
     cand_idx = sorted(list(candidate_set.keys()))
     for batch in more_itertools.chunked(cand_idx, batch_size):
         batch_data = [candidate_set[i] for i in batch]
-        new_icd_lang_x = [data['text_input'] for data in batch_data]
-        new_icd_image_x = [data['image'] for data in batch_data]
+        new_icd_text_list = [data['text_input'] for data in batch_data]
+        new_icd_image_list = [data['image'] for data in batch_data]
 
         # 2.1 拼接文本输入
-        total_icd_lang_x_input = [
-            icd_join_char.join([icd_lang_x] + lang_x) + icd_join_char
-            for icd_lang_x in new_icd_lang_x
-        ]
-        total_icd_lang_x_input = tokenizer(
-            total_icd_lang_x_input, return_tensors='pt', padding=True
-        ).to(device=device)
+        if construct_order == 'left':
+            add_new_icd_texts = [
+                [new_icd_text] + text_input_list for new_icd_text in new_icd_text_list
+            ]
+            add_new_icd_images = [
+                [new_icd_image] + image_input_list
+                for new_icd_image in new_icd_image_list
+            ]
+        elif construct_order == 'right':
+            add_new_icd_texts = [
+                text_input_list[:-1] + [new_icd_text] + [text_input_list[-1]]
+                for new_icd_text in new_icd_text_list
+            ]
+            add_new_icd_images = [
+                image_input_list[:-1] + [new_icd_image] + [image_input_list[-1]]
+                for new_icd_image in new_icd_image_list
+            ]
+        else:
+            raise ValueError(
+                f"the construct_order should be left or right, but got {construct_order}"
+            )
 
-        icd_text_list = [
-            icd_join_char.join([icd_lang_x] + lang_x[:-1]) + icd_join_char
-            for icd_lang_x in new_icd_lang_x
-        ]
+        prompts = interface.transfer_prompts(add_new_icd_texts, add_new_icd_images)
 
-        total_icd_input_token_num = [
-            get_input_token_num(tokenizer, icd_lang_x + query_test_lang_x_input)
-            for icd_lang_x in icd_text_list
-        ]
-
-        # 2.2 拼接图像输入
-        batch_total_vision_x = [
-            torch.stack([image_processor(icd_image_x)] + image_x, dim=0)
-            for icd_image_x in new_icd_image_x
-        ]
-        total_vision_x = torch.stack(batch_total_vision_x, dim=0)
-
-        total_vision_x = total_vision_x.unsqueeze(2).to(
-            device=device, non_blocking=True
+        add_new_icd_input = interface.prepare_input(
+            prompts,
+            add_join_token_end=True,
+            add_eos_token=True,
         )
-        model_input = {
-            'vision_x': total_vision_x,
-            'lang_x': total_icd_lang_x_input['input_ids'],
-            'attention_mask': total_icd_lang_x_input['attention_mask'].bool(),
-        }
-        new_ppl = get_ppl(
-            model,
-            model_input,
-            autocast_context,
-            icd_token_length=total_icd_input_token_num,
-            pad_token_id=tokenizer.pad_token_id,
+        icd_mask_prompt_list = [
+            interface.construct_prompt(
+                t[:-1],
+                add_join_token_end=True,
+                add_eos_token=False,
+                add_image_token=True,
+            )
+            for t in add_new_icd_texts
+        ]
+
+        mask_context_list = [
+            icd_mask_prompt + query_mask_part
+            for icd_mask_prompt in icd_mask_prompt_list
+        ]
+
+        mask_length_list = [
+            interface.get_input_token_num(mask_context)
+            for mask_context in mask_context_list
+        ]
+
+        # interface.tokenizer.decode(add_new_icd_input['input_ids'][:, mask_length_list:])
+
+        new_cond_prob = interface.get_cond_prob(
+            add_new_icd_input, mask_length=mask_length_list
         )
-        sub_info_score = (-new_ppl).exp() - (-ppl).exp()
+        sub_info_score = new_cond_prob - cond_prob
         info_score_list.append(sub_info_score)
     return torch.cat(info_score_list)

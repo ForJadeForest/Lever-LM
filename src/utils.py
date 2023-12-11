@@ -1,13 +1,9 @@
 import os
-from contextlib import suppress
 
 import faiss
 import more_itertools
-import numpy as np
 import torch
-from huggingface_hub import hf_hub_download
 from loguru import logger
-from open_flamingo import create_model_and_transforms
 from tqdm import tqdm
 from transformers import (
     AutoProcessor,
@@ -17,64 +13,41 @@ from transformers import (
     CLIPVisionModelWithProjection,
 )
 
+from src.models.lvlms import FlamingoInterface, IDEFICSInterface
 
-def cast_type(precision):
-    precision_list = ['fp16', 'bf16', 'fp32']
-    if precision == 'fp16':
-        return torch.float16
-    elif precision == 'bf16':
-        return torch.bfloat16
-    elif precision == 'fp32':
-        return torch.float32
-    else:
-        raise ValueError(
-            f'the precision should in {precision_list}, but got {precision}'
+
+def init_lvlm(cfg, **kwargs) -> FlamingoInterface:
+    if 'flamingo' in cfg.lvlm.name:
+        return FlamingoInterface(
+            lang_encoder_path=cfg.lvlm.lang_encoder_path,
+            tokenizer_path=cfg.lvlm.tokenizer_path,
+            flamingo_checkpoint_dir=cfg.lvlm.flamingo_checkpoint_dir,
+            cross_attn_every_n_layers=cfg.lvlm.cross_attn_every_n_layers,
+            hf_root=cfg.lvlm.hf_root,
+            precision=cfg.precision,
+            device=kwargs['device'],
+            prompt_template=cfg.task.template,
+            column_token_map=cfg.task.column_token_map,
+            icd_join_char=cfg.lvlm.icd_join_char,
+            icd_token=cfg.task.icd_token,
+            load_from_local=cfg.lvlm.load_from_local,
+            instruction=cfg.task.instruction,
+            init_device=cfg.lvlm.init_device,
         )
-
-
-def get_autocast(precision):
-    if precision == "fp16":
-        return torch.cuda.amp.autocast(dtype=torch.float16)
-    elif precision == "bf16":
-        # amp_bfloat16 is more stable than amp float16 for clip training
-        return torch.cuda.amp.autocast(dtype=torch.bfloat16)
-    else:
-        return suppress
-
-
-def init_flamingo(
-    lang_encoder_path,
-    tokenizer_path,
-    flamingo_checkpoint_dir,
-    cross_attn_every_n_layers,
-    hf_root,
-    precision,
-    device,
-    from_local=False,
-):
-    model, image_processor, tokenizer = create_model_and_transforms(
-        clip_vision_encoder_path="ViT-L-14",
-        clip_vision_encoder_pretrained="openai",
-        lang_encoder_path=lang_encoder_path,
-        tokenizer_path=tokenizer_path,
-        cross_attn_every_n_layers=cross_attn_every_n_layers,
-    )
-    if from_local:
-        flamingo_checkpoint_dir = os.path.join(flamingo_checkpoint_dir, 'checkpoint.pt')
-    else:
-        hf_root = 'openflamingo/' + hf_root
-        flamingo_checkpoint_dir = hf_hub_download(
-            hf_root, "checkpoint.pt", local_dir=flamingo_checkpoint_dir
+    elif 'idefics' in cfg.lvlm.name:
+        return IDEFICSInterface(
+            hf_root=cfg.lvlm.hf_root,
+            load_from_local=cfg.lvlm.load_from_local,
+            precision=cfg.precision,
+            device=kwargs['device'],
+            prompt_template=cfg.task.template,
+            column_token_map=cfg.task.column_token_map,
+            icd_token=cfg.task.icd_token,
+            instruction=cfg.task.instruction,
+            icd_join_char=cfg.lvlm.icd_join_char,
         )
-
-    model.load_state_dict(torch.load(flamingo_checkpoint_dir), strict=False)
-    data_type = cast_type(precision)
-    model.to(device=device, dtype=data_type, non_blocking=True)
-    model.eval()
-    tokenizer.padding_side = 'left'
-    tokenizer.pad_token = tokenizer.eos_token
-    autocast_context = get_autocast(precision)
-    return model, image_processor, tokenizer, autocast_context
+    else:
+        raise ValueError('LVLM name error, now only support [\'flamingo, idefics\']')
 
 
 def recall_sim_feature(test_vec, train_vec, top_k=200):

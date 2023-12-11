@@ -1,43 +1,34 @@
 import json
 import os
 import random
+import sys
 from time import sleep
 from typing import Dict, List
 
 import hydra
 import torch
-from datasets import Dataset, DatasetDict
+from datasets import Dataset
 from dotenv import load_dotenv
 from loguru import logger
 from omegaconf import DictConfig
-from openicl import PromptTemplate
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.info_score import get_info_score
-from src.utils import beam_filter, init_flamingo
+from src.models.lvlms import FlamingoInterface
+from src.utils import beam_filter, init_lvlm
 
 
 @torch.inference_mode()
 def generate_single_sample_icd(
-    model,
-    tokenizer,
-    image_processor,
+    interface: FlamingoInterface,
     test_data: Dict,
     cfg: DictConfig,
     candidate_set: Dataset,
-    autocast_context,
-    device,
 ):
-    template = PromptTemplate(
-        cfg.task.template,
-        column_token_map=dict(cfg.task.column_token_map),
-        ice_token=cfg.task.icd_token,
-    )
-
     # 构建test sample prompt
-    test_data_text = template.generate_item(test_data)
+    test_data_text = interface.construct_icd_prompt(test_data)
 
     test_data_image = test_data[cfg.task.image_field]
     test_data_id = test_data['idx']
@@ -45,7 +36,7 @@ def generate_single_sample_icd(
     # 构建candidate set
     candidateidx2data = {
         data['idx']: {
-            'text_input': template.generate_item(data),
+            'text_input': interface.construct_icd_prompt(data),
             'image': data[cfg.task.image_field],
             'idx': data['idx'],
         }
@@ -66,26 +57,22 @@ def generate_single_sample_icd(
 
             # 构建已经选好的icd + 测试样本的输入
             icd_id_seq = test_data_id_seq[:-1]
-            lang_x = [candidateidx2data[idx]['text_input'] for idx in icd_id_seq] + [
-                test_data_text
-            ]
-            image_x = [candidateidx2data[idx]['image'] for idx in icd_id_seq] + [
-                test_data_image
-            ]
+            text_input_list = [
+                candidateidx2data[idx]['text_input'] for idx in icd_id_seq
+            ] + [test_data_text]
+            image_input_list = [
+                candidateidx2data[idx]['image'] for idx in icd_id_seq
+            ] + [test_data_image]
 
             filtered_idx_list = sorted(list(filtered_candidateidx2data.keys()))
             info_score = get_info_score(
-                model,
-                tokenizer,
-                image_processor,
-                device,
-                icd_join_char=cfg.task.icd_join_char,
-                lang_x=lang_x,
-                image_x=image_x,
+                interface,
+                text_input_list=text_input_list,
+                image_input_list=image_input_list,
                 candidate_set=filtered_candidateidx2data,
                 batch_size=cfg.batch_size,
-                autocast_context=autocast_context,
                 split_token=cfg.task.split_token,
+                construct_order=cfg.construct_order,
             )
 
             # 选出最高的InfoScore
@@ -134,16 +121,8 @@ def gen_data(
     # load several models will cost large memory at the same time.
     # use sleep to load one by one.
     sleep(cfg.sleep_time * rank)
-    model, image_processor, tokenizer, autocast_context = init_flamingo(
-        cfg.flamingo.lang_encoder_path,
-        cfg.flamingo.tokenizer_path,
-        cfg.flamingo.flamingo_checkpoint_dir,
-        cfg.flamingo.cross_attn_every_n_layers,
-        cfg.flamingo.hf_root,
-        cfg.precision,
-        process_device,
-        cfg.flamingo.load_from_local,
-    )
+    interface = init_lvlm(cfg, device=process_device)
+    interface.tokenizer.padding_side = 'right'
 
     final_res = {}
     sub_res_basename = (
@@ -164,7 +143,7 @@ def gen_data(
     for i, test_data in enumerate(
         tqdm(
             subset,
-            disable=(rank != 0),
+            disable=(rank != world_size - 1),
             total=subset_size,
             initial=len(final_res),
             ncols=100,
@@ -172,14 +151,10 @@ def gen_data(
     ):
         candidate_set = train_ds.select(sub_cand_set_idx[i])
         res = generate_single_sample_icd(
-            model=model,
-            tokenizer=tokenizer,
-            image_processor=image_processor,
+            interface=interface,
             test_data=test_data,
             cfg=cfg,
             candidate_set=candidate_set,
-            device=process_device,
-            autocast_context=autocast_context,
         )
         final_res.update(res)
         with open(save_path, 'w') as f:
@@ -191,7 +166,6 @@ def gen_data(
     version_base=None, config_path="./configs", config_name="generate_data.yaml"
 )
 def main(cfg: DictConfig):
-    logger.info(f'{cfg=}')
     if not os.path.exists(cfg.result_dir):
         os.makedirs(cfg.result_dir)
     cache_dir = cfg.sampler.cache_dir
@@ -206,7 +180,7 @@ def main(cfg: DictConfig):
 
     save_file_name = (
         f'{cfg.task.task_name}-{cfg.dataset.name}-'
-        f'{cfg.flamingo.hf_root}-{cfg.sampler.sampler_name}-'
+        f'{cfg.lvlm.name}-{cfg.sampler.sampler_name}-construct_order:{cfg.construct_order}'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
         f'candidate_num:{cfg.sampler.candidate_num}-sample_num:{cfg.sample_num}.json'
     )
@@ -240,6 +214,7 @@ def main(cfg: DictConfig):
     candidate_set_idx = candidate_sampler(anchor_idx_list, train_ds)
 
     candidate_set_idx = [candidate_set_idx[k] for k in anchor_idx_list]
+    logger.debug("test")
     spawn(
         gen_data,
         args=(
@@ -252,6 +227,14 @@ def main(cfg: DictConfig):
         nprocs=len(cfg.gpu_ids),
         join=True,
     )
+    # gen_data(
+    #     0,
+    #     cfg,
+    #     anchor_data,
+    #     train_ds,
+    #     candidate_set_idx,
+    #     sub_save_path,
+    # )
 
     world_size = len(cfg.gpu_ids)
     subset_size = len(anchor_data) // world_size
@@ -277,6 +260,18 @@ def main(cfg: DictConfig):
     logger.info(f'save the final data to {save_path}')
 
 
+@hydra.main(
+    version_base=None, config_path="./configs", config_name="generate_data.yaml"
+)
+def hydra_loguru_init(_) -> None:
+    hydra_path = hydra.core.hydra_config.HydraConfig.get().run.dir
+    job_name = hydra.core.hydra_config.HydraConfig.get().job.name
+    logger.remove()
+    logger.add(sys.stderr, level=hydra.core.hydra_config.HydraConfig.get().verbose)
+    logger.add(os.path.join(hydra_path, f"{job_name}.log"))
+
+
 if __name__ == '__main__':
     load_dotenv()
+    hydra_loguru_init()
     main()
