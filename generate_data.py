@@ -27,21 +27,9 @@ def generate_single_sample_icd(
     cfg: DictConfig,
     candidate_set: Dataset,
 ):
-    # 构建test sample prompt
-    test_data_text = interface.construct_icd_prompt(test_data)
-
-    test_data_image = test_data[cfg.task.image_field]
     test_data_id = test_data['idx']
-
     # 构建candidate set
-    candidateidx2data = {
-        data['idx']: {
-            'text_input': interface.construct_icd_prompt(data),
-            'image': data[cfg.task.image_field],
-            'idx': data['idx'],
-        }
-        for data in candidate_set
-    }
+    candidateidx2data = {data['idx']: data for data in candidate_set}
     test_data_id_list = [[test_data_id]]
 
     for _ in range(cfg.few_shot_num):
@@ -57,18 +45,14 @@ def generate_single_sample_icd(
 
             # 构建已经选好的icd + 测试样本的输入
             icd_id_seq = test_data_id_seq[:-1]
-            text_input_list = [
-                candidateidx2data[idx]['text_input'] for idx in icd_id_seq
-            ] + [test_data_text]
-            image_input_list = [
-                candidateidx2data[idx]['image'] for idx in icd_id_seq
-            ] + [test_data_image]
+            choosed_icd_seq_list = [
+                candidateidx2data[idx] for idx in icd_id_seq
+            ] + [test_data]
 
             filtered_idx_list = sorted(list(filtered_candidateidx2data.keys()))
             info_score = get_info_score(
                 interface,
-                text_input_list=text_input_list,
-                image_input_list=image_input_list,
+                choosed_icd_seq_list=choosed_icd_seq_list,
                 candidate_set=filtered_candidateidx2data,
                 batch_size=cfg.batch_size,
                 split_token=cfg.task.split_token,
@@ -214,7 +198,6 @@ def main(cfg: DictConfig):
     candidate_set_idx = candidate_sampler(anchor_idx_list, train_ds)
 
     candidate_set_idx = [candidate_set_idx[k] for k in anchor_idx_list]
-    logger.debug("test")
     spawn(
         gen_data,
         args=(
