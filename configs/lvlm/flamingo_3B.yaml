@@ -1,0 +1,21 @@
+name: flamingo_3B
+hf_root: OpenFlamingo-3B-vitl-mpt1b
+flamingo_checkpoint_dir: ${oc.env:CHECKPOINT_PATH}/${lvlm.hf_root}/
+lang_encoder_path: anas-awadalla/mpt-1b-redpajama-200b
+tokenizer_path: ${lvlm.lang_encoder_path}
+cross_attn_every_n_layers: 1
+load_from_local: true
+
+
+caption_prompt_template: "</E>Output:<X>"
+vqa_prompt_template: "</E>Question:<Q> Short answer:<A>"
+
+caption_instruction: ""
+vqa_instruction: ""
+
+icd_join_char: "<|endofchunk|>"
+
+caption_split_token: "Output:"
+vqa_split_token: "Short answer:"
+
+init_device: "meta"

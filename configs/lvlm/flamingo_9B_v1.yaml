@@ -1,0 +1,20 @@
+name: flamingo_9B_v1
+hf_root: OpenFlamingo-9B-deprecated
+flamingo_checkpoint_dir: ${oc.env:CHECKPOINT_PATH}/${lvlm.hf_root}/
+lang_encoder_path: huggyllama/llama-7b
+tokenizer_path: ${lvlm.lang_encoder_path}
+cross_attn_every_n_layers: 4
+load_from_local: true
+
+caption_prompt_template: "</E>Output:<X>"
+vqa_prompt_template: "</E>Question:<Q> Short answer:<A>"
+
+caption_instruction: ""
+vqa_instruction: ""
+
+icd_join_char: "<|endofchunk|>"
+
+caption_split_token: "Output:"
+vqa_split_token: "Short answer:"
+
+init_device: "cpu"
