@@ -1,4 +1,5 @@
 from io import BytesIO
+from typing import List
 
 import requests
 import torch
@@ -14,17 +15,19 @@ class BaseInterface:
         self,
         precision,
         device,
-        input_ids_filed_name,
+        input_ids_field_name,
         prompt_template,
         column_token_map,
         icd_token,
         instruction,
         icd_join_char,
+        label_field,
+        image_field,
     ) -> None:
         self.data_type = cast_type(precision)
         self.autocast_context = get_autocast(precision)
         self.device = device
-        self.input_ids_filed_name = input_ids_filed_name
+        self.input_ids_field_name = input_ids_field_name
 
         self.pt = PromptTemplate(
             prompt_template,
@@ -35,19 +38,69 @@ class BaseInterface:
         self.instruction = instruction
         self.pad_token_id = None
         self.tokenizer = None
+        self.label_field = label_field
+        self.image_field = image_field
 
-    def construct_icd_prompt(self, data):
-        return self.pt.generate_item(data)
+    def gen_query_prompt(self, query, add_image_token=True) -> str:
+        """Generate a query prompt without a label. Includes an image token if specified.
 
-    def construct_prompt(self, *args, **kwargs):
+        For a Caption example with add_image_token=True, the format would be:
+        [<IMAGE_TOKEN>]Caption:
+
+        Args:
+            query (DataSample): Query data sample.
+            add_image_token (bool, optional): Whether to add an image token. Defaults to True.
+
+        Returns:
+            str: Query sample prompt.
+        """
+        query_prompt = self.pt.generate_item(query, output_field=self.label_field)
+        if add_image_token:
+            return self.add_image_token(query_prompt)
+        return query_prompt
+
+    def gen_ice_prompt(self, ice, add_image_token=True) -> str:
+        """Generate an In-context Example (ICE) prompt with a label. Includes an image token if specified.
+
+        For a Caption example with add_image_token=True, the format would be:
+        <IMAGE_TOKEN>Caption: This is a cat.
+
+        Args:
+            ice (DataSample): ICE data sample.
+            add_image_token (bool, optional): Whether to add an image token. Defaults to True.
+
+        Returns:
+            str: In-context Example sample prompt.
+        """
+        ice_prompt = self.pt.generate_item(ice)
+        if add_image_token:
+            return self.add_image_token(ice_prompt)
+        return ice_prompt
+
+    def gen_ice_list_prompts(self, ice_list: list, add_image_token=True) -> List[str]:
+        """Generate a list of In-context Example (ICE) prompts from a list of ICE data samples.
+
+        Args:
+            ice_list (List[YourDataType]): List of ICE data samples.
+            add_image_token (bool, optional): Whether to add an image token to each prompt. Defaults to True.
+
+        Returns:
+            List[str]: List of ICE sample prompts.
+        """
+        return [self.gen_ice_prompt(ice, add_image_token) for ice in ice_list]
+
+    def concat_prompt(self, *args, **kwargs):
         raise NotImplemented
 
-    def prepare_input(self, batch_text_list, batch_image_list, *args, **kwargs):
+    def construct_icd_prompt(self, data, output_field=None):
+        return self.pt.generate_item(data, output_field=output_field)
+
+    def prepare_input(self, *args, **kwargs):
         raise NotImplemented
 
     def add_image_token(self, text):
         raise NotImplemented
-    
+
     @torch.inference_mode()
     def get_cond_prob(
         self,
@@ -60,7 +113,7 @@ class BaseInterface:
             outputs = self.model(**model_input)
 
             shift_logits = outputs.logits[..., :-1, :].contiguous()
-            shift_labels = model_input[self.input_ids_filed_name][..., 1:].contiguous()
+            shift_labels = model_input[self.input_ids_field_name][..., 1:].contiguous()
             loss_fct = torch.nn.CrossEntropyLoss(
                 reduction='none', ignore_index=self.pad_token_id
             )
@@ -75,7 +128,7 @@ class BaseInterface:
                     for j in range(mask_length[i] - 1, len(loss_mask[i])):
                         loss_mask[i][j] = 1
                 loss = loss * loss_mask
-            lens = (model_input[self.input_ids_filed_name] != self.pad_token_id).sum(-1)
+            lens = (model_input[self.input_ids_field_name] != self.pad_token_id).sum(-1)
 
             if mask_length is not None:
                 lens -= torch.tensor(mask_length, device=lens.device)
@@ -106,23 +159,29 @@ class BaseInterface:
                 except:
                     return None
 
-    def transfer_prompts(self, batch_text_list, batch_image_list):
-        if not any(isinstance(i, list) for i in batch_text_list):
-            batch_text_list = [batch_text_list]
-            batch_image_list = [batch_image_list]
+    def transfer_prompts(self, batch_data_sample_list, is_last_for_generation=True):
+        if not any(isinstance(i, list) for i in batch_data_sample_list):
+            batch_data_sample_list = [batch_data_sample_list]
 
-        if len(batch_text_list) != len(batch_image_list):
-            raise ValueError(
-                f'the batch size of text_list should equal to the batch size of image_list, but {len(batch_text_list)=} != {len(batch_image_list)=}'
-            )
         prompts = []
-        for text_sample, image_sample in zip(batch_text_list, batch_image_list):
-            if len(text_sample) != len(image_sample):
-                raise ValueError(
-                    f'the length of text_list should equal to the length of image_list, but {len(text_sample)=} != {len(image_sample)=}'
-                )
+        for data_sample_list in batch_data_sample_list:
             prompt = []
-            for t, i in zip(text_sample, image_sample):
-                prompt.extend([i, t])
+            for data_sample in data_sample_list[:-1]:
+                prompt.extend(
+                    [
+                        data_sample[self.image_field],
+                        self.gen_ice_prompt(data_sample, add_image_token=False),
+                    ]
+                )
+            prompt.append(data_sample_list[-1][self.image_field])
+            if is_last_for_generation:
+                prompt.append(
+                    self.gen_query_prompt(data_sample_list[-1], add_image_token=False)
+                )
+            else:
+                prompt.append(
+                    self.gen_ice_prompt(data_sample_list[-1], add_image_token=False)
+                )
+
             prompts.append(prompt)
         return prompts

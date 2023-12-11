@@ -27,19 +27,23 @@ class FlamingoInterface(BaseInterface):
         column_token_map,
         icd_token,
         instruction,
-        icd_join_char="<|endofchunk|>",
+        image_field,
+        label_field,
+        icd_join_char='<|endofchunk|>',
         load_from_local=False,
         init_device='cpu',
     ) -> None:
         super().__init__(
             precision=precision,
             device=device,
-            input_ids_filed_name='lang_x',
+            input_ids_field_name='lang_x',
             prompt_template=prompt_template,
             column_token_map=column_token_map,
             icd_token=icd_token,
             instruction=instruction,
             icd_join_char=icd_join_char,
+            image_field=image_field,
+            label_field=label_field,
         )
         hf_device_map = {'transformer': self.device}
 
@@ -77,40 +81,53 @@ class FlamingoInterface(BaseInterface):
     def add_image_token(self, text):
         return self.image_prompt + text
 
-    def construct_prompt(
+    def concat_prompt(
         self,
-        text_list,
-        add_join_token_end=False,
-        add_eos_token=False,
-        add_image_token=False,
+        data_sample_list: list,
+        add_eos_token: bool = False,
+        add_image_token: bool = True,
+        is_last_for_generation: bool = True,
     ):
-        """return the prompt: <Instruction>[<IMAGE_TOKEN>]text1<icd_join_char> ... textn[<icd_join_char>][</s>]
+        """Return the concatenated prompt: <Instruction>[<IMAGE_TOKEN>]text1<icd_join_char> ... textn[<icd_join_char>][</s>]
 
         Args:
-            text_list (_type_): _description_
-            add_join_token_end (bool, optional): _description_. Defaults to False.
-            add_eos_token (bool, optional): _description_. Defaults to False.
+            data_sample_list (List[DataSample]): List of data samples used to generate parts of the prompt.
+            add_eos_token (bool, optional): Whether to add the EOS token at the end of the prompt. Defaults to False.
+            add_image_token (bool, optional): Whether to add an image token for each sample. Defaults to True.
+            is_last_for_infer (bool, optional): Whether the last data sample is used as a query for Generation inference. Defaults to True.
 
         Returns:
-            _type_: _description_
+            str: Concatenated prompt string.
         """
-        text_input = self.instruction
-        if not text_list:
-            return text_input
-        if add_image_token:
-            text_list = [self.add_image_token(t.strip(' ')) for t in text_list]
-        text_input += self.icd_join_char.join(text_list)
-        if add_join_token_end:
-            text_input += self.icd_join_char
+        prompt = self.instruction
+        if is_last_for_generation:
+            query_prompt = self.gen_query_prompt(
+                data_sample_list[-1], add_image_token=add_image_token
+            )
+            ice_sample_list = data_sample_list[:-1]
+        else:
+            ice_sample_list = data_sample_list
+            query_prompt = ''
+
+        ice_prompt_list = self.gen_ice_list_prompts(ice_sample_list, add_image_token)
+        for ice_prompt in ice_prompt_list:
+            prompt += ice_prompt.strip(" ") + self.icd_join_char
+
+        prompt += query_prompt
+        if is_last_for_generation:
+            return prompt
+
         if add_eos_token:
-            text_input += self.tokenizer.eos_token
-        return text_input
+            prompt += self.tokenizer.eos_token
+
+        return prompt
+
 
     def prepare_input(
         self,
         batch_prompts,
-        add_join_token_end=False,
-        add_eos_token=False,
+        add_eos_token: bool = False,
+        is_last_for_generation: bool = True,
         debug=False,
     ):
         if not any(isinstance(i, list) for i in batch_prompts):
@@ -131,13 +148,13 @@ class FlamingoInterface(BaseInterface):
                 if item_is_img is None:
                     item = item.strip(" ")
                     full_text += item
-                    if i != len(sample) - 1 or add_join_token_end:
+                    if i != len(sample) - 1 or not is_last_for_generation:
                         full_text += self.icd_join_char
                 else:
                     full_text += image_token
                     image_objects.append(item_is_img)
 
-            if add_eos_token:
+            if add_eos_token and not is_last_for_generation:
                 full_text += self.tokenizer.eos_token
 
             if debug is True:
@@ -190,32 +207,6 @@ class FlamingoInterface(BaseInterface):
             }
         ).to(self.device)
 
-    def _prepare_batch_image_input(self, batch_image_list):
-        res = []
-        for image_list in batch_image_list:
-            image_x = [self.image_processor(image) for image in image_list]
-            vision_x = torch.stack(image_x, dim=0)  # num_image, 3, 224, 224
-            vision_x = (
-                vision_x.unsqueeze(1)
-                .unsqueeze(0)
-                .to(device=self.device, non_blocking=True)
-            )
-            res.append(vision_x)
-        return torch.cat(res, dim=0)
-
-    def _prepare_batch_text_input(
-        self, batch_text_list, add_join_token_end, add_eos_token=False
-    ):
-        text_input_list = []
-        for text_list in batch_text_list:
-            text_input = self.construct_prompt(
-                text_list, add_join_token_end, add_eos_token
-            )
-            text_input_list.append(text_input)
-        text_tensor_input = self.tokenizer(
-            text_input_list, padding=True, return_tensors='pt'
-        ).to(device=self.device)
-        return text_tensor_input
 
 
 def create_model_and_transforms(

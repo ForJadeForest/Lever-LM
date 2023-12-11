@@ -16,23 +16,29 @@ class IDEFICSInterface(BaseInterface):
         column_token_map,
         icd_token,
         instruction,
+        image_field,
+        label_field,
         icd_join_char='\n',
     ):
         super().__init__(
             precision=precision,
             device=device,
-            input_ids_filed_name='input_ids',
+            input_ids_field_name='input_ids',
             prompt_template=prompt_template,
             column_token_map=column_token_map,
             icd_token=icd_token,
             instruction=instruction,
             icd_join_char=icd_join_char,
+            image_field=image_field,
+            label_field=label_field,
         )
         self.processor = IdeficsProcessor.from_pretrained(
-            hf_root, local_files_only=load_from_local, init_config=init_config
+            hf_root, local_files_only=load_from_local
         )
         self.model = IdeficsForVisionText2Text.from_pretrained(
-            hf_root, torch_dtype=self.data_type, local_files_only=load_from_local
+            hf_root,
+            torch_dtype=self.data_type,
+            local_files_only=load_from_local,
         ).to(self.device)
         self.model.eval()
         self.tokenizer = self.processor.tokenizer
@@ -49,40 +55,52 @@ class IDEFICSInterface(BaseInterface):
     def add_image_token(self, text):
         return self.image_prompt + text
 
-    def construct_prompt(
+    def concat_prompt(
         self,
-        text_list,
-        add_join_token_end=False,
-        add_eos_token=False,
-        add_image_token=False,
+        data_sample_list: list,
+        add_eos_token: bool = False,
+        add_image_token: bool = True,
+        is_last_for_generation: bool = True,
     ):
-        """return the prompt: <s><Instruction>[<IMAGE_TOKEN>]text1<icd_join_char> ... textn[<icd_join_char>][</s>]
+        """Return the concatenated prompt: <Instruction>[<IMAGE_TOKEN>]text1<icd_join_char> ... textn[<icd_join_char>][</s>]
 
         Args:
-            text_list (_type_): _description_
-            add_join_token_end (bool, optional): _description_. Defaults to False.
-            add_eos_token (bool, optional): _description_. Defaults to False.
+            data_sample_list (List[DataSample]): List of data samples used to generate parts of the prompt.
+            add_eos_token (bool, optional): Whether to add the EOS token at the end of the prompt. Defaults to False.
+            add_image_token (bool, optional): Whether to add an image token for each sample. Defaults to True.
+            is_last_for_infer (bool, optional): Whether the last data sample is used as a query for Generation inference. Defaults to True.
 
         Returns:
-            _type_: _description_
+            str: Concatenated prompt string.
         """
-        text_input = self.tokenizer.bos_token + self.instruction
-        if not text_list:
-            return text_input
-        if add_image_token:
-            text_list = [self.add_image_token(t.strip(' ')) for t in text_list]
-        text_input += self.icd_join_char.join(text_list)
-        if add_join_token_end:
-            text_input += self.icd_join_char
+        prompt = self.tokenizer.bos_token + self.instruction
+        if is_last_for_generation:
+            query_prompt = self.gen_query_prompt(
+                data_sample_list[-1], add_image_token=add_image_token
+            )
+            ice_sample_list = data_sample_list[:-1]
+        else:
+            ice_sample_list = data_sample_list
+            query_prompt = ''
+
+        ice_prompt_list = self.gen_ice_list_prompts(ice_sample_list, add_image_token)
+        for ice_prompt in ice_prompt_list:
+            prompt += ice_prompt.strip(" ") + self.icd_join_char
+
+        prompt += query_prompt
+        if is_last_for_generation:
+            return prompt
+
         if add_eos_token:
-            text_input += self.tokenizer.eos_token
-        return text_input
+            prompt += self.tokenizer.eos_token
+
+        return prompt
 
     def prepare_input(
         self,
         batch_prompts,
-        add_join_token_end=False,
         add_eos_token=False,
+        is_last_for_generation=False,
         debug=False,
         transform=None,
     ):
@@ -113,7 +131,7 @@ class IDEFICSInterface(BaseInterface):
                 if item_is_img is None:
                     item = item.strip(" ")
                     full_text += item
-                    if i != len(sample) - 1 or add_join_token_end:
+                    if i != len(sample) - 1 or not is_last_for_generation:
                         full_text += self.icd_join_char
                     last_was_image = False
                 else:
