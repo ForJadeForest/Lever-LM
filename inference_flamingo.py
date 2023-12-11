@@ -89,8 +89,8 @@ def init_retriever(retriever_name, dr, cfg):
     elif retriever_name == 'RandomSample':
         return RandomRetriever(
             dr,
-            icd_separator='<|endofchunk|>',
-            icd_eos_token='<|endofchunk|>',
+            ice_separator='<|endofchunk|>',
+            ice_eos_token='<|endofchunk|>',
             test_split='validation',
             seed=cfg.seed,
         )
@@ -116,8 +116,8 @@ def init_retriever(retriever_name, dr, cfg):
         )
         return MMTopkRetriever(
             dr,
-            icd_separator='<|endofchunk|>',
-            icd_eos_token='<|endofchunk|>',
+            ice_separator='<|endofchunk|>',
+            ice_eos_token='<|endofchunk|>',
             test_split='validation',
             batch_size=32,
             num_workers=8,
