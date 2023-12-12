@@ -118,7 +118,7 @@ class IDEFICSInterface(BaseInterface):
         all_raw_texts = []
         for sample in batch_prompts:
             # the model was trained on samples starting with <s>
-            full_text = f"{self.tokenizer.bos_token}"
+            full_text = f"{self.tokenizer.bos_token}" + self.instruction
 
             # an image can either be an image object in the item or the url, everything else is a verbatim prompt text
             image_objects = []
