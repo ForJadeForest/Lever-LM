@@ -32,7 +32,6 @@ def init_lvlm(cfg, **kwargs) -> FlamingoInterface:
             prompt_template=cfg.task.template,
             column_token_map=cfg.task.column_token_map,
             icd_join_char=cfg.lvlm.icd_join_char,
-            icd_token=cfg.task.icd_token,
             load_from_local=cfg.lvlm.load_from_local,
             instruction=cfg.task.instruction,
             init_device=cfg.lvlm.init_device,
@@ -47,7 +46,6 @@ def init_lvlm(cfg, **kwargs) -> FlamingoInterface:
             device=kwargs['device'],
             prompt_template=cfg.task.template,
             column_token_map=cfg.task.column_token_map,
-            icd_token=cfg.task.icd_token,
             instruction=cfg.task.instruction,
             icd_join_char=cfg.lvlm.icd_join_char,
             image_field=cfg.task.image_field,
@@ -233,9 +231,7 @@ class VLGenInferencerOutputHandler:
         self.results_dict = {}
         self.other_meta_info_dict = {}
 
-    def subprocess_write_to_json(
-        self, output_json_filepath: str, output_json_filename: str
-    ):
+    def write_to_json(self, output_json_filepath: str, output_json_filename: str):
         self.results_dict = {
             str(idx): {
                 'origin_prompt': self.origin_prompt_dict[str(idx)],
@@ -254,43 +250,18 @@ class VLGenInferencerOutputHandler:
                 self.results_dict[str(idx)][field] = self.other_meta_info_dict[field][
                     str(idx)
                 ]
-
-    def write_to_json(self, output_json_filepath: str, output_json_filename: str):
-        with open(
-            f'{output_json_filepath}/{output_json_filename}.json', 'w', encoding='utf-8'
-        ) as json_file:
+        save_path = f'{output_json_filepath}/{output_json_filename}.json'
+        if not os.path.exists(output_json_filepath):
+            os.makedirs(output_json_filepath)
+        with open(save_path, 'w', encoding='utf-8') as json_file:
             json.dump(self.results_dict, json_file, indent=4, ensure_ascii=False)
             json_file.close()
 
-    def merge_to_main_process(
-        self, output_json_filepath: str, output_json_filename: str
-    ):
-        if self.accelerator is not None and self.accelerator.is_main_process:
-            for pid in range(self.accelerator.num_processes):
-                with open(
-                    f'{output_json_filepath}/process{pid}_{output_json_filename}.json',
-                    'r',
-                    encoding='utf-8',
-                ) as json_file:
-                    subprocess_results_dict = json.load(json_file)
-                    self.results_dict.update(subprocess_results_dict)
-                    json_file.close()
-            self.results_dict = dict(
-                sorted(self.results_dict.items(), key=lambda x: int(x[0]))
-            )
-
     def save_orgin_prompts(self, origin_prompts: List[str]):
         for idx, origin_prompt in enumerate(origin_prompts):
-            if self.accelerator is not None:
-                idx = (
-                    idx * self.accelerator.num_processes
-                    + self.accelerator.process_index
-                )
             self.origin_prompt_dict[str(idx)] = origin_prompt
 
     def save_prediction_and_output(self, prediction, output, idx):
-        if self.accelerator is not None:
-            idx = idx * self.accelerator.num_processes + self.accelerator.process_index
         self.prediction_dict[str(idx)] = prediction
         self.output_dict[str(idx)] = output
 
@@ -298,10 +269,5 @@ class VLGenInferencerOutputHandler:
         meta_dict = {}
         meta_list = test_ds[meta_field]
         for idx, m_d in enumerate(meta_list):
-            if self.accelerator is not None:
-                idx = (
-                    idx * self.accelerator.num_processes
-                    + self.accelerator.process_index
-                )
             meta_dict[str(idx)] = m_d
         self.other_meta_info_dict[meta_field] = meta_dict
