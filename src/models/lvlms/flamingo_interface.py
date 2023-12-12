@@ -25,7 +25,6 @@ class FlamingoInterface(BaseInterface):
         device,
         prompt_template,
         column_token_map,
-        icd_token,
         instruction,
         image_field,
         label_field,
@@ -39,7 +38,6 @@ class FlamingoInterface(BaseInterface):
             input_ids_field_name='lang_x',
             prompt_template=prompt_template,
             column_token_map=column_token_map,
-            icd_token=icd_token,
             instruction=instruction,
             icd_join_char=icd_join_char,
             image_field=image_field,
@@ -121,7 +119,6 @@ class FlamingoInterface(BaseInterface):
             prompt += self.tokenizer.eos_token
 
         return prompt
-
 
     def prepare_input(
         self,
@@ -205,8 +202,7 @@ class FlamingoInterface(BaseInterface):
                 "attention_mask": output_attention_masks,
                 "vision_x": output_images.unsqueeze(dim=2),
             }
-        ).to(self.device)
-
+        )
 
 
 def create_model_and_transforms(

@@ -14,7 +14,6 @@ class IDEFICSInterface(BaseInterface):
         device,
         prompt_template,
         column_token_map,
-        icd_token,
         instruction,
         image_field,
         label_field,
@@ -26,7 +25,6 @@ class IDEFICSInterface(BaseInterface):
             input_ids_field_name='input_ids',
             prompt_template=prompt_template,
             column_token_map=column_token_map,
-            icd_token=icd_token,
             instruction=instruction,
             icd_join_char=icd_join_char,
             image_field=image_field,
@@ -203,7 +201,7 @@ class IDEFICSInterface(BaseInterface):
                 "pixel_values": output_images,
                 "image_attention_mask": image_attention_mask,
             }
-        ).to(self.device)
+        )
 
 
 # copied from m4.training.packing
