@@ -225,23 +225,27 @@ class VLGenInferencerOutputHandler:
         num: int,
     ) -> None:
         self.num = num
-        self.origin_prompt_dict = {}
         self.output_dict = {}
         self.prediction_dict = {}
         self.results_dict = {}
         self.other_meta_info_dict = {}
+        self.idx_list = []
+        self.origin_prompt_dict = {}
+
+    def creat_index(self, test_ds: Dataset):
+        self.idx_list = [i for i in range(len(test_ds))]
 
     def write_to_json(self, output_json_filepath: str, output_json_filename: str):
         self.results_dict = {
             str(idx): {
-                'origin_prompt': self.origin_prompt_dict[str(idx)],
-                'output': self.output_dict[str(idx)],
+                'output': self.output_dict[str(idx)][0],
+                'pure_output': self.output_dict[str(idx)][1],
                 'prediction': self.prediction_dict[str(idx)],
             }
-            for idx in self.origin_prompt_dict.keys()
+            for idx in self.idx_list
         }
         for field in self.other_meta_info_dict:
-            for idx in self.origin_prompt_dict.keys():
+            for idx in self.idx_list:
                 if field in self.results_dict[str(idx)]:
                     logger.warning(
                         'the other meta info field name has duplicate! Please check for avoiding to losing info'
@@ -257,13 +261,10 @@ class VLGenInferencerOutputHandler:
             json.dump(self.results_dict, json_file, indent=4, ensure_ascii=False)
             json_file.close()
 
-    def save_orgin_prompts(self, origin_prompts: List[str]):
-        for idx, origin_prompt in enumerate(origin_prompts):
-            self.origin_prompt_dict[str(idx)] = origin_prompt
-
-    def save_prediction_and_output(self, prediction, output, idx):
+    def save_prediction_and_output(self, prediction, output, origin_prompt, idx):
         self.prediction_dict[str(idx)] = prediction
         self.output_dict[str(idx)] = output
+        self.origin_prompt_dict[str(idx)] = origin_prompt
 
     def save_origin_info(self, meta_field: str, test_ds: Dataset):
         meta_dict = {}

@@ -174,9 +174,23 @@ def main(cfg: DictConfig):
 
     # 加载数据集
     if cfg.task.task_name == 'caption':
-        train_ds = load_coco_ds(cfg, split='train')
+        train_ds = load_coco_ds(
+            name=cfg.dataset.name,
+            train_coco_dataset_root=cfg.dataset.train_coco_dataset_root,
+            train_coco_annotation_file=cfg.dataset.train_coco_annotation_file,
+            val_coco_dataset_root=cfg.dataset.val_coco_dataset_root,
+            val_coco_annotation_file=cfg.dataset.val_coco_annotation_file,
+            split='train',
+        )
     elif cfg.task.task_name == 'vqa':
-        train_ds = load_vqav2_ds(cfg, split='train')
+        train_ds = load_vqav2_ds(
+            versio=cfg.dataset.version,
+            train_path=cfg.dataset.train_path,
+            val_path=cfg.dataset.val_path,
+            train_coco_dataset_root=cfg.dataset.train_coco_dataset_root,
+            val_coco_dataset_root=cfg.dataset.val_coco_dataset_root,
+            split='train',
+        )
     else:
         raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
 
