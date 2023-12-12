@@ -5,6 +5,7 @@ from typing import List, Optional
 
 import datasets
 import faiss
+import numpy as np
 import torch
 import tqdm
 from loguru import logger
@@ -148,7 +149,7 @@ class MMTopkRetriever(BaseRetriever):
         logger.info(
             f'use {self.clip_model_name} to encode the text field: {text_field}'
         )
-        bar = tqdm.tqdm(dataloader, disable=not self.is_main_process)
+        bar = tqdm.tqdm(dataloader)
 
         feature_list = []
         for batch_data in bar:
@@ -195,7 +196,7 @@ class MMTopkRetriever(BaseRetriever):
             ds_, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers
         )
         logger.info(f'use {self.clip_model_name} to encode the img field: {img_field}')
-        bar = tqdm.tqdm(dataloader, disable=not self.is_main_process)
+        bar = tqdm.tqdm(dataloader)
 
         feature_list = []
         for batch_data in bar:

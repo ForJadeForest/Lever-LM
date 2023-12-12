@@ -5,10 +5,10 @@ import numpy as np
 from loguru import logger
 from tqdm import trange
 
-from src.retriever.base_retriever import BaseRetrieval
+from src.retriever.base_retriever import BaseRetriever
 
 
-class RandRetriever(BaseRetrieval):
+class RandRetriever(BaseRetriever):
     def __init__(
         self,
         index_ds: datasets.Dataset,
