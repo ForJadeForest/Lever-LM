@@ -15,19 +15,25 @@ def get_vqa_prompt(question, answer=None) -> str:
     return f"<image>Question:{question} Short answer:{answer if answer is not None else ''}{'<|endofchunk|>' if answer is not None else ''}"
 
 
-def load_coco_ds(cfg, split=None):
-    if cfg.dataset.name == 'coco_karpathy_split':
+def load_coco_ds(
+    name,
+    train_coco_dataset_root,
+    train_coco_annotation_file,
+    val_coco_dataset_root,
+    val_coco_annotation_file,
+    split=None,
+):
+    if name == 'coco_karpathy_split':
         # TODO: 完善load batch的方法
-        ds = load_karpathy_split(cfg, split)
+        # ds = load_karpathy_split(cfg, split)
+        raise ValueError("Now not supporting karpathy_split")
     else:
         if split is None:
             train_ds = CocoDataset(
-                cfg.dataset.train_coco_dataset_root,
-                cfg.dataset.train_coco_annotation_file,
+                train_coco_dataset_root,
+                train_coco_annotation_file,
             )
-            val_ds = CocoDataset(
-                cfg.dataset.val_coco_dataset_root, cfg.dataset.val_coco_annotation_file
-            )
+            val_ds = CocoDataset(val_coco_dataset_root, val_coco_annotation_file)
             train_ds = datasets.Dataset.from_list(train_ds)
             val_ds = datasets.Dataset.from_list(val_ds)
             ds = DatasetDict({'train': train_ds, 'validation': val_ds})
@@ -36,13 +42,13 @@ def load_coco_ds(cfg, split=None):
         else:
             if split == 'train':
                 ds = CocoDataset(
-                    cfg.dataset.train_coco_dataset_root,
-                    cfg.dataset.train_coco_annotation_file,
+                    train_coco_dataset_root,
+                    train_coco_annotation_file,
                 )
             elif split == 'validation':
                 ds = CocoDataset(
-                    cfg.dataset.val_coco_dataset_root,
-                    cfg.dataset.val_coco_annotation_file,
+                    val_coco_dataset_root,
+                    val_coco_annotation_file,
                 )
             ds = datasets.Dataset.from_list(ds)
             ds = ds.sort('image_id')
@@ -50,11 +56,18 @@ def load_coco_ds(cfg, split=None):
     return ds
 
 
-def load_vqav2_ds(cfg, split=None):
-    if cfg.dataset.version == 'local':
+def load_vqav2_ds(
+    version,
+    train_path,
+    val_path,
+    train_coco_dataset_root,
+    val_coco_dataset_root,
+    split=None,
+):
+    if version == 'local':
         data_files = {
-            'train': cfg.dataset.train_path,
-            'validation': cfg.dataset.val_path,
+            'train': train_path,
+            'validation': val_path,
         }
         ds = load_dataset(
             'json', data_files=data_files, field='annotations', split=split
@@ -63,10 +76,7 @@ def load_vqav2_ds(cfg, split=None):
 
         def train_trans(x, idx):
             filename = [f"COCO_train2014_{idx:012d}.jpg" for idx in x['image_id']]
-            img_path = [
-                os.path.join(cfg.dataset.train_coco_dataset_root, f_n)
-                for f_n in filename
-            ]
+            img_path = [os.path.join(train_coco_dataset_root, f_n) for f_n in filename]
 
             x['image'] = img_path
             x['idx'] = idx
@@ -74,9 +84,7 @@ def load_vqav2_ds(cfg, split=None):
 
         def val_trans(x, idx):
             filename = [f"COCO_val2014_{idx:012d}.jpg" for idx in x['image_id']]
-            img_path = [
-                os.path.join(cfg.dataset.val_coco_dataset_root, f_n) for f_n in filename
-            ]
+            img_path = [os.path.join(val_coco_dataset_root, f_n) for f_n in filename]
             x['image'] = img_path
             x['idx'] = idx
             return x
@@ -93,7 +101,7 @@ def load_vqav2_ds(cfg, split=None):
         elif split == 'validation':
             ds = ds.map(val_trans, batched=True, with_indices=True, num_proc=12)
         ds = ds.cast_column('image', datasets.Image(decode=True))
-    elif cfg.dataset.version == 'hub':
+    elif version == 'hub':
         ds = load_dataset('HuggingFaceM4/VQAv2', split=split)
         ds.pop('test', None)
         ds.pop('testdev', None)
