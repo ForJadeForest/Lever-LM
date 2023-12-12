@@ -112,7 +112,7 @@ def evaluate_retriever(
 def init_retriever(retriever_name, ds, cfg):
     if retriever_name == 'ZeroShot':
         return ZeroRetriever(ds['train'], ds['validation'])
-    elif retriever_name == 'RandomSample':
+    elif retriever_name == 'RandomRetriever':
         return RandRetriever(
             ds['train'],
             ds['validation'],
@@ -284,7 +284,7 @@ def main(cfg: DictConfig):
 
     retriever_list = [
         ('ZeroShot', [0] if cfg.test_zero_shot else []),
-        ('RandomSample', cfg.shot_num_list if cfg.test_random else []),
+        ('RandomRetriever', cfg.shot_num_list if cfg.test_random else []),
         (
             f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-i2t',
             cfg.shot_num_list if cfg.test_i2t else [],
