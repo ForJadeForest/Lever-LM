@@ -18,7 +18,6 @@ class BaseInterface:
         input_ids_field_name,
         prompt_template,
         column_token_map,
-        icd_token,
         instruction,
         icd_join_char,
         label_field,
@@ -32,7 +31,6 @@ class BaseInterface:
         self.pt = PromptTemplate(
             prompt_template,
             column_token_map=dict(column_token_map),
-            ice_token=icd_token,
         )
         self.icd_join_char = icd_join_char
         self.instruction = instruction
@@ -174,6 +172,31 @@ class BaseInterface:
                     ]
                 )
             prompt.append(data_sample_list[-1][self.image_field])
+            if is_last_for_generation:
+                prompt.append(
+                    self.gen_query_prompt(data_sample_list[-1], add_image_token=False)
+                )
+            else:
+                prompt.append(
+                    self.gen_ice_prompt(data_sample_list[-1], add_image_token=False)
+                )
+
+            prompts.append(prompt)
+        return prompts
+
+    def transfer_prompts_text_part(
+        self, batch_data_sample_list, is_last_for_generation=True
+    ):
+        if not any(isinstance(i, list) for i in batch_data_sample_list):
+            batch_data_sample_list = [batch_data_sample_list]
+
+        prompts = []
+        for data_sample_list in batch_data_sample_list:
+            prompt = []
+            for data_sample in data_sample_list[:-1]:
+                prompt.append(
+                    self.gen_ice_prompt(data_sample, add_image_token=False),
+                )
             if is_last_for_generation:
                 prompt.append(
                     self.gen_query_prompt(data_sample_list[-1], add_image_token=False)
