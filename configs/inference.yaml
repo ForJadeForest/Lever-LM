@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - dataset: coco2017
-  - flamingo: flamingo_9B
+  - lvlm: flamingo_9B
   - train: query_img_icd_text
   - task: caption
 
@@ -25,6 +25,9 @@ mmtopk_clip_name: openai/clip-vit-base-patch32
 mmtopk_reversed_order: true
 seed: 42
 
+
+# Random config:
+random_retrieval_fixed: false
 # icd_lm config:
 icd_lm_path: null
 default_cpk_key: "last"
