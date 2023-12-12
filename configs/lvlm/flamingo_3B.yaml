@@ -7,8 +7,8 @@ cross_attn_every_n_layers: 1
 load_from_local: true
 
 
-caption_prompt_template: "</E>Output:<X>"
-vqa_prompt_template: "</E>Question:<Q> Short answer:<A>"
+caption_prompt_template: "Output:<X>"
+vqa_prompt_template: "Question:<Q> Short answer:<A>"
 
 caption_instruction: ""
 vqa_instruction: ""
