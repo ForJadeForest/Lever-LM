@@ -27,7 +27,7 @@ def get_info_score(
 
     x_input = interface.prepare_input(
         prompts, is_last_for_generation=False, add_eos_token=True
-    )
+    ).to(interface.device)
 
     icd_mask_prompt = interface.concat_prompt(
         choosed_icd_seq_list[:-1],
@@ -36,7 +36,7 @@ def get_info_score(
         is_last_for_generation=False,
     )
     query_mask_part = test_lang_x_input.split(split_token)[0] + split_token
-    
+
     mask_context = icd_mask_prompt + query_mask_part
 
     mask_length = interface.get_input_token_num(mask_context)
@@ -71,7 +71,7 @@ def get_info_score(
             prompts,
             is_last_for_generation=False,
             add_eos_token=True,
-        )
+        ).to(interface.device)
         icd_mask_prompt_list = [
             interface.concat_prompt(
                 t[:-1],
