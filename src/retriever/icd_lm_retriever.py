@@ -73,8 +73,8 @@ class ICDLMRetriever(BaseRetriever):
         Returns:
             List[List[int]]: A list of lists containing the generated indices. Each sublist corresponds to a test case.
         """
-        icd_lm = icd_lm.to(self.device)
-        icd_lm.eval()
+        self.icd_lm = self.icd_lm.to(self.device)
+        self.icd_lm.eval()
         icd_idx_list = []
         bos_token_id = len(self.index_ds) + 1
         query_token_id = len(self.index_ds) + 2
@@ -110,7 +110,7 @@ class ICDLMRetriever(BaseRetriever):
             init_icd_idx = torch.tensor(
                 [[bos_token_id, query_token_id] for _ in range(bs)]
             ).to(self.device)
-            res = icd_lm.generation(
+            res = self.icd_lm.generation(
                 query_input=query_input,
                 init_icd_idx=init_icd_idx,
                 shot_num=ice_num,
