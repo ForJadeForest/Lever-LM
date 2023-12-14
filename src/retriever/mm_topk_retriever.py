@@ -122,6 +122,9 @@ class MMTopkRetriever(BaseRetriever):
 
         logger.info(f'begin add the index for emb dim: {self.index_features.shape}')
         self.index.add(self.index_features)
+        del self.text_encoder
+        del self.vision_encoder
+        
 
     @torch.inference_mode()
     def encode_text(self, ds: datasets.Dataset, text_field: str) -> np.ndarray:
