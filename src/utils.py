@@ -16,7 +16,7 @@ from transformers import (
     CLIPVisionModelWithProjection,
 )
 
-from src.models.lvlms import FlamingoInterface, IDEFICSInterface
+from src.lvlm_interface import FlamingoInterface, IDEFICSInterface
 
 
 def init_lvlm(cfg, **kwargs) -> FlamingoInterface:

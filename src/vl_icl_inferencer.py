@@ -8,7 +8,7 @@ from loguru import logger
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.models.lvlms.base_interface import BaseInterface
+from src.lvlm_interface.base_interface import BaseInterface
 from src.utils import VLGenInferencerOutputHandler
 
 

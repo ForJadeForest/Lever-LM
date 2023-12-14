@@ -14,11 +14,10 @@ from omegaconf import DictConfig
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
+from src.lvlm_interface import FlamingoInterface
 from src.metrics.info_score import get_info_score
-from src.models.lvlms import FlamingoInterface
 from src.utils import beam_filter, init_lvlm
-
-from .utils import load_ds
+from utils import load_ds
 
 
 @torch.inference_mode()
@@ -46,9 +45,9 @@ def generate_single_sample_icd(
 
             # 构建已经选好的icd + 测试样本的输入
             icd_id_seq = test_data_id_seq[:-1]
-            choosed_icd_seq_list = [
-                candidateidx2data[idx] for idx in icd_id_seq
-            ] + [test_data]
+            choosed_icd_seq_list = [candidateidx2data[idx] for idx in icd_id_seq] + [
+                test_data
+            ]
 
             filtered_idx_list = sorted(list(filtered_candidateidx2data.keys()))
             info_score = get_info_score(

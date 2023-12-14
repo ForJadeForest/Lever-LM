@@ -4,7 +4,7 @@ import more_itertools
 import torch
 from PIL import Image
 
-from src.models.lvlms import FlamingoInterface, IDEFICSInterface
+from src.lvlm_interface import FlamingoInterface, IDEFICSInterface
 
 
 @torch.inference_mode()
