@@ -3,33 +3,55 @@ import json
 import os
 import random
 import uuid
-from typing import Union
 
-import datasets
 import hydra
-import pandas as pd
 import torch
 from dotenv import load_dotenv
 from loguru import logger
 from omegaconf import DictConfig
-from openicl import (
-    DatasetReader,
-    DirRetriever,
-    FlamingoGenInferencerFast,
-    MMTopkRetriever,
-    PromptTemplate,
-    RandomRetriever,
-    ZeroRetriever,
-)
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoProcessor
 
-from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import compute_cider
 from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
 from src.models import GPT2ICDLM, LSTMICDLM
-from src.utils import init_flamingo
+from src.retriever import *
+from src.utils import init_lvlm
+from src.vl_icl_inferencer import VLICLInferecer
+from utils import load_ds
+
+
+def get_icd_lm_path(cfg):
+    if cfg.icd_lm_path is None:
+        logger.info(
+            f'detect icd_lm_path is None, now try to find in {cfg.result_dir}/model_cpk/{cfg.ex_name}'
+        )
+        cpk_dir = os.path.join(
+            cfg.result_dir, 'model_cpk', cfg.task.task_name, cfg.ex_name
+        )
+        cpk_list = []
+        for f in os.listdir(cpk_dir):
+            cpk_list.append(os.path.join(cpk_dir, f))
+        cpk_list = list(filter(lambda x: cfg.default_cpk_key in x, cpk_list))
+        if cpk_list:
+            logger.info(f'Detect {cpk_list[0]}, now begin to load cpk...')
+            icd_lm_path = cpk_list[0]
+        else:
+            raise ValueError(
+                f'The icd_lm_path is None and detect no checkpoint can use in {cpk_dir}'
+            )
+    else:
+        icd_lm_path = cfg.icd_lm_path
+    return icd_lm_path
+
+
+def init_icd_lm(cfg, icd_lm_path):
+    icd_lm = hydra.utils.instantiate(cfg.train.icd_lm)
+    state_dict = torch.load(icd_lm_path)['state_dict']
+    state_dict = {k.replace('icd_lm.', ''): v for k, v in state_dict.items()}
+    icd_lm.load_state_dict(state_dict)
+    processor = AutoProcessor.from_pretrained(cfg.train.icd_lm.clip_name)
+    return icd_lm, processor
 
 
 def record(result_json_path: str, new_data: dict):
@@ -47,7 +69,7 @@ def evaluate_retriever(
     retriever_name,
     inferencer,
     retriever,
-    icd_prompt,
+    ds,
     base_info,
     shot_num_list,
     result_json_path,
@@ -60,20 +82,22 @@ def evaluate_retriever(
             f'Now begin test {cfg.task.task_name}: {retriever_name} with {shot_num=}'
         )
         output_files = info + f'-bs:{cfg.inference_bs}-{shot_num=}'
-        retriever.icd_num = shot_num
+        icd_idx_list = retriever.retrieve(shot_num)
+
         if cfg.task.task_name == 'caption':
             metric = inference_caption(
-                inferencer,
-                retriever,
-                icd_prompt,
-                cfg.dataset.val_coco_annotation_file,
-                output_files,
+                inferencer=inferencer,
+                ds=ds,
+                icd_idx_list=icd_idx_list,
+                val_ann_path=cfg.dataset.val_coco_annotation_file,
+                output_json_filename=output_files,
+                model_name=cfg.lvlm.name,
             )
         elif cfg.task.task_name == 'vqa':
             metric = inference_vqa(
                 inferencer=inferencer,
-                retriever=retriever,
-                icd_prompt=icd_prompt,
+                ds=ds,
+                icd_idx_list=icd_idx_list,
                 val_ques_path=cfg.dataset.val_ques_path,
                 val_ann_path=cfg.dataset.val_ann_path,
                 output_json_filename=output_files,
@@ -83,16 +107,15 @@ def evaluate_retriever(
         record(result_json_path, {info: retriever_res})
 
 
-def init_retriever(retriever_name, dr, cfg):
+def init_retriever(retriever_name, ds, cfg):
     if retriever_name == 'ZeroShot':
-        return ZeroRetriever(dr, prompt_eos_token='', test_split='validation')
-    elif retriever_name == 'RandomSample':
-        return RandomRetriever(
-            dr,
-            ice_separator='<|endofchunk|>',
-            ice_eos_token='<|endofchunk|>',
-            test_split='validation',
+        return ZeroRetriever(ds['train'], ds['validation'])
+    elif retriever_name == 'RandomRetriever':
+        return RandRetriever(
+            ds['train'],
+            ds['validation'],
             seed=cfg.seed,
+            fixed=cfg.random_retrieval_fixed,
         )
     elif retriever_name.startswith('MMTopKRetriever'):
         mode = retriever_name.split('-')[-1]
@@ -115,44 +138,66 @@ def init_retriever(retriever_name, dr, cfg):
             f'test_field:{test_field}-emb_cache.pth',
         )
         return MMTopkRetriever(
-            dr,
-            ice_separator='<|endofchunk|>',
-            ice_eos_token='<|endofchunk|>',
-            test_split='validation',
-            batch_size=32,
-            num_workers=8,
+            ds['train'],
+            ds['validation'],
             mode=mode,
             index_field=index_field,
             test_field=test_field,
             clip_model_name=cfg.mmtopk_clip_name,
             cache_file=cache_file,
             reversed_order=cfg.mmtopk_reversed_order,
+            batch_size=32,
+            num_workers=8,
         )
-    # Add other retrievers if needed
+    elif retriever_name == 'ICDLMRetriever':
+        icd_lm_path = get_icd_lm_path(cfg)
+        icd_lm, processor = init_icd_lm(cfg, icd_lm_path=icd_lm_path)
+        return ICDLMRetriever(
+            ds['train'],
+            ds['validation'],
+            icd_lm=icd_lm,
+            processor=processor,
+            query_image_field=cfg.train.icd_lm_ds.query_image_field,
+            query_text_field=cfg.train.icd_lm_ds.query_text_field,
+            icd_image_field=cfg.train.icd_lm_ds.icd_image_field,
+            icd_text_field=cfg.train.icd_lm_ds.icd_text_field,
+            device=cfg.device,
+            infer_batch_size=cfg.icd_lm_bs,
+            infer_num_workers=cfg.icd_lm_num_workers,
+        )
+
     return None
+
+
+def caption_postprocess(text, model_name):
+    if 'flamingo' in model_name:
+        return text.split("Output", 1)[0].replace('"', "")
+    elif 'idefics' in model_name:
+        return text.split("Caption", 1)[0].replace('"', "").replace('\n', '')
 
 
 def inference_caption(
     inferencer,
-    retriever,
-    icd_prompt,
+    ds,
+    icd_idx_list,
     val_ann_path,
     output_json_filename,
+    model_name,
 ):
     output_dict = inferencer.inference(
-        retriever,
-        icd_prompt,
+        train_ds=ds['train'],
+        test_ds=ds['validation'],
+        ice_idx_list=icd_idx_list,
         output_json_filename=output_json_filename,
-        return_dict=True,
     )
     pred_coco = []
     for idx in output_dict:
         pred_coco.append(
             {
                 'image_id': output_dict[idx]['image_id'],
-                'caption': output_dict[idx]['prediction']
-                .split("Output", 1)[0]
-                .replace('"', ""),
+                'caption': caption_postprocess(
+                    output_dict[idx]['prediction'], model_name
+                ),
             }
         )
     cider_score = compute_cider(pred_coco, val_ann_path)
@@ -160,13 +205,13 @@ def inference_caption(
 
 
 def inference_vqa(
-    inferencer, retriever, icd_prompt, val_ques_path, val_ann_path, output_json_filename
+    inferencer, ds, icd_idx_list, val_ques_path, val_ann_path, output_json_filename
 ):
     output_dict = inferencer.inference(
-        retriever,
-        icd_prompt,
+        train_ds=ds['train'],
+        test_ds=ds['validation'],
+        ice_idx_list=icd_idx_list,
         output_json_filename=output_json_filename,
-        return_dict=True,
     )
     preds = []
     for idx in output_dict:
@@ -197,56 +242,29 @@ def main(cfg: DictConfig):
     )
     result_json_path = os.path.join(result_dir, 'metrics.json')
 
-    icd_prompt = PromptTemplate(
-        template=cfg.task.template,
-        ice_token=cfg.task.icd_token,
-        column_token_map=dict(cfg.task.column_token_map),
-    )
     test_data_num = cfg.test_data_num
     index_data_num = cfg.index_data_num
-    if cfg.task.task_name == 'caption':
-        ds = load_coco_ds(cfg)
-    elif cfg.task.task_name == 'vqa':
-        ds = load_vqav2_ds(cfg)
-    else:
-        raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
 
-    test_split = 'validation'
+    ds = load_ds(cfg)
+
     if index_data_num != -1:
         ds['train'] = ds['train'].select(
             random.sample(range(len(ds['train'])), index_data_num)
         )
     if test_data_num != -1:
-        ds[test_split] = ds[test_split].select(range(test_data_num))
+        ds['validation'] = ds['validation'].select(range(test_data_num))
 
-    dr = DatasetReader(
-        ds,
-        input_columns=list(cfg.task.input_columns),
-        output_column=cfg.task.output_column,
-    )
+    interface = init_lvlm(cfg, device=cfg.device)
 
-    model, image_processor, tokenizer, autocast_context = init_flamingo(
-        lang_encoder_path=cfg.flamingo.lang_encoder_path,
-        tokenizer_path=cfg.flamingo.tokenizer_path,
-        flamingo_checkpoint_dir=cfg.flamingo.flamingo_checkpoint_dir,
-        cross_attn_every_n_layers=cfg.flamingo.cross_attn_every_n_layers,
-        hf_root=cfg.flamingo.hf_root,
-        precision=cfg.precision,
-        device=cfg.device,
-        from_local=cfg.flamingo.load_from_local,
-    )
-    inferencer = FlamingoGenInferencerFast(
-        model,
-        tokenizer,
-        image_processor,
+    inferencer = VLICLInferecer(
+        interface=interface,
+        train_ds=ds['train'],
+        test_ds=ds['validation'],
+        generation_kwargs=cfg.task.gen_args,
         other_save_field=cfg.task.other_save_field,
-        autocast_context=autocast_context,
-        image_field=cfg.task.image_field,
-        batch_size=cfg.inference_bs,
         num_workers=cfg.num_workers,
         num_proc=cfg.num_proc,
-        preprocessor_bs=cfg.preprocessor_bs,
-        generation_kwargs=cfg.task.gen_args,
+        batch_size=cfg.inference_bs,
         output_json_filepath=os.path.join(result_dir, 'generation_metainfo'),
     )
 
@@ -254,7 +272,7 @@ def main(cfg: DictConfig):
 
     retriever_list = [
         ('ZeroShot', [0] if cfg.test_zero_shot else []),
-        ('RandomSample', cfg.shot_num_list if cfg.test_random else []),
+        ('RandomRetriever', cfg.shot_num_list if cfg.test_random else []),
         (
             f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-i2t',
             cfg.shot_num_list if cfg.test_i2t else [],
@@ -267,102 +285,26 @@ def main(cfg: DictConfig):
             f'MMTopKRetriever-{cfg.mmtopk_clip_name.split("/")[-1]}-t2t',
             cfg.shot_num_list if cfg.test_t2t else [],
         ),
+        (
+            'ICDLMRetriever',
+            cfg.shot_num_list if cfg.test_icd_lm else [],
+        ),
     ]
 
     # Test for other
     for retriever_name, shot_nums in retriever_list:
         if shot_nums:  # Only initialize and evaluate if shot_nums is not empty
-            retriever_instance = init_retriever(retriever_name, dr, cfg)
+            retriever_instance = init_retriever(retriever_name, ds, cfg)
             evaluate_retriever(
                 retriever_name,
                 inferencer,
                 retriever_instance,
-                icd_prompt,
+                ds,
                 base_info,
                 shot_nums,
                 result_json_path,
                 cfg,
             )
-    # ICDLM sample test
-    if cfg.test_icd_lm:
-        retriever_res = {}
-        icd_lm = hydra.utils.instantiate(cfg.train.icd_lm)
-        if cfg.icd_lm_path is None:
-            logger.info(
-                f'detect icd_lm_path is None, now try to find in {cfg.result_dir}/model_cpk/{cfg.ex_name}'
-            )
-            cpk_dir = os.path.join(
-                cfg.result_dir, 'model_cpk', cfg.task.task_name, cfg.ex_name
-            )
-            cpk_list = []
-            for f in os.listdir(cpk_dir):
-                cpk_list.append(os.path.join(cpk_dir, f))
-            cpk_list = list(filter(lambda x: cfg.default_cpk_key in x, cpk_list))
-            if cpk_list:
-                logger.info(f'Detect {cpk_list[0]}, now begin to load cpk...')
-                icd_lm_path = cpk_list[0]
-            else:
-                raise ValueError(
-                    f'The icd_lm_path is None and detect no checkpoint can use in {cpk_dir}'
-                )
-        else:
-            icd_lm_path = cfg.icd_lm_path
-        icd_lm.load_state_dict(torch.load(icd_lm_path)['model'])
-
-        processor = AutoProcessor.from_pretrained(cfg.train.icd_lm.clip_name)
-        retriever_info = 'ICDLM-' + os.path.splitext(os.path.basename(icd_lm_path))[0]
-
-        info = (
-            base_info
-            + retriever_info
-            + f'-{icd_lm.query_encoding_flag=}-{icd_lm.icd_encoding_flag=}-bs:{cfg.inference_bs}'
-        )
-
-        icd_idx_list = icd_lm_generation(
-            icd_lm=icd_lm,
-            val_ds=ds[test_split],
-            train_ds=ds['train'],
-            processor=processor,
-            shot_num=max(cfg.shot_num_list),
-            cfg=cfg,
-        )
-
-        for shot_num in cfg.shot_num_list:
-            logger.info(f'Now begin test: {retriever_info} with {shot_num=}')
-            output_files = info + f'-{shot_num=}'
-            need_icd_idx_list = [icd_idx[:shot_num] for icd_idx in icd_idx_list]
-            if cfg.random_order_icd_lm:
-                need_icd_idx_list = shuffle_2d_list(need_icd_idx_list)
-            retriever = DirRetriever(
-                dr,
-                need_icd_idx_list,
-                icd_separator='<|endofchunk|>',
-                icd_eos_token='<|endofchunk|>',
-                prompt_eos_token='',
-                test_split=test_split,
-            )
-            retriever_info = 'ICDLM'
-            retriever.icd_num = shot_num
-            if cfg.task.task_name == 'caption':
-                metric = inference_caption(
-                    inferencer,
-                    retriever,
-                    icd_prompt,
-                    cfg.dataset.val_coco_annotation_file,
-                    output_files,
-                )
-            elif cfg.task.task_name == 'vqa':
-                metric = inference_vqa(
-                    inferencer=inferencer,
-                    retriever=retriever,
-                    icd_prompt=icd_prompt,
-                    val_ques_path=cfg.dataset.val_ques_path,
-                    val_ann_path=cfg.dataset.val_ann_path,
-                    output_json_filename=output_files,
-                )
-            retriever_res[f'{shot_num=}'] = metric
-            logger.info(f'{output_files}: {metric=}')
-            record(result_json_path, {info: retriever_res})
 
 
 def shuffle_2d_list(matrix):
@@ -375,72 +317,6 @@ def shuffle_2d_list(matrix):
     return new_matrix
 
 
-@torch.inference_mode()
-def icd_lm_generation(
-    icd_lm: Union[GPT2ICDLM, LSTMICDLM],
-    val_ds: datasets.Dataset,
-    train_ds: datasets.Dataset,
-    processor,
-    shot_num,
-    cfg,
-):
-    icd_lm = icd_lm.to(cfg.device)
-    icd_lm.eval()
-    icd_idx_list = []
-    bos_token_id = len(train_ds) + 1
-    query_token_id = len(train_ds) + 2
-
-    query_image_field = cfg.train.icd_lm_ds.query_image_field
-    query_text_field = cfg.train.icd_lm_ds.query_text_field
-
-    val_ds_ = val_ds.map()
-
-    def prepare(examples):
-        images = texts = None
-        if query_image_field:
-            images = [i for i in examples[query_image_field]]
-        if query_text_field:
-            texts = [i for i in examples[query_text_field]]
-
-        data_dict = processor(
-            images=images,
-            text=texts,
-            padding=True,
-            return_tensors="pt",
-        )
-        return data_dict
-
-    val_ds_.set_transform(prepare)
-    dataloader = DataLoader(
-        val_ds_,
-        batch_size=cfg.icd_lm_bs,
-        shuffle=False,
-        num_workers=cfg.icd_lm_num_workers,
-    )
-
-    for query_input in tqdm(dataloader, ncols=100):
-        query_input = {k: v.to(cfg.device) for k, v in query_input.items()}
-        bs = len(query_input[list(query_input.keys())[0]])
-        init_icd_idx = torch.tensor(
-            [[bos_token_id, query_token_id] for _ in range(bs)]
-        ).to(cfg.device)
-        res = icd_lm.generation(
-            query_input=query_input,
-            init_icd_idx=init_icd_idx,
-            shot_num=shot_num,
-            index_ds=train_ds,
-            processor=processor,
-            icd_image_field=cfg.train.icd_lm_ds.icd_image_field,
-            icd_text_field=cfg.train.icd_lm_ds.icd_text_field,
-            device=cfg.device,
-        )
-        res = [r[2 : 2 + shot_num] for r in res]
-        icd_idx_list.extend(res)
-
-    return icd_idx_list
-
-
 if __name__ == '__main__':
-    logger.info('begin load env variables...')
     load_dotenv()
     main()
