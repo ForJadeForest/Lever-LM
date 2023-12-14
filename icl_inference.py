@@ -100,6 +100,7 @@ def evaluate_retriever(
                 val_ques_path=cfg.dataset.val_ques_path,
                 val_ann_path=cfg.dataset.val_ann_path,
                 output_json_filename=output_files,
+                model_name=cfg.lvlm.name,
             )
         retriever_res[f'{shot_num=}'] = metric
         logger.info(f'{output_files}: {metric=}')
@@ -175,6 +176,13 @@ def caption_postprocess(text, model_name):
         return text.split("Caption", 1)[0].replace('"', "").replace('\n', '')
 
 
+def vqa_postprocess(text, model_name):
+    if 'flamingo' in model_name:
+        return postprocess_vqa_generation(text)
+    elif 'idefics' in model_name:
+        return postprocess_vqa_generation(text).replace('\n', '')
+
+
 def inference_caption(
     inferencer,
     ds,
@@ -204,7 +212,13 @@ def inference_caption(
 
 
 def inference_vqa(
-    inferencer, ds, icd_idx_list, val_ques_path, val_ann_path, output_json_filename
+    inferencer,
+    ds,
+    icd_idx_list,
+    val_ques_path,
+    val_ann_path,
+    output_json_filename,
+    model_name,
 ):
     output_dict = inferencer.inference(
         train_ds=ds['train'],
@@ -216,7 +230,9 @@ def inference_vqa(
     for idx in output_dict:
         preds.append(
             {
-                'answer': postprocess_vqa_generation(output_dict[idx]['prediction']),
+                'answer': vqa_postprocess(
+                    output_dict[idx]['prediction'], model_name=model_name
+                ),
                 'question_id': output_dict[idx]['question_id'],
             }
         )
