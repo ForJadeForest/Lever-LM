@@ -13,7 +13,7 @@ def load_ds(cfg, split=None):
         )
     elif cfg.task.task_name == 'vqa':
         ds = load_vqav2_ds(
-            versio=cfg.dataset.version,
+            version=cfg.dataset.version,
             train_path=cfg.dataset.train_path,
             val_path=cfg.dataset.val_path,
             train_coco_dataset_root=cfg.dataset.train_coco_dataset_root,
