@@ -14,7 +14,6 @@ from transformers import AutoProcessor
 
 from src.metrics.cider_calculator import compute_cider
 from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
-from src.models import GPT2ICDLM, LSTMICDLM
 from src.retriever import *
 from src.utils import init_lvlm
 from src.vl_icl_inferencer import VLICLInferecer
