@@ -19,6 +19,8 @@ from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.metrics.cider_calculator import get_cider_score
 from src.utils import encode_image, encode_text, init_flamingo, recall_sim_feature
 
+from .utils import load_ds
+
 
 def load_feature_cache(cfg, cache_path, encoding_method, train_ds, data_key):
     if os.path.exists(cache_path):
@@ -242,27 +244,7 @@ def main(cfg: DictConfig):
     save_path = os.path.join(save_dir, save_file_name)
 
     # 加载数据集
-    if cfg.task.task_name == 'caption':
-        train_ds = load_coco_ds(
-            name=cfg.dataset.name,
-            train_coco_dataset_root=cfg.dataset.train_coco_dataset_root,
-            train_coco_annotation_file=cfg.dataset.train_coco_annotation_file,
-            val_coco_dataset_root=cfg.data.val_coco_dataset_root,
-            val_coco_annotation_file=cfg.dataset.val_coco_annotation_file,
-            split='train',
-        )
-    elif cfg.task.task_name == 'vqa':
-        train_ds = load_vqav2_ds(
-            versio=cfg.dataset.version,
-            train_path=cfg.dataset.train_path,
-            val_path=cfg.dataset.val_path,
-            train_coco_dataset_root=cfg.dataset.train_coco_dataset_root,
-            val_coco_dataset_root=cfg.dataset.val_coco_dataset_root,
-            split='train',
-        )
-    else:
-        raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
-
+    train_ds = load_ds(cfg, 'train')
     # sample from train idx
     anchor_set_cache_filename = os.path.join(
         cache_dir, f'{cfg.dataset.name}-sample_num:{cfg.sample_num}.json'
