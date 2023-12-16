@@ -90,9 +90,6 @@ class BaseInterface:
     def concat_prompt(self, *args, **kwargs):
         raise NotImplemented
 
-    def construct_icd_prompt(self, data, output_field=None):
-        return self.pt.generate_item(data, output_field=output_field)
-
     def prepare_input(self, *args, **kwargs):
         raise NotImplemented
 
@@ -208,3 +205,12 @@ class BaseInterface:
 
             prompts.append(prompt)
         return prompts
+
+
+    def generate(self, *args, **kwargs):
+        return self.model.generate(
+            *args, **kwargs
+        )
+        
+    def __call__(self, model_input):
+        return self.model(**model_input)
