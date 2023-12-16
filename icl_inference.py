@@ -17,7 +17,7 @@ from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_genera
 from src.retriever import *
 from src.utils import init_lvlm
 from src.vl_icl_inferencer import VLICLInferecer
-from utils import load_ds
+from utils import caption_postprocess, load_ds, vqa_postprocess
 
 
 def get_icd_lm_path(cfg):
@@ -167,20 +167,6 @@ def init_retriever(retriever_name, ds, cfg):
         )
 
     return None
-
-
-def caption_postprocess(text, model_name):
-    if 'flamingo' in model_name:
-        return text.split("Output", 1)[0].replace('"', "")
-    elif 'idefics' in model_name:
-        return text.split("Caption", 1)[0].replace('"', "").replace('\n', '')
-
-
-def vqa_postprocess(text, model_name):
-    if 'flamingo' in model_name:
-        return postprocess_vqa_generation(text)
-    elif 'idefics' in model_name:
-        return postprocess_vqa_generation(text).replace('\n', '')
 
 
 def inference_caption(
