@@ -206,11 +206,10 @@ class BaseInterface:
             prompts.append(prompt)
         return prompts
 
-
     def generate(self, *args, **kwargs):
-        return self.model.generate(
-            *args, **kwargs
-        )
-        
+        with self.autocast_context:
+            return self.model.generate(*args, **kwargs)
+
     def __call__(self, model_input):
-        return self.model(**model_input)
+        with self.autocast_context:
+            return self.model(**model_input)
