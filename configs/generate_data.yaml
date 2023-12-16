@@ -19,6 +19,8 @@ precision: bf16
 sample_num: 5000
 construct_order: "left"
 
+scorer: "infoscore"
+
 # Others
 result_dir: "${oc.env:RESULT_DIR}"
 gpu_ids: [0]
@@ -27,7 +29,6 @@ gpu_ids: [0]
 sleep_time: 90
 
 log_level: "INFO"
-
 
 # hydra
 hydra:

@@ -15,9 +15,8 @@ from torch.multiprocessing import spawn
 from tqdm import tqdm
 
 from src.lvlm_interface import FlamingoInterface
-from src.metrics.info_score import get_info_score
 from src.utils import beam_filter, init_lvlm
-from utils import load_ds
+from utils import get_cider_score, get_info_score, load_ds
 
 
 @torch.inference_mode()
@@ -50,17 +49,29 @@ def generate_single_sample_icd(
             ]
 
             filtered_idx_list = sorted(list(filtered_candidateidx2data.keys()))
-            info_score = get_info_score(
-                interface,
-                choosed_icd_seq_list=choosed_icd_seq_list,
-                candidate_set=filtered_candidateidx2data,
-                batch_size=cfg.batch_size,
-                split_token=cfg.task.split_token,
-                construct_order=cfg.construct_order,
-            )
+            if cfg.scorer == 'infoscore':
+                scores = get_info_score(
+                    interface,
+                    choosed_icd_seq_list=choosed_icd_seq_list,
+                    candidate_set=filtered_candidateidx2data,
+                    batch_size=cfg.batch_size,
+                    split_token=cfg.task.split_token,
+                    construct_order=cfg.construct_order,
+                )
+            elif cfg.scorer == 'cider':
+                scores = get_cider_score(
+                    interface,
+                    choosed_icd_seq_list,
+                    candidate_set=filtered_candidateidx2data,
+                    batch_size=cfg.batch_size,
+                    train_ann_path=cfg.dataset.train_coco_annotation_file,
+                    construct_order=cfg.construct_order,
+                    gen_kwargs=cfg.task.gen_args,
+                    model_name=cfg.lvlm.name,
+                )
 
             # 选出最高的InfoScore
-            scores, indices = info_score.topk(cfg.beam_size)
+            topk_scores, indices = scores.topk(cfg.beam_size)
             indices = indices.tolist()
             indices = list(
                 map(
@@ -68,9 +79,9 @@ def generate_single_sample_icd(
                     indices,
                 )
             )
-            scores = scores.tolist()
+            topk_scores = topk_scores.tolist()
 
-            for idx, score in zip(indices, scores):
+            for idx, score in zip(indices, topk_scores):
                 new_test_data_id_list.append([idx, *test_data_id_seq])
                 new_test_score_list.append(score)
 
@@ -106,7 +117,10 @@ def gen_data(
     # use sleep to load one by one.
     sleep(cfg.sleep_time * rank)
     interface = init_lvlm(cfg, device=process_device)
-    interface.tokenizer.padding_side = 'right'
+    if cfg.scorer == 'infoscore':
+        interface.tokenizer.padding_side = 'right'
+    elif cfg.scorer == 'cider':
+        interface.tokenizer.padding_side = 'left'
 
     final_res = {}
     sub_res_basename = (
@@ -164,7 +178,7 @@ def main(cfg: DictConfig):
 
     save_file_name = (
         f'{cfg.task.task_name}-{cfg.dataset.name}-'
-        f'{cfg.lvlm.name}-{cfg.sampler.sampler_name}-construct_order:{cfg.construct_order}'
+        f'{cfg.lvlm.name}-{cfg.sampler.sampler_name}-scorer:{cfg.scorer}-construct_order:{cfg.construct_order}-'
         f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
         f'candidate_num:{cfg.sampler.candidate_num}-sample_num:{cfg.sample_num}.json'
     )

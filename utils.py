@@ -2,10 +2,6 @@ from typing import Dict, List, Optional, Union
 
 import more_itertools
 import torch
-from PIL import Image
-from pycocoevalcap.cider.cider import Cider
-from pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
-from pycocotools.coco import COCO
 
 from src.load_ds_utils import load_coco_ds, load_vqav2_ds
 from src.lvlm_interface import FlamingoInterface, IDEFICSInterface

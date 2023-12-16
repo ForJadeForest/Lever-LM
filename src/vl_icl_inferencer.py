@@ -99,30 +99,30 @@ class VLICLInferecer:
 
         for data in tqdm(dataloader, ncols=100):
             # 5-1. Inference with local model
-            with self.interface.autocast_context:
-                data = {k: v.to(self.interface.device) for k, v in data.items()}
-                prompt_len = int(data['attention_mask'].shape[1])
-                outputs = self.interface.model.generate(
-                    **data,
-                    eos_token_id=self.interface.tokenizer.eos_token_id,
-                    pad_token_id=self.interface.tokenizer.pad_token_id,
-                    **self.generation_kwargs,
-                )
-                outputs = outputs.tolist()
-                complete_output = self.interface.tokenizer.batch_decode(
-                    outputs[:], skip_special_tokens=False
-                )
-                output_without_sp_token = self.interface.tokenizer.batch_decode(
-                    outputs[:], skip_special_tokens=True
-                )
-                generated = self.interface.tokenizer.batch_decode(
-                    [output[prompt_len:] for output in outputs],
-                    skip_special_tokens=True,
-                )
-                origin_prompt = self.interface.tokenizer.batch_decode(
-                    [output[:prompt_len] for output in outputs],
-                    skip_special_tokens=True,
-                )
+
+            data = {k: v.to(self.interface.device) for k, v in data.items()}
+            prompt_len = int(data['attention_mask'].shape[1])
+            outputs = self.interface.generate(
+                **data,
+                eos_token_id=self.interface.tokenizer.eos_token_id,
+                pad_token_id=self.interface.tokenizer.pad_token_id,
+                **self.generation_kwargs,
+            )
+            outputs = outputs.tolist()
+            complete_output = self.interface.tokenizer.batch_decode(
+                outputs[:], skip_special_tokens=False
+            )
+            output_without_sp_token = self.interface.tokenizer.batch_decode(
+                outputs[:], skip_special_tokens=True
+            )
+            generated = self.interface.tokenizer.batch_decode(
+                [output[prompt_len:] for output in outputs],
+                skip_special_tokens=True,
+            )
+            origin_prompt = self.interface.tokenizer.batch_decode(
+                [output[:prompt_len] for output in outputs],
+                skip_special_tokens=True,
+            )
 
             # 5-3. Save current output
             for prediction, output, pure_output in zip(
