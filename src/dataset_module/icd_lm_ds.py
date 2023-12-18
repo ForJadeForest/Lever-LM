@@ -15,6 +15,8 @@ class ICDLMDataset(BaseICDLMDataset):
         query_text_field: str,
         icd_image_field: str = None,
         icd_text_field: str = None,
+        threshold: float = 0.0,
+        reverse_seq: bool = False,
     ):
         eos_token_id = index_set_length
         bos_token_id = index_set_length + 1
@@ -27,6 +29,8 @@ class ICDLMDataset(BaseICDLMDataset):
             query_token_id,
             query_image_field,
             query_text_field,
+            threshold=threshold,
+            reverse_seq=reverse_seq,
         )
         self.icd_text_field = icd_text_field
         self.icd_image_field = icd_image_field

@@ -126,17 +126,31 @@ def data_split(generated_data, train_ratio):
 
     train_data_list = list()
     val_data_list = list()
+    train_data_score = list()
+    val_data_score = list()
     for d in generated_data:
-        for i in generated_data[d]['id_list']:
-            if int(i[-1]) in train_idx_set:
-                train_data_list.append(i)
-            elif int(i[-1]) in val_idx_set:
-                val_data_list.append(i)
+        for i in range(len(generated_data[d]['id_list'])):
+            query_idx = generated_data[d]['id_list'][i][-1]
+            if int(query_idx) in train_idx_set:
+                train_data_list.append(generated_data[d]['id_list'][i])
+                train_data_score.append(generated_data[d]['score_list'][i])
+            elif int(query_idx) in val_idx_set:
+                val_data_list.append(generated_data[d]['id_list'][i])
+                val_data_score.append(generated_data[d]['score_list'][i])
             else:
                 raise ValueError()
 
     print(f'the train size {len(train_data_list)}, the test size {len(val_data_list)}')
-    return train_data_list, val_data_list
+
+    train_data = {
+        'icd_seq': train_data_list,
+        'icd_score': train_data_score,
+    }
+    val_data = {
+        'icd_seq': val_data_list,
+        'icd_score': val_data_score,
+    }
+    return train_data, val_data
 
 
 def collate_fn(batch, processor: CLIPProcessor):

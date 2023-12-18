@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List
 
 import datasets
 import torch
@@ -8,15 +8,21 @@ from torch.utils.data import Dataset
 class BaseICDLMDataset(Dataset):
     def __init__(
         self,
-        data_list: List,
+        data: Dict,
         index_ds: datasets.Dataset,
         eos_token_id: int,
         bos_token_id: int,
         query_token_id: int,
         query_image_field: str = None,
         query_text_field: str = None,
+        threshold: float = 0.0,
+        reverse_seq: bool = False,
     ):
         super().__init__()
+
+        self.threshold = threshold
+        self.reverse_seq = reverse_seq
+
         self.icd_idx_seq_list = []
         self.x_id_list = []
 
@@ -27,11 +33,18 @@ class BaseICDLMDataset(Dataset):
         self.query_image_field = query_image_field
         self.query_text_field = query_text_field
 
+        icd_seq_list = data['icd_seq']
+        icd_score_list = data['icd_score']
+
         self.index_ds = index_ds
-        for idx_seq in data_list:
-            idx_list = idx_seq[:-1]
+        for icd_seq, icd_score in zip(icd_seq_list, icd_score_list):
+            if icd_score < self.threshold:
+                continue
+            idx_list = icd_seq[:-1]
+            if self.reverse_seq:
+                idx_list = reversed(idx_list)
             self.icd_idx_seq_list.append(list(idx_list))
-            self.x_id_list.append(idx_seq[-1])
+            self.x_id_list.append(icd_seq[-1])
 
     def __getitem__(self, index):
         icd_seq_idx = self.icd_idx_seq_list[index]
