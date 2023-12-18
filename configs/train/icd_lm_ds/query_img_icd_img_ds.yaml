@@ -7,3 +7,6 @@ query_image_field: ${task.image_field}
 query_text_field: null
 icd_image_field: ${task.image_field}
 icd_text_field: null
+
+threshold: 0.0
+reverse_seq: false
