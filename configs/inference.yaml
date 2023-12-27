@@ -32,6 +32,8 @@ default_cpk_key: "last"
 random_order_icd_lm: false
 icd_lm_bs: 20
 icd_lm_num_workers: 4
+reverse_seq: false
+
 
 eos_token_id: ${dataset.train_ds_len}
 

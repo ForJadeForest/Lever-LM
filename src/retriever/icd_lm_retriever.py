@@ -124,7 +124,7 @@ class ICDLMRetriever(BaseRetriever):
             )
             res = [r[2 : 2 + ice_num] for r in res]
             if self.reverse_seq:
-                res = reversed(res)
+                res = [reversed(r) for r in res]
             icd_idx_list.extend(res)
 
         return icd_idx_list
