@@ -164,6 +164,7 @@ def init_retriever(retriever_name, ds, cfg):
             device=cfg.device,
             infer_batch_size=cfg.icd_lm_bs,
             infer_num_workers=cfg.icd_lm_num_workers,
+            reverse_seq=cfg.reverse_seq,
         )
 
     return None

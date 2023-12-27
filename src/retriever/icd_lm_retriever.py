@@ -25,6 +25,7 @@ class ICDLMRetriever(BaseRetriever):
         device: str = 'cpu',
         infer_batch_size: int = 1,
         infer_num_workers: int = 0,
+        reverse_seq: bool = False
     ):
         """Initialize the ICDLMRetriever.
 
@@ -51,6 +52,7 @@ class ICDLMRetriever(BaseRetriever):
         self.infer_num_workers = infer_num_workers
         self.icd_text_field = icd_text_field
         self.icd_image_field = icd_image_field
+        self.reverse_seq = reverse_seq
 
     def retrieve(self, ice_num) -> List[List[int]]:
         """Retrieve indices from the index dataset using the ICDLM model.
@@ -121,6 +123,8 @@ class ICDLMRetriever(BaseRetriever):
                 device=self.device,
             )
             res = [r[2 : 2 + ice_num] for r in res]
+            if self.reverse_seq:
+                res = reversed(res)
             icd_idx_list.extend(res)
 
         return icd_idx_list
