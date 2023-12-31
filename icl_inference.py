@@ -238,7 +238,8 @@ def main(cfg: DictConfig):
     logger.info(f'{cfg=}')
     result_dir = os.path.join(
         cfg.result_dir,
-        'flamingo_inference',
+        'icl_inference',
+        cfg.lvlm.name,
         cfg.task.task_name,
         cfg.ex_name,
     )
