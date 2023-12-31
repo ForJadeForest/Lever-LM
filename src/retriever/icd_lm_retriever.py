@@ -25,7 +25,7 @@ class ICDLMRetriever(BaseRetriever):
         device: str = 'cpu',
         infer_batch_size: int = 1,
         infer_num_workers: int = 0,
-        reverse_seq: bool = False
+        reverse_seq: bool = False,
     ):
         """Initialize the ICDLMRetriever.
 
@@ -123,8 +123,8 @@ class ICDLMRetriever(BaseRetriever):
                 device=self.device,
             )
             res = [r[2 : 2 + ice_num] for r in res]
-            if self.reverse_seq:
-                res = [reversed(r) for r in res]
             icd_idx_list.extend(res)
+        if self.reverse_seq:
+            icd_idx_list = [list(reversed(s)) for s in icd_idx_list]
 
         return icd_idx_list
