@@ -18,6 +18,8 @@ class MixSimSampler(BaseSampler):
         candidate_num,
         dataset_name,
         sampler_name,
+        anchor_sample_num,
+        index_ds_len,
         cache_dir,
         overwrite,
         clip_model_name,
@@ -46,6 +48,8 @@ class MixSimSampler(BaseSampler):
             candidate_num=candidate_num,
             dataset_name=dataset_name,
             sampler_name=sampler_name,
+            anchor_sample_num=anchor_sample_num,
+            index_ds_len=index_ds_len,
             cache_dir=cache_dir,
             overwrite=overwrite,
             other_info=other_info,
@@ -54,12 +58,17 @@ class MixSimSampler(BaseSampler):
             candidate_num=self.sampler_candidate_num['RandSampler'],
             sampler_name=sampler_name,
             dataset_name=dataset_name,
+            anchor_sample_num=anchor_sample_num,
+            index_ds_len=index_ds_len,
             cache_dir=cache_dir,
             overwrite=overwrite,
+            anchor_idx_list=self.anchor_idx_list,
         )
         self.text_sim_sampler = TextSimSampler(
             candidate_num=self.sampler_candidate_num['TextSimSampler'],
             sampler_name=None,
+            anchor_sample_num=anchor_sample_num,
+            index_ds_len=index_ds_len,
             cache_dir=cache_dir,
             dataset_name=dataset_name,
             overwrite=overwrite,
@@ -68,10 +77,13 @@ class MixSimSampler(BaseSampler):
             text_field_name=text_field_name,
             device=device,
             candidate_set_encode_bs=candidate_set_encode_bs,
+            anchor_idx_list=self.anchor_idx_list,
         )
         self.img_sim_sampler = ImgSimSampler(
             candidate_num=self.sampler_candidate_num['ImgSimSampler'],
             sampler_name=None,
+            anchor_sample_num=anchor_sample_num,
+            index_ds_len=index_ds_len,
             cache_dir=cache_dir,
             overwrite=overwrite,
             dataset_name=dataset_name,
@@ -80,15 +92,16 @@ class MixSimSampler(BaseSampler):
             img_field_name=img_field_name,
             device=device,
             candidate_set_encode_bs=candidate_set_encode_bs,
+            anchor_idx_list=self.anchor_idx_list,
         )
 
     @torch.inference_mode()
-    def sample(self, anchor_set, train_ds):
-        final_res = {k: [] for k in anchor_set}
-        rand_res = self.rand_sampler.sample(anchor_set, train_ds)
-        img_sim_res = self.img_sim_sampler.sample(anchor_set, train_ds)
-        text_sim_res = self.text_sim_sampler.sample(anchor_set, train_ds)
-        for k in anchor_set:
+    def sample(self, train_ds):
+        final_res = {k: [] for k in self.anchor_idx_list}
+        rand_res = self.rand_sampler.sample(train_ds)
+        img_sim_res = self.img_sim_sampler.sample(train_ds)
+        text_sim_res = self.text_sim_sampler.sample(train_ds)
+        for k in self.anchor_idx_list:
             final_res[k].extend(rand_res[k])
             final_res[k].extend(img_sim_res[k])
             final_res[k].extend(text_sim_res[k])

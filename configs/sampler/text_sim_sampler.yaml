@@ -1,7 +1,7 @@
 _target_: src.candidate_sampler.text_sim_sampler.TextSimSampler
 
 sampler_name: TextSimSampler
-candidate_num: 64
+candidate_num: ${cand_num}
 cache_dir: "${result_dir}/cache"
 overwrite: false
 dataset_name: ${dataset.name}
@@ -11,3 +11,6 @@ feature_cache_filename: "${task.task_name}-${dataset.name}-${sampler.clip_model_
 text_field_name: "${task.sim_text_field}"
 device: ${device}
 candidate_set_encode_bs: 128
+
+anchor_sample_num: ${sample_num}
+index_ds_len: ${dataset.train_ds_len}

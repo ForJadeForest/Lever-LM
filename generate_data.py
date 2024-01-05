@@ -190,23 +190,11 @@ def main(cfg: DictConfig):
     train_ds = load_ds(cfg, 'train')
 
     # sample from train idx
-    anchor_set_cache_filename = os.path.join(
-        cache_dir, f'{cfg.dataset.name}-anchor_sample_num:{cfg.sample_num}.json'
-    )
-    if os.path.exists(anchor_set_cache_filename):
-        logger.info('the anchor_set_cache_filename exists, loding...')
-        anchor_idx_list = json.load(open(anchor_set_cache_filename, 'r'))
-    else:
-        anchor_idx_list = random.sample(range(0, len(train_ds)), cfg.sample_num)
-        with open(anchor_set_cache_filename, 'w') as f:
-            logger.info(f'save {anchor_set_cache_filename}...')
-            json.dump(anchor_idx_list, f)
-    anchor_data = train_ds.select(anchor_idx_list)
-
-    candidate_sampler = hydra.utils.instantiate(cfg.sampler)
-    candidate_set_idx = candidate_sampler(anchor_idx_list, train_ds)
-
-    candidate_set_idx = [candidate_set_idx[k] for k in anchor_idx_list]
+    sampler = hydra.utils.instantiate(cfg.sampler)
+    sampler_result = sampler(train_ds)
+    
+    anchor_data = train_ds.select(sampler_result['anchor_set'])
+    candidate_set_idx = [sampler_result['candidate_set'][k] for k in sampler_result['anchor_set']]
     spawn(
         gen_data,
         args=(

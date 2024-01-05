@@ -14,6 +14,8 @@ class ImgSimSampler(BaseSampler):
         self,
         candidate_num,
         sampler_name,
+        anchor_sample_num,
+        index_ds_len,
         cache_dir,
         dataset_name,
         overwrite,
@@ -22,14 +24,18 @@ class ImgSimSampler(BaseSampler):
         img_field_name,
         device,
         candidate_set_encode_bs,
+        anchor_idx_list=None,
     ):
         super().__init__(
             candidate_num=candidate_num,
             sampler_name=sampler_name,
             dataset_name=dataset_name,
+            anchor_sample_num=anchor_sample_num,
+            index_ds_len=index_ds_len,
             cache_dir=cache_dir,
             overwrite=overwrite,
             other_info=feature_cache_filename.replace('openai/', ''),
+            anchor_idx_list=anchor_idx_list,
         )
         self.clip_model_name = clip_model_name
         self.feature_cache_filename = feature_cache_filename.replace('openai/', '')

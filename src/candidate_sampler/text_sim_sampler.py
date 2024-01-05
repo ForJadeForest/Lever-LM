@@ -14,6 +14,8 @@ class TextSimSampler(BaseSampler):
         self,
         candidate_num,
         sampler_name,
+        anchor_sample_num,
+        index_ds_len,
         cache_dir,
         dataset_name,
         overwrite,
@@ -22,6 +24,7 @@ class TextSimSampler(BaseSampler):
         text_field_name,
         device,
         candidate_set_encode_bs,
+        anchor_idx_list=None,
     ):
         super().__init__(
             candidate_num=candidate_num,
@@ -29,7 +32,10 @@ class TextSimSampler(BaseSampler):
             dataset_name=dataset_name,
             cache_dir=cache_dir,
             overwrite=overwrite,
-            other_info=feature_cache_filename.replace('openai/', '')
+            anchor_sample_num=anchor_sample_num,
+            index_ds_len=index_ds_len,
+            other_info=feature_cache_filename.replace('openai/', ''),
+            anchor_idx_list=anchor_idx_list,
         )
         self.clip_model_name = clip_model_name
         self.feature_cache_filename = feature_cache_filename.replace('openai/', '')
@@ -41,9 +47,7 @@ class TextSimSampler(BaseSampler):
     @torch.inference_mode()
     def sample(self, anchor_set, train_ds):
         if os.path.exists(self.feature_cache):
-            logger.info(
-                f'feature cache {self.feature_cache} exists, loding...'
-            )
+            logger.info(f'feature cache {self.feature_cache} exists, loding...')
             features = torch.load(self.feature_cache)
         else:
             features = encode_text(
@@ -53,9 +57,7 @@ class TextSimSampler(BaseSampler):
                 self.clip_model_name,
                 self.bs,
             )
-            logger.info(
-                f'saving the features cache in {self.feature_cache} ...'
-            )
+            logger.info(f'saving the features cache in {self.feature_cache} ...')
             torch.save(features, self.feature_cache)
         test_feature = features[anchor_set]
         _, sim_sample_idx = recall_sim_feature(
