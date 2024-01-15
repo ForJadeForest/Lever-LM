@@ -12,27 +12,27 @@ run_train() {
     if [ "${task}" == "vqa" ]; then
         echo "==========Begin: ${ex_name_prefix}-ICDLM: ${icd_lm}==========" 
         python train.py train="${icd_lm}" \
-            data_files="${data_file}" \
-            epochs=20 \
-            val_step=80 \
-            ex_name="${ex_name_prefix}_${icd_lm}" \
-            device_num=${device_num} \
-            dataset=${dataset} \
-            task=${task}
+                        data_files="${data_file}" \
+                        epochs=20 \
+                        val_step=80 \
+                        ex_name="${ex_name_prefix}_${icd_lm}" \
+                        trainer_args.devices=${device_num} \
+                        dataset=${dataset} \
+                        task=${task}
 
     elif [ "${task}" == "caption" ]; then
         echo "==========Begin: ${ex_name_prefix}-ICDLM: ${icd_lm}==========" 
         python train.py train="${icd_lm}" \
-            data_files="${data_file}" \
-            epochs=20 \
-            val_step=80 \
-            ex_name="${ex_name_prefix}_freeze_adapter_non_norm_${icd_lm}" \
-            device_num=${device_num} \
-            dataset=${dataset} \
-            task=${task} \
-            train.icd_lm.norm=false \
-            train.icd_lm.freeze_prefix_list="[img_model,sen_model]" \
-            train.icd_lm.adpter=true
+                        data_files="${data_file}" \
+                        epochs=20 \
+                        val_step=80 \
+                        ex_name="${ex_name_prefix}_freeze_adapter_non_norm_${icd_lm}" \
+                        trainer_args.devices==${device_num} \
+                        dataset=${dataset} \
+                        task=${task} \
+                        train.icd_lm.norm=false \
+                        train.icd_lm.freeze_prefix_list="[img_model,sen_model]" \
+                        train.icd_lm.adpter=true
     fi
 }
 

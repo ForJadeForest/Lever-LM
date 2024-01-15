@@ -4,7 +4,7 @@ gpu_ids=${3:-"[0]"}
 
 
 python generate_data.py beam_size=5 \
-                        sampler.candidate_num=64 \
+                        cand_num=64 \
                         sample_num=5000 \
                         gpu_ids="${gpu_ids}" \
                         task=${task} \
