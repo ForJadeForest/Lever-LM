@@ -4,13 +4,13 @@
 # order of defaults determines the order in which configs override each other
 defaults:
   - _self_
-  - train: query_img_icd_text
+  - train: query_img_icd_img_text
   - dataset: coco2017
   - task: caption
 
 
 # data args
-data_files: ???
+data_files: "caption-coco2017-flamingo_9B-RandSampler-scorer:cider-construct_order:left-beam_size:5-few_shot:2-candidate_num:64-sample_num:5000.json"
 train_ratio: 0.9
 batch_size: 64
 num_workers: 16
@@ -18,7 +18,7 @@ num_workers: 16
 
 # Trainer
 trainer_args:
-  devices: 2
+  devices: 1
   strategy: ddp
   accelerator: gpu
   precision: "16-mixed"
