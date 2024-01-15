@@ -10,7 +10,7 @@ defaults:
 
 
 # data args
-data_files: "caption-coco2017-flamingo_9B-RandSampler-scorer:cider-construct_order:left-beam_size:5-few_shot:2-candidate_num:64-sample_num:5000.json"
+data_files: ???
 train_ratio: 0.9
 batch_size: 64
 num_workers: 16
@@ -18,7 +18,7 @@ num_workers: 16
 
 # Trainer
 trainer_args:
-  devices: 1
+  devices: 2
   strategy: ddp
   accelerator: gpu
   precision: "16-mixed"
