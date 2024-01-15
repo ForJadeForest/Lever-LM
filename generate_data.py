@@ -13,14 +13,14 @@ from omegaconf import DictConfig
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from open_mmicl.lvlm_interface import FlamingoInterface
 from icd_lm.utils import beam_filter, init_lvlm
+from open_mmicl.lvlm_interface import BaseInterface
 from utils import get_cider_score, get_info_score, load_ds
 
 
 @torch.inference_mode()
 def generate_single_sample_icd(
-    interface: FlamingoInterface,
+    interface: BaseInterface,
     test_data: Dict,
     cfg: DictConfig,
     candidate_set: Dataset,
@@ -191,9 +191,11 @@ def main(cfg: DictConfig):
     # sample from train idx
     sampler = hydra.utils.instantiate(cfg.sampler)
     sampler_result = sampler(train_ds)
-    
+
     anchor_data = train_ds.select(sampler_result['anchor_set'])
-    candidate_set_idx = [sampler_result['candidate_set'][k] for k in sampler_result['anchor_set']]
+    candidate_set_idx = [
+        sampler_result['candidate_set'][k] for k in sampler_result['anchor_set']
+    ]
     spawn(
         gen_data,
         args=(
