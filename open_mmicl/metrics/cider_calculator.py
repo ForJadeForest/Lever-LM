@@ -1,8 +1,3 @@
-from typing import Dict, List
-
-import more_itertools
-import torch
-from PIL import Image
 from pycocoevalcap.cider.cider import Cider
 from pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
 from pycocotools.coco import COCO

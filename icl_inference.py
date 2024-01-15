@@ -12,11 +12,11 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 from transformers import AutoProcessor
 
-from src.metrics.cider_calculator import compute_cider
-from src.metrics.vqa_metrics import compute_vqa_accuracy, postprocess_vqa_generation
-from src.retriever import *
-from src.utils import init_lvlm
-from src.vl_icl_inferencer import VLICLInferecer
+from open_mmicl.metrics.cider_calculator import compute_cider
+from open_mmicl.metrics.vqa_metrics import compute_vqa_accuracy
+from open_mmicl.retriever import *
+from icd_lm.utils import init_lvlm
+from open_mmicl.vl_icl_inferencer import VLICLInferecer
 from utils import caption_postprocess, load_ds, vqa_postprocess
 
 

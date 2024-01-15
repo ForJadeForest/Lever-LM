@@ -1,18 +1,9 @@
 import os
-from collections import Counter
 
 import datasets
 from datasets import DatasetDict, load_dataset
 
-from src.dataset_module import CocoDataset
-
-
-def get_caption_prompt(single_caption=None) -> str:
-    return f"<image>Output:{single_caption if single_caption is not None else ''}{'<|endofchunk|>' if single_caption is not None else ''}"
-
-
-def get_vqa_prompt(question, answer=None) -> str:
-    return f"<image>Question:{question} Short answer:{answer if answer is not None else ''}{'<|endofchunk|>' if answer is not None else ''}"
+from icd_lm.dataset_module import CocoDataset
 
 
 def load_coco_ds(

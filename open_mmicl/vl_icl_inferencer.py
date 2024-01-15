@@ -1,15 +1,13 @@
-from functools import partial
 from typing import Optional
 
-import datasets
 import torch
 from datasets import Dataset
 from loguru import logger
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.lvlm_interface.base_interface import BaseInterface
-from src.utils import VLGenInferencerOutputHandler
+from open_mmicl.lvlm_interface.base_interface import BaseInterface
+from icd_lm.utils import VLGenInferencerOutputHandler
 
 
 class VLICLInferecer:

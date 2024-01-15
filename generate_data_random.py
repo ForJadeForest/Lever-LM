@@ -15,8 +15,8 @@ from omegaconf import DictConfig
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from src.lvlm_interface import FlamingoInterface
-from src.utils import init_lvlm
+from open_mmicl.lvlm_interface import FlamingoInterface
+from icd_lm.utils import init_lvlm
 from utils import load_ds
 
 

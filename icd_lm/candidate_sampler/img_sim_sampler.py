@@ -1,15 +1,14 @@
 import os
-import random
 
 import torch
 from loguru import logger
 
-from src.utils import encode_text, recall_sim_feature
+from icd_lm.utils import encode_image, recall_sim_feature
 
 from .base_sampler import BaseSampler
 
 
-class TextSimSampler(BaseSampler):
+class ImgSimSampler(BaseSampler):
     def __init__(
         self,
         candidate_num,
@@ -21,7 +20,7 @@ class TextSimSampler(BaseSampler):
         overwrite,
         clip_model_name,
         feature_cache_filename,
-        text_field_name,
+        img_field_name,
         device,
         candidate_set_encode_bs,
         anchor_idx_list=None,
@@ -30,29 +29,28 @@ class TextSimSampler(BaseSampler):
             candidate_num=candidate_num,
             sampler_name=sampler_name,
             dataset_name=dataset_name,
-            cache_dir=cache_dir,
-            overwrite=overwrite,
             anchor_sample_num=anchor_sample_num,
             index_ds_len=index_ds_len,
+            cache_dir=cache_dir,
+            overwrite=overwrite,
             other_info=feature_cache_filename.replace('openai/', ''),
             anchor_idx_list=anchor_idx_list,
         )
         self.clip_model_name = clip_model_name
         self.feature_cache_filename = feature_cache_filename.replace('openai/', '')
         self.feature_cache = os.path.join(self.cache_dir, self.feature_cache_filename)
-        self.text_field_name = text_field_name
+        self.img_field_name = img_field_name
         self.device = device
         self.bs = candidate_set_encode_bs
 
-    @torch.inference_mode()
     def sample(self, anchor_set, train_ds):
         if os.path.exists(self.feature_cache):
             logger.info(f'feature cache {self.feature_cache} exists, loding...')
             features = torch.load(self.feature_cache)
         else:
-            features = encode_text(
+            features = encode_image(
                 train_ds,
-                self.text_field_name,
+                self.img_field_name,
                 self.device,
                 self.clip_model_name,
                 self.bs,

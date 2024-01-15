@@ -1,9 +1,8 @@
 import json
 import os
-import random
 import sys
 from time import sleep
-from typing import Dict, List
+from typing import Dict
 
 import hydra
 import torch
@@ -14,8 +13,8 @@ from omegaconf import DictConfig
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from src.lvlm_interface import FlamingoInterface
-from src.utils import beam_filter, init_lvlm
+from open_mmicl.lvlm_interface import FlamingoInterface
+from icd_lm.utils import beam_filter, init_lvlm
 from utils import get_cider_score, get_info_score, load_ds
 
 

@@ -16,10 +16,10 @@ from transformers import (
     CLIPVisionModelWithProjection,
 )
 
-from src.lvlm_interface import FlamingoInterface, IDEFICSInterface
+from open_mmicl.lvlm_interface import FlamingoInterface, IDEFICSInterface
 
 
-def init_lvlm(cfg, **kwargs) -> FlamingoInterface:
+def init_lvlm(cfg, **kwargs):
     if 'flamingo' in cfg.lvlm.name:
         return FlamingoInterface(
             lang_encoder_path=cfg.lvlm.lang_encoder_path,

@@ -1,4 +1,4 @@
-_target_: src.models.gpt2_icd_lm.GPT2ICDLM
+_target_: icd_lm.models.gpt2_icd_lm.GPT2ICDLM
 
 lm_config: 
   n_embd: 512

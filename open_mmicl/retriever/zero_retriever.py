@@ -1,11 +1,8 @@
 from typing import List
 
 import datasets
-import numpy as np
-from loguru import logger
-from tqdm import trange
 
-from src.retriever.base_retriever import BaseRetriever
+from open_mmicl.retriever.base_retriever import BaseRetriever
 
 
 class ZeroRetriever(BaseRetriever):

@@ -65,7 +65,7 @@ unzip v2_Questions_Val_mscoco.zip
 
 
 # for preprepare the dataset.
-python src/dataset_module/preprocess/vqav2_hf.py --root_path /path/to/vqav2/
+python open_mmicl/dataset_module/preprocess/vqav2_hf.py --root_path /path/to/vqav2/
 ```
 下载完之后，在`.env`中设置`VQAV2_PATH`环境变量。
 

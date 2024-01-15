@@ -1,10 +1,4 @@
-import os
-import random
-
 import torch
-from loguru import logger
-
-from src.utils import encode_text, recall_sim_feature
 
 from .base_sampler import BaseSampler
 from .img_sim_sampler import ImgSimSampler

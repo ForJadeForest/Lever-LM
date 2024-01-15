@@ -17,7 +17,7 @@ from transformers import (
     CLIPVisionModelWithProjection,
 )
 
-from src.retriever.base_retriever import BaseRetriever
+from open_mmicl.retriever.base_retriever import BaseRetriever
 
 
 class MMTopkRetriever(BaseRetriever):

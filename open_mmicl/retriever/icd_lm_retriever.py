@@ -1,14 +1,12 @@
 from typing import List, Optional
 
 import datasets
-import numpy as np
 import torch
-from loguru import logger
 from torch.utils.data import DataLoader
-from tqdm import tqdm, trange
+from tqdm import tqdm
 from transformers import ProcessorMixin
 
-from src.retriever.base_retriever import BaseRetriever
+from open_mmicl.retriever.base_retriever import BaseRetriever
 
 
 class ICDLMRetriever(BaseRetriever):

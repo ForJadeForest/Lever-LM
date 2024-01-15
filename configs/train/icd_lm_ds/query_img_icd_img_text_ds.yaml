@@ -1,4 +1,4 @@
-_target_: src.dataset_module.icd_lm_ds.ICDLMDataset
+_target_: icd_lm.dataset_module.icd_lm_ds.ICDLMDataset
 
 
 index_set_length: ${dataset.train_ds_len}

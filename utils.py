@@ -3,10 +3,10 @@ from typing import Dict, List, Optional, Union
 import more_itertools
 import torch
 
-from src.load_ds_utils import load_coco_ds, load_vqav2_ds
-from src.lvlm_interface import FlamingoInterface, IDEFICSInterface
-from src.metrics.cider_calculator import compute_cider
-from src.metrics.vqa_metrics import postprocess_vqa_generation
+from icd_lm.load_ds_utils import load_coco_ds, load_vqav2_ds
+from open_mmicl.lvlm_interface import FlamingoInterface, IDEFICSInterface
+from open_mmicl.metrics.cider_calculator import compute_cider
+from open_mmicl.metrics.vqa_metrics import postprocess_vqa_generation
 
 
 def load_ds(cfg, split=None):
