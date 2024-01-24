@@ -1,0 +1,67 @@
+# @package _global_
+
+# specify here default configuration
+# order of defaults determines the order in which configs override each other
+defaults:
+  - _self_
+  - train: query_img_icd_img_text
+  - dataset: coco2017
+  - task: caption
+  - lvlm: flamingo_3B
+
+
+# data args
+
+test_size: 0.1
+batch_size: 1
+num_workers: 16
+anchor_num: 5000
+
+
+# Trainer
+trainer_args:
+  devices: 1
+  # strategy: ddp
+  accelerator: gpu
+  precision: "16-mixed"
+  log_every_n_steps: 10
+  # val_check_interval:
+  max_epochs: 5
+  fast_dev_run: false
+  num_sanity_val_steps: 0
+
+
+
+# train args:
+
+lr: 5e-5
+weight_decay: 1e-2
+warm_steps: 0.05
+
+
+
+# Others
+ex_name: "debug"
+result_dir: "${oc.env:RESULT_DIR}"
+seed: 42
+dirpath: "${oc.env:RESULT_DIR}/model_cpk/${task.task_name}/${ex_name}"
+
+precision: 'fp32'
+
+
+
+# wandb_args
+wandb_args:
+  save_dir: "${oc.env:RESULT_DIR}/wandb_logs"
+  name: "${ex_name}"
+  project: "ICL-Adapter"
+  log_model: false
+
+  
+
+hydra:
+  run:
+    dir: ${result_dir}/hydra_output/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${result_dir}/hydra_output/${hydra.job.name}/${ex_name}/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.override_dirname}

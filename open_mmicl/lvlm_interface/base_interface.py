@@ -10,7 +10,7 @@ from PIL import Image
 from .utils import cast_type, get_autocast, is_url
 
 
-class BaseInterface:
+class BaseInterface(torch.nn.Module):
     def __init__(
         self,
         precision,
@@ -23,6 +23,7 @@ class BaseInterface:
         label_field,
         image_field,
     ) -> None:
+        super().__init__()
         self.data_type = cast_type(precision)
         self.autocast_context = get_autocast(precision)
         self.device = device

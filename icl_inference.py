@@ -10,12 +10,12 @@ from dotenv import load_dotenv
 from loguru import logger
 from omegaconf import DictConfig
 from tqdm import tqdm
-from transformers import AutoProcessor
+from transformers import AutoProcessor, LogitsProcessor, LogitsProcessorList
 
+from icd_lm.utils import init_lvlm
 from open_mmicl.metrics.cider_calculator import compute_cider
 from open_mmicl.metrics.vqa_metrics import compute_vqa_accuracy
 from open_mmicl.retriever import *
-from icd_lm.utils import init_lvlm
 from open_mmicl.vl_icl_inferencer import VLICLInferecer
 from utils import caption_postprocess, load_ds, vqa_postprocess
 
@@ -258,12 +258,44 @@ def main(cfg: DictConfig):
         ds['validation'] = ds['validation'].select(range(test_data_num))
 
     interface = init_lvlm(cfg, device=cfg.device)
+    cpk = torch.load('/home/pyz/code/ICD-LM/icl_adapter_result/model_cpk/caption/icl_lora/min_vl-epoch=1-train_loss=-0.00000-val_loss=0.00000.ckpt')
+    from peft import LoraConfig, TaskType, get_peft_model
+    peft_config = LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1, target_modules=['Wqkv'])
+    interface.model.lang_encoder = get_peft_model(interface.model.lang_encoder, peft_config)
+    interface.model.lang_encoder.print_trainable_parameters()
+    state_dict = {k.replace('interface.model.', ''): v for k, v in cpk['state_dict'].items()}
+    interface.model.load_state_dict(state_dict)
+    interface.model.eval()
+    for p in interface.model.parameters():
+        p.requires_grad = False
+    interface.model = interface.model.to('cuda', torch.bfloat16)
+    gen_args = dict(cfg.task.gen_args)
+    # if cfg.test_icl_adapter:
+    #     from torch import nn
+    #     class ICLADapterLogitsProcessor(LogitsProcessor):
+    #         def __init__(self) -> None:
+    #             super().__init__()
+    #             self.adapter = nn.Sequential(
+    #                 nn.Linear(50280, 128),
+    #                 nn.LeakyReLU(),
+    #                 nn.Linear(128, 50280)
+    #             )
+    #             d = torch.load('icl_adapter_result/model_cpk/caption/res_structrue_hard_loss_remain_loss_relu/last.ckpt')
+    #             state_dict = {k.replace('adapter.', ''): v for k, v in d['state_dict'].items()}
+    #             self.adapter.load_state_dict(state_dict)
+    #             self.adapter = self.adapter.to('cuda')
+    #         def __call__(self, input_ids, scores):
+    #            return self.adapter(scores) + scores
+                
+            
+        
+    #     gen_args['logits_processor'] = LogitsProcessorList([ICLADapterLogitsProcessor()])
 
     inferencer = VLICLInferecer(
         interface=interface,
         train_ds=ds['train'],
         test_ds=ds['validation'],
-        generation_kwargs=cfg.task.gen_args,
+        generation_kwargs=gen_args,
         other_save_field=cfg.task.other_save_field,
         num_workers=cfg.num_workers,
         num_proc=cfg.num_proc,
