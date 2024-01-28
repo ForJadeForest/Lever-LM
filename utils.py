@@ -17,6 +17,7 @@ def load_ds(cfg, split=None):
             train_coco_annotation_file=cfg.dataset.train_coco_annotation_file,
             val_coco_dataset_root=cfg.dataset.val_coco_dataset_root,
             val_coco_annotation_file=cfg.dataset.val_coco_annotation_file,
+            karpathy_path=cfg.dataset.karpathy_path if hasattr(cfg.dataset, 'karpathy_path') else None,
             split=split,
         )
     elif cfg.task.task_name == 'vqa':

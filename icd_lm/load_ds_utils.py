@@ -12,12 +12,13 @@ def load_coco_ds(
     train_coco_annotation_file,
     val_coco_dataset_root,
     val_coco_annotation_file,
+    karpathy_path=None,
     split=None,
 ):
     if name == 'coco_karpathy_split':
-        # TODO: 完善load batch的方法
-        # ds = load_karpathy_split(cfg, split)
-        raise ValueError("Now not supporting karpathy_split")
+        ds = load_karpathy_split(
+            karpathy_path, train_coco_dataset_root, val_coco_dataset_root, split
+        )
     else:
         if split is None:
             train_ds = CocoDataset(
@@ -111,8 +112,10 @@ def load_vqav2_ds(
     return ds
 
 
-def load_karpathy_split(cfg, split=None):
-    ds = load_dataset(cfg.dataset.karpathy_path, split=split)
+def load_karpathy_split(
+    karpathy_path, train_coco_dataset_root, val_coco_dataset_root, split=None
+):
+    ds = load_dataset(karpathy_path, split=split)
     if split is None:
         ds.pop('validation', None)
         ds.pop('restval', None)
@@ -123,16 +126,17 @@ def load_karpathy_split(cfg, split=None):
 
     ds = ds.rename_columns({'sentences': 'captions', 'cocoid': 'image_id'})
 
-    def transform(example, idx):
-        example['single_caption'] = [e[0] for e in example['captions']]
-        if 'train' in example['filepath']:
-            coco_dir = cfg.dataset.train_coco_dataset_root
-        elif 'val' in example['filepath']:
-            coco_dir = cfg.dataset.val_coco_dataset_root
+    def transform(examples, idx):
+        examples['single_caption'] = [e[0] for e in examples['captions']]
+        
+        if 'train' in examples['filepath'][0]:
+            coco_dir = train_coco_dataset_root
+        elif 'val' in examples['filepath'][0]:
+            coco_dir = val_coco_dataset_root
 
-        example['image'] = os.path.join(coco_dir, example['filename'])
-        example['idx'] = idx
-        return example
+        examples['image'] = [os.path.join(coco_dir, f) for f in examples['filename']]
+        examples['idx'] = idx
+        return examples
 
     ds = ds.map(
         transform,
