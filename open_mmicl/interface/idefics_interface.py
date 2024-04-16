@@ -2,10 +2,10 @@ import torch
 from loguru import logger
 from transformers import BatchFeature, IdeficsForVisionText2Text, IdeficsProcessor
 
-from .base_interface import BaseInterface
+from .base_interface import LVLMInterface
 
 
-class IDEFICSInterface(BaseInterface):
+class IDEFICSInterface(LVLMInterface):
     def __init__(
         self,
         hf_root,
@@ -17,12 +17,12 @@ class IDEFICSInterface(BaseInterface):
         instruction,
         image_field,
         label_field,
-        icd_join_char='\n',
+        icd_join_char="\n",
     ):
         super().__init__(
             precision=precision,
             device=device,
-            input_ids_field_name='input_ids',
+            input_ids_field_name="input_ids",
             prompt_template=prompt_template,
             column_token_map=column_token_map,
             instruction=instruction,
@@ -40,7 +40,7 @@ class IDEFICSInterface(BaseInterface):
         ).to(self.device)
         self.model.eval()
         self.tokenizer = self.processor.tokenizer
-        self.tokenizer.padding_side = 'left'
+        self.tokenizer.padding_side = "left"
         self.image_processor = self.processor.image_processor
         self.pad_token_id = self.tokenizer.pad_token_id
 
@@ -79,7 +79,7 @@ class IDEFICSInterface(BaseInterface):
             ice_sample_list = data_sample_list[:-1]
         else:
             ice_sample_list = data_sample_list
-            query_prompt = ''
+            query_prompt = ""
 
         ice_prompt_list = self.gen_ice_list_prompts(ice_sample_list, add_image_token)
         for ice_prompt in ice_prompt_list:
@@ -105,8 +105,8 @@ class IDEFICSInterface(BaseInterface):
         if not any(isinstance(i, list) for i in batch_prompts):
             batch_prompts = [batch_prompts]
 
-        fake_token = "<fake_token_around_image>"
-        image_token = "<image>"
+        fake_token = self.fake_token
+        image_token = self.image_token
 
         def image_tokens(last_was_image):
             if last_was_image:
@@ -155,9 +155,9 @@ class IDEFICSInterface(BaseInterface):
         at_least_one_image = sum(len(x) for x in all_images) > 0
         output_images = []
         text_tensor_input = self.tokenizer(
-            all_raw_texts, padding=True, add_special_tokens=False, return_tensors='pt'
+            all_raw_texts, padding=True, add_special_tokens=False, return_tensors="pt"
         )
-        for text_tensor, images in zip(text_tensor_input['input_ids'], all_images):
+        for text_tensor, images in zip(text_tensor_input["input_ids"], all_images):
             image_count = (text_tensor == self.image_token_id).sum()
 
             local_max_num_images = min(image_count, max_num_images)
@@ -175,9 +175,9 @@ class IDEFICSInterface(BaseInterface):
 
             output_images.append(padded_image_tensor)
 
-        output_input_ids = text_tensor_input['input_ids']
+        output_input_ids = text_tensor_input["input_ids"]
         output_images = torch.stack(output_images)
-        output_attention_masks = text_tensor_input['attention_mask']
+        output_attention_masks = text_tensor_input["attention_mask"]
 
         if at_least_one_image:
             image_attention_mask, _ = image_attention_mask_for_packed_input_ids(

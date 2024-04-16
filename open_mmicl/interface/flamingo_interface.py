@@ -10,10 +10,10 @@ from open_flamingo.src.flamingo_lm import FlamingoLMMixin
 from open_flamingo.src.utils import extend_instance
 from transformers import AutoModelForCausalLM, AutoTokenizer, BatchFeature
 
-from .base_interface import BaseInterface
+from .base_interface import LVLMInterface
 
 
-class FlamingoInterface(BaseInterface):
+class FlamingoInterface(LVLMInterface):
     def __init__(
         self,
         lang_encoder_path,
@@ -28,14 +28,14 @@ class FlamingoInterface(BaseInterface):
         instruction,
         image_field,
         label_field,
-        icd_join_char='<|endofchunk|>',
+        icd_join_char="<|endofchunk|>",
         load_from_local=False,
-        init_device='cpu',
+        init_device="cpu",
     ) -> None:
         super().__init__(
             precision=precision,
             device=device,
-            input_ids_field_name='lang_x',
+            input_ids_field_name="lang_x",
             prompt_template=prompt_template,
             column_token_map=column_token_map,
             instruction=instruction,
@@ -43,7 +43,7 @@ class FlamingoInterface(BaseInterface):
             image_field=image_field,
             label_field=label_field,
         )
-        hf_device_map = {'transformer': self.device}
+        hf_device_map = {"transformer": self.device}
 
         self.model, self.image_processor, self.tokenizer = create_model_and_transforms(
             clip_vision_encoder_path="ViT-L-14",
@@ -58,10 +58,10 @@ class FlamingoInterface(BaseInterface):
         )
         if load_from_local:
             flamingo_checkpoint_dir = os.path.join(
-                flamingo_checkpoint_dir, 'checkpoint.pt'
+                flamingo_checkpoint_dir, "checkpoint.pt"
             )
         else:
-            hf_root = 'openflamingo/' + hf_root
+            hf_root = "openflamingo/" + hf_root
             flamingo_checkpoint_dir = hf_hub_download(
                 hf_root, "checkpoint.pt", local_dir=flamingo_checkpoint_dir
             )
@@ -70,7 +70,7 @@ class FlamingoInterface(BaseInterface):
 
         self.model.to(device=device, dtype=self.data_type, non_blocking=True)
         self.model.eval()
-        self.tokenizer.padding_side = 'left'
+        self.tokenizer.padding_side = "left"
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.pad_token_id = self.tokenizer.pad_token_id
         self.image_prompt = "<image>"
@@ -105,7 +105,7 @@ class FlamingoInterface(BaseInterface):
             ice_sample_list = data_sample_list[:-1]
         else:
             ice_sample_list = data_sample_list
-            query_prompt = ''
+            query_prompt = ""
 
         ice_prompt_list = self.gen_ice_list_prompts(ice_sample_list, add_image_token)
         for ice_prompt in ice_prompt_list:
@@ -172,9 +172,9 @@ class FlamingoInterface(BaseInterface):
         output_attention_masks = []
 
         text_tensor_input = self.tokenizer(
-            all_raw_texts, padding=True, add_special_tokens=False, return_tensors='pt'
+            all_raw_texts, padding=True, add_special_tokens=False, return_tensors="pt"
         )
-        for text_tensor, images in zip(text_tensor_input['input_ids'], all_images):
+        for text_tensor, images in zip(text_tensor_input["input_ids"], all_images):
             image_count = (text_tensor == self.image_token_id).sum()
 
             local_max_num_images = min(image_count, max_num_images)
@@ -192,9 +192,9 @@ class FlamingoInterface(BaseInterface):
 
             output_images.append(padded_image_tensor)
 
-        output_input_ids = text_tensor_input['input_ids']
+        output_input_ids = text_tensor_input["input_ids"]
         output_images = torch.stack(output_images)
-        output_attention_masks = text_tensor_input['attention_mask']
+        output_attention_masks = text_tensor_input["attention_mask"]
 
         return BatchFeature(
             data={
@@ -214,9 +214,9 @@ def create_model_and_transforms(
     use_local_files: bool = False,
     decoder_layers_attr_name: str = None,
     freeze_lm_embeddings: bool = False,
-    init_device='cpu',
+    init_device="cpu",
     model_data_type=torch.bfloat16,
-    hf_device_map='auto',
+    hf_device_map="auto",
     **flamingo_kwargs,
 ):
     """
