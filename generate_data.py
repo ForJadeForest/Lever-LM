@@ -14,7 +14,7 @@ from torch.multiprocessing import spawn
 from tqdm import tqdm
 
 from icd_lm.utils import beam_filter, init_lvlm
-from open_mmicl.lvlm_interface import BaseInterface
+from open_mmicl.interface import BaseInterface
 from utils import get_cider_score, get_info_score, load_ds
 
 
@@ -25,9 +25,9 @@ def generate_single_sample_icd(
     cfg: DictConfig,
     candidate_set: Dataset,
 ):
-    test_data_id = test_data['idx']
+    test_data_id = test_data["idx"]
     # 构建candidate set
-    candidateidx2data = {data['idx']: data for data in candidate_set}
+    candidateidx2data = {data["idx"]: data for data in candidate_set}
     test_data_id_list = [[test_data_id]]
 
     for _ in range(cfg.few_shot_num):
@@ -48,7 +48,7 @@ def generate_single_sample_icd(
             ]
 
             filtered_idx_list = sorted(list(filtered_candidateidx2data.keys()))
-            if cfg.scorer == 'infoscore':
+            if cfg.scorer == "infoscore":
                 scores = get_info_score(
                     interface,
                     choosed_icd_seq_list=choosed_icd_seq_list,
@@ -57,7 +57,7 @@ def generate_single_sample_icd(
                     split_token=cfg.task.split_token,
                     construct_order=cfg.construct_order,
                 )
-            elif cfg.scorer == 'cider':
+            elif cfg.scorer == "cider":
                 scores = get_cider_score(
                     interface,
                     choosed_icd_seq_list,
@@ -89,7 +89,7 @@ def generate_single_sample_icd(
         )
         test_data_id_list = new_test_data_id_list
     return {
-        test_data_id: {'id_list': test_data_id_list, 'score_list': new_test_score_list}
+        test_data_id: {"id_list": test_data_id_list, "score_list": new_test_score_list}
     }
 
 
@@ -102,7 +102,7 @@ def gen_data(
     save_path,
 ):
     world_size = len(cfg.gpu_ids)
-    process_device = f'cuda:{cfg.gpu_ids[rank]}'
+    process_device = f"cuda:{cfg.gpu_ids[rank]}"
 
     subset_size = len(sample_data) // world_size
     subset_start = rank * subset_size
@@ -116,24 +116,24 @@ def gen_data(
     # use sleep to load one by one.
     sleep(cfg.sleep_time * rank)
     interface = init_lvlm(cfg, device=process_device)
-    if cfg.scorer == 'infoscore':
-        interface.tokenizer.padding_side = 'right'
-    elif cfg.scorer == 'cider':
-        interface.tokenizer.padding_side = 'left'
+    if cfg.scorer == "infoscore":
+        interface.tokenizer.padding_side = "right"
+    elif cfg.scorer == "cider":
+        interface.tokenizer.padding_side = "left"
 
     final_res = {}
     sub_res_basename = (
-        os.path.basename(save_path).split('.')[0]
-        + f'_rank:{rank}_({subset_start}, {subset_end}).json'
+        os.path.basename(save_path).split(".")[0]
+        + f"_rank:{rank}_({subset_start}, {subset_end}).json"
     )
     save_path = save_path.replace(os.path.basename(save_path), sub_res_basename)
     if os.path.exists(save_path):
         final_res.update(json.load(open(save_path)))
         logger.info(
-            f'Rank: {rank} reloading data from {save_path}, begin from {len(final_res)}'
+            f"Rank: {rank} reloading data from {save_path}, begin from {len(final_res)}"
         )
     if len(final_res) == subset_size:
-        logger.info(f'Rank: {rank} task is Done.')
+        logger.info(f"Rank: {rank} task is Done.")
         return
 
     subset = subset.select(range(len(final_res), len(subset)))
@@ -154,7 +154,7 @@ def gen_data(
             candidate_set=candidate_set,
         )
         final_res.update(res)
-        with open(save_path, 'w') as f:
+        with open(save_path, "w") as f:
             json.dump(final_res, f)
     return
 
@@ -168,33 +168,33 @@ def main(cfg: DictConfig):
     cache_dir = cfg.sampler.cache_dir
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
-    save_dir = os.path.join(cfg.result_dir, 'generated_data')
+    save_dir = os.path.join(cfg.result_dir, "generated_data")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    sub_proc_save_dir = os.path.join(save_dir, 'sub_proc_data')
+    sub_proc_save_dir = os.path.join(save_dir, "sub_proc_data")
     if not os.path.exists(sub_proc_save_dir):
         os.makedirs(sub_proc_save_dir)
 
     save_file_name = (
-        f'{cfg.task.task_name}-{cfg.dataset.name}-'
-        f'{cfg.lvlm.name}-{cfg.sampler.sampler_name}-scorer:{cfg.scorer}-construct_order:{cfg.construct_order}-'
-        f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
-        f'candidate_num:{cfg.sampler.candidate_num}-sample_num:{cfg.sample_num}.json'
+        f"{cfg.task.task_name}-{cfg.dataset.name}-"
+        f"{cfg.lvlm.name}-{cfg.sampler.sampler_name}-scorer:{cfg.scorer}-construct_order:{cfg.construct_order}-"
+        f"beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-"
+        f"candidate_num:{cfg.sampler.candidate_num}-sample_num:{cfg.sample_num}.json"
     )
 
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)
     save_path = os.path.join(save_dir, save_file_name)
 
     # 加载数据集
-    train_ds = load_ds(cfg, 'train')
+    train_ds = load_ds(cfg, "train")
 
     # sample from train idx
     sampler = hydra.utils.instantiate(cfg.sampler)
     sampler_result = sampler(train_ds)
 
-    anchor_data = train_ds.select(sampler_result['anchor_set'])
+    anchor_data = train_ds.select(sampler_result["anchor_set"])
     candidate_set_idx = [
-        sampler_result['candidate_set'][k] for k in sampler_result['anchor_set']
+        sampler_result["candidate_set"][k] for k in sampler_result["anchor_set"]
     ]
     spawn(
         gen_data,
@@ -226,19 +226,19 @@ def main(cfg: DictConfig):
             subset_start + subset_size if rank != world_size - 1 else len(anchor_data)
         )
         sub_res_basename = (
-            os.path.basename(save_path).split('.')[0]
-            + f'_rank:{rank}_({subset_start}, {subset_end}).json'
+            os.path.basename(save_path).split(".")[0]
+            + f"_rank:{rank}_({subset_start}, {subset_end}).json"
         )
         sub_save_path = sub_save_path.replace(
             os.path.basename(sub_save_path), sub_res_basename
         )
-        with open(sub_save_path, 'r') as f:
+        with open(sub_save_path, "r") as f:
             data = json.load(f)
-        logger.info(f'load the data from {sub_save_path}, the data length: {len(data)}')
+        logger.info(f"load the data from {sub_save_path}, the data length: {len(data)}")
         total_data.update(data)
-    with open(save_path, 'w') as f:
+    with open(save_path, "w") as f:
         json.dump(total_data, f)
-    logger.info(f'save the final data to {save_path}')
+    logger.info(f"save the final data to {save_path}")
 
 
 @hydra.main(
@@ -252,7 +252,7 @@ def hydra_loguru_init(_) -> None:
     logger.add(os.path.join(hydra_path, f"{job_name}.log"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     load_dotenv()
     hydra_loguru_init()
     main()
