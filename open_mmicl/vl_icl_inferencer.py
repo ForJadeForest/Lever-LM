@@ -6,7 +6,7 @@ from loguru import logger
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from open_mmicl.lvlm_interface.base_interface import BaseInterface
+from open_mmicl.interface.base_interface import BaseInterface
 from icd_lm.utils import VLGenInferencerOutputHandler
 
 
@@ -54,17 +54,17 @@ class VLICLInferecer:
         output_handler = VLGenInferencerOutputHandler(num)
         index = 0
 
-        test_ds = test_ds.add_column('ice_idx', ice_idx_list)
+        test_ds = test_ds.add_column("ice_idx", ice_idx_list)
 
         output_handler.creat_index(test_ds)
-        output_handler.save_origin_info('ice_idx', test_ds)
+        output_handler.save_origin_info("ice_idx", test_ds)
         for fields in self.other_save_field:
             output_handler.save_origin_info(fields, test_ds)
 
         def prepare_input_map(
             examples,
         ):
-            ice_idx = [i for i in examples['ice_idx']]
+            ice_idx = [i for i in examples["ice_idx"]]
             prompts = []
             num_example = len(ice_idx)
             sub_data_sample = [
@@ -99,7 +99,7 @@ class VLICLInferecer:
             # 5-1. Inference with local model
 
             data = {k: v.to(self.interface.device) for k, v in data.items()}
-            prompt_len = int(data['attention_mask'].shape[1])
+            prompt_len = int(data["attention_mask"].shape[1])
             outputs = self.interface.generate(
                 **data,
                 eos_token_id=self.interface.tokenizer.eos_token_id,
