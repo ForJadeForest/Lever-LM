@@ -15,8 +15,8 @@ from omegaconf import DictConfig
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from open_mmicl.lvlm_interface import FlamingoInterface
-from icd_lm.utils import init_lvlm
+from open_mmicl.interface import FlamingoInterface
+from icd_lm.utils import init_interface
 from utils import load_ds
 
 
@@ -28,7 +28,7 @@ def generate_single_sample_icd(
     cfg: DictConfig,
     candidate_seq_idx_list: List,
 ):
-    test_data_id = test_data['idx']
+    test_data_id = test_data["idx"]
 
     candidate_seq_data_list = [
         [train_ds[i] for i in icd_seq] for icd_seq in candidate_seq_idx_list
@@ -87,7 +87,7 @@ def generate_single_sample_icd(
     better_icd_seq = [candidate_seq_idx_list[i] + [test_data_id] for i in indices]
     better_score_list = topk_scores.cpu().tolist()
 
-    return {test_data_id: {'id_list': better_icd_seq, 'score_list': better_score_list}}
+    return {test_data_id: {"id_list": better_icd_seq, "score_list": better_score_list}}
 
 
 def gen_data(
@@ -99,7 +99,7 @@ def gen_data(
     save_path,
 ):
     world_size = len(cfg.gpu_ids)
-    process_device = f'cuda:{cfg.gpu_ids[rank]}'
+    process_device = f"cuda:{cfg.gpu_ids[rank]}"
 
     subset_size = len(sample_data) // world_size
     subset_start = rank * subset_size
@@ -112,23 +112,23 @@ def gen_data(
     # load several models will cost large memory at the same time.
     # use sleep to load one by one.
     sleep(cfg.sleep_time * rank)
-    interface = init_lvlm(cfg, device=process_device)
+    interface = init_interface(cfg, device=process_device)
 
-    interface.tokenizer.padding_side = 'right'
+    interface.tokenizer.padding_side = "right"
 
     final_res = {}
     sub_res_basename = (
-        os.path.basename(save_path).split('.')[0]
-        + f'_rank:{rank}_({subset_start}, {subset_end}).json'
+        os.path.basename(save_path).split(".")[0]
+        + f"_rank:{rank}_({subset_start}, {subset_end}).json"
     )
     save_path = save_path.replace(os.path.basename(save_path), sub_res_basename)
     if os.path.exists(save_path):
         final_res.update(json.load(open(save_path)))
         logger.info(
-            f'Rank: {rank} reloading data from {save_path}, begin from {len(final_res)}'
+            f"Rank: {rank} reloading data from {save_path}, begin from {len(final_res)}"
         )
     if len(final_res) == subset_size:
-        logger.info(f'Rank: {rank} task is Done.')
+        logger.info(f"Rank: {rank} task is Done.")
         return
 
     subset = subset.select(range(len(final_res), len(subset)))
@@ -150,7 +150,7 @@ def gen_data(
             candidate_seq_idx_list=candidate_set,
         )
         final_res.update(res)
-        with open(save_path, 'w') as f:
+        with open(save_path, "w") as f:
             json.dump(final_res, f)
     return
 
@@ -164,37 +164,37 @@ def main(cfg: DictConfig):
     cache_dir = cfg.cache_dir
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
-    save_dir = os.path.join(cfg.result_dir, 'generated_data')
+    save_dir = os.path.join(cfg.result_dir, "generated_data")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    sub_proc_save_dir = os.path.join(save_dir, 'sub_proc_data')
+    sub_proc_save_dir = os.path.join(save_dir, "sub_proc_data")
     if not os.path.exists(sub_proc_save_dir):
         os.makedirs(sub_proc_save_dir)
 
     save_file_name = (
-        f'RandomSeq-{cfg.task.task_name}-{cfg.dataset.name}-'
-        f'{cfg.lvlm.name}-scorer:{cfg.scorer}-'
-        f'topk:{cfg.topk}-few_shot:{cfg.few_shot_num}-'
-        f'candidate_num:{cfg.candidate_seq_num}-sample_num:{cfg.sample_num}.json'
+        f"RandomSeq-{cfg.task.task_name}-{cfg.dataset.name}-"
+        f"{cfg.infer_model.name}-scorer:{cfg.scorer}-"
+        f"topk:{cfg.topk}-few_shot:{cfg.few_shot_num}-"
+        f"candidate_num:{cfg.candidate_seq_num}-sample_num:{cfg.sample_num}.json"
     )
 
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)
     save_path = os.path.join(save_dir, save_file_name)
 
     # 加载数据集
-    train_ds = load_ds(cfg, 'train')
+    train_ds = load_ds(cfg, "train")
 
     # sample from train idx
     anchor_set_cache_filename = os.path.join(
-        cache_dir, f'{cfg.dataset.name}-anchor_sample_num:{cfg.sample_num}.json'
+        cache_dir, f"{cfg.dataset.name}-anchor_sample_num:{cfg.sample_num}.json"
     )
     if os.path.exists(anchor_set_cache_filename):
-        logger.info('the anchor_set_cache_filename exists, loding...')
-        anchor_idx_list = json.load(open(anchor_set_cache_filename, 'r'))
+        logger.info("the anchor_set_cache_filename exists, loding...")
+        anchor_idx_list = json.load(open(anchor_set_cache_filename, "r"))
     else:
         anchor_idx_list = random.sample(range(0, len(train_ds)), cfg.sample_num)
-        with open(anchor_set_cache_filename, 'w') as f:
-            logger.info(f'save {anchor_set_cache_filename}...')
+        with open(anchor_set_cache_filename, "w") as f:
+            logger.info(f"save {anchor_set_cache_filename}...")
             json.dump(anchor_idx_list, f)
     anchor_data = train_ds.select(anchor_idx_list)
 
@@ -242,19 +242,19 @@ def main(cfg: DictConfig):
             subset_start + subset_size if rank != world_size - 1 else len(anchor_data)
         )
         sub_res_basename = (
-            os.path.basename(save_path).split('.')[0]
-            + f'_rank:{rank}_({subset_start}, {subset_end}).json'
+            os.path.basename(save_path).split(".")[0]
+            + f"_rank:{rank}_({subset_start}, {subset_end}).json"
         )
         sub_save_path = sub_save_path.replace(
             os.path.basename(sub_save_path), sub_res_basename
         )
-        with open(sub_save_path, 'r') as f:
+        with open(sub_save_path, "r") as f:
             data = json.load(f)
-        logger.info(f'load the data from {sub_save_path}, the data length: {len(data)}')
+        logger.info(f"load the data from {sub_save_path}, the data length: {len(data)}")
         total_data.update(data)
-    with open(save_path, 'w') as f:
+    with open(save_path, "w") as f:
         json.dump(total_data, f)
-    logger.info(f'save the final data to {save_path}')
+    logger.info(f"save the final data to {save_path}")
 
 
 @hydra.main(
@@ -268,7 +268,7 @@ def hydra_loguru_init(_) -> None:
     logger.add(os.path.join(hydra_path, f"{job_name}.log"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     load_dotenv()
     hydra_loguru_init()
     main()
