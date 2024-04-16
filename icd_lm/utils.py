@@ -16,11 +16,11 @@ from transformers import (
     CLIPVisionModelWithProjection,
 )
 
-from open_mmicl.lvlm_interface import FlamingoInterface, IDEFICSInterface
+from open_mmicl.interface import FlamingoInterface, IDEFICSInterface
 
 
 def init_lvlm(cfg, **kwargs):
-    if 'flamingo' in cfg.lvlm.name:
+    if "flamingo" in cfg.lvlm.name:
         return FlamingoInterface(
             lang_encoder_path=cfg.lvlm.lang_encoder_path,
             tokenizer_path=cfg.lvlm.tokenizer_path,
@@ -28,7 +28,7 @@ def init_lvlm(cfg, **kwargs):
             cross_attn_every_n_layers=cfg.lvlm.cross_attn_every_n_layers,
             hf_root=cfg.lvlm.hf_root,
             precision=cfg.precision,
-            device=kwargs['device'],
+            device=kwargs["device"],
             prompt_template=cfg.task.template,
             column_token_map=cfg.task.column_token_map,
             icd_join_char=cfg.lvlm.icd_join_char,
@@ -38,12 +38,12 @@ def init_lvlm(cfg, **kwargs):
             image_field=cfg.task.image_field,
             label_field=cfg.task.output_column,
         )
-    elif 'idefics' in cfg.lvlm.name:
+    elif "idefics" in cfg.lvlm.name:
         return IDEFICSInterface(
             hf_root=cfg.lvlm.hf_root,
             load_from_local=cfg.lvlm.load_from_local,
             precision=cfg.precision,
-            device=kwargs['device'],
+            device=kwargs["device"],
             prompt_template=cfg.task.template,
             column_token_map=cfg.task.column_token_map,
             instruction=cfg.task.instruction,
@@ -51,12 +51,32 @@ def init_lvlm(cfg, **kwargs):
             image_field=cfg.task.image_field,
             label_field=cfg.task.output_column,
         )
+    elif "Qwen" in cfg.lvlm.name:
+        from open_mmicl.interface.llm_interface import LLMInterface
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        model = AutoModelForCausalLM.from_pretrained(cfg.lvlm.model_name)
+        tokenizer = AutoTokenizer.from_pretrained(cfg.lvlm.model_name)
+
+        return LLMInterface(
+            model,
+            tokenizer,
+            precision=cfg.precision,
+            input_ids_field_name="input_ids",
+            prompt_template=cfg.task.template,
+            column_token_map=cfg.task.column_token_map,
+            instruction=cfg.task.instruction,
+            icd_join_char=cfg.lvlm.icd_join_char,
+            label_field=cfg.task.output_column,
+            device=kwargs["device"],
+        )
+
     else:
-        raise ValueError('LVLM name error, now only support [\'flamingo, idefics\']')
+        raise ValueError("LVLM name error, now only support ['flamingo, idefics']")
 
 
 def recall_sim_feature(test_vec, train_vec, top_k=200):
-    logger.info(f'embedding shape: {train_vec.shape}')
+    logger.info(f"embedding shape: {train_vec.shape}")
     dim = train_vec.shape[-1]
     index_feat = faiss.IndexFlatIP(dim)
     index_feat.add(train_vec)
@@ -69,7 +89,7 @@ def encode_text(
     train_ds,
     data_key,
     device,
-    model_type='openai/clip-vit-large-patch14',
+    model_type="openai/clip-vit-large-patch14",
     batch_size=128,
 ):
     model = CLIPTextModelWithProjection.from_pretrained(model_type).to(device)
@@ -93,7 +113,7 @@ def encode_image(
     train_ds,
     data_key,
     device,
-    model_type='openai/clip-vit-large-patch14',
+    model_type="openai/clip-vit-large-patch14",
     batch_size=128,
 ):
     model = CLIPVisionModelWithProjection.from_pretrained(model_type).to(device)
@@ -115,7 +135,7 @@ def encode_image(
 def data_split(generated_data, train_ratio):
     # 获得有多少条test数据
     test_dataset_id_set = {
-        v[-1] for d in generated_data for v in generated_data[d]['id_list']
+        v[-1] for d in generated_data for v in generated_data[d]["id_list"]
     }
     test_dataset_len = len(test_dataset_id_set)
 
@@ -129,26 +149,26 @@ def data_split(generated_data, train_ratio):
     train_data_score = list()
     val_data_score = list()
     for d in generated_data:
-        for i in range(len(generated_data[d]['id_list'])):
-            query_idx = generated_data[d]['id_list'][i][-1]
+        for i in range(len(generated_data[d]["id_list"])):
+            query_idx = generated_data[d]["id_list"][i][-1]
             if int(query_idx) in train_idx_set:
-                train_data_list.append(generated_data[d]['id_list'][i])
-                train_data_score.append(generated_data[d]['score_list'][i])
+                train_data_list.append(generated_data[d]["id_list"][i])
+                train_data_score.append(generated_data[d]["score_list"][i])
             elif int(query_idx) in val_idx_set:
-                val_data_list.append(generated_data[d]['id_list'][i])
-                val_data_score.append(generated_data[d]['score_list'][i])
+                val_data_list.append(generated_data[d]["id_list"][i])
+                val_data_score.append(generated_data[d]["score_list"][i])
             else:
                 raise ValueError()
 
-    print(f'the train size {len(train_data_list)}, the test size {len(val_data_list)}')
+    print(f"the train size {len(train_data_list)}, the test size {len(val_data_list)}")
 
     train_data = {
-        'icd_seq': train_data_list,
-        'icd_score': train_data_score,
+        "icd_seq": train_data_list,
+        "icd_score": train_data_score,
     }
     val_data = {
-        'icd_seq': val_data_list,
-        'icd_score': val_data_score,
+        "icd_seq": val_data_list,
+        "icd_score": val_data_score,
     }
     return train_data, val_data
 
@@ -156,34 +176,34 @@ def data_split(generated_data, train_ratio):
 def collate_fn(batch, processor: CLIPProcessor):
     bs = len(batch)
     collate_dict = {
-        'icd_seq_idx': torch.stack([item['icd_seq_idx'] for item in batch]),
+        "icd_seq_idx": torch.stack([item["icd_seq_idx"] for item in batch]),
     }
-    query_input = [d['query_input'] for d in batch]
+    query_input = [d["query_input"] for d in batch]
 
     query_text_input = (
-        [q['text'] for q in query_input] if 'text' in query_input[0] else None
+        [q["text"] for q in query_input] if "text" in query_input[0] else None
     )
     query_image_input = (
-        [q['images'] for q in query_input] if 'images' in query_input[0] else None
+        [q["images"] for q in query_input] if "images" in query_input[0] else None
     )
     if query_text_input or query_image_input:
         query_input = processor(
             images=query_image_input,
             text=query_text_input,
             padding=True,
-            return_tensors='pt',
+            return_tensors="pt",
         )
-        collate_dict['query_input'] = query_input
+        collate_dict["query_input"] = query_input
 
-    icd_input_list = [d['icd_input'] for d in batch]
+    icd_input_list = [d["icd_input"] for d in batch]
     icd_image_input = icd_text_input = None
-    if 'text' in icd_input_list[0]:
-        icd_num = len(icd_input_list[0]['text'])
-        icd_text_input = [i['text'] for i in icd_input_list]
+    if "text" in icd_input_list[0]:
+        icd_num = len(icd_input_list[0]["text"])
+        icd_text_input = [i["text"] for i in icd_input_list]
         icd_text_input = [i for icd_text in icd_text_input for i in icd_text]
-    if 'images' in icd_input_list[0]:
-        icd_num = len(icd_input_list[0]['images'])
-        icd_image_input = [i['images'] for i in icd_input_list]
+    if "images" in icd_input_list[0]:
+        icd_num = len(icd_input_list[0]["images"])
+        icd_image_input = [i["images"] for i in icd_input_list]
         icd_image_input = [i for icd_image in icd_image_input for i in icd_image]
 
     if icd_image_input or icd_text_input:
@@ -191,18 +211,18 @@ def collate_fn(batch, processor: CLIPProcessor):
             images=icd_image_input,
             text=icd_text_input,
             padding=True,
-            return_tensors='pt',
+            return_tensors="pt",
         )
-        if 'input_ids' in icd_input:
-            icd_input['input_ids'] = icd_input['input_ids'].view(bs, icd_num, -1)
-            icd_input['attention_mask'] = icd_input['attention_mask'].view(
+        if "input_ids" in icd_input:
+            icd_input["input_ids"] = icd_input["input_ids"].view(bs, icd_num, -1)
+            icd_input["attention_mask"] = icd_input["attention_mask"].view(
                 bs, icd_num, -1
             )
-        if 'pixel_values' in icd_input:
-            icd_input['pixel_values'] = icd_input['pixel_values'].view(
-                bs, icd_num, *icd_input['pixel_values'].shape[1:]
+        if "pixel_values" in icd_input:
+            icd_input["pixel_values"] = icd_input["pixel_values"].view(
+                bs, icd_num, *icd_input["pixel_values"].shape[1:]
             )
-        collate_dict['icd_input'] = icd_input
+        collate_dict["icd_input"] = icd_input
     return collate_dict
 
 
@@ -252,9 +272,9 @@ class VLGenInferencerOutputHandler:
     def write_to_json(self, output_json_filepath: str, output_json_filename: str):
         self.results_dict = {
             str(idx): {
-                'output': self.output_dict[str(idx)][0],
-                'pure_output': self.output_dict[str(idx)][1],
-                'prediction': self.prediction_dict[str(idx)],
+                "output": self.output_dict[str(idx)][0],
+                "pure_output": self.output_dict[str(idx)][1],
+                "prediction": self.prediction_dict[str(idx)],
             }
             for idx in self.idx_list
         }
@@ -262,16 +282,16 @@ class VLGenInferencerOutputHandler:
             for idx in self.idx_list:
                 if field in self.results_dict[str(idx)]:
                     logger.warning(
-                        'the other meta info field name has duplicate! Please check for avoiding to losing info'
+                        "the other meta info field name has duplicate! Please check for avoiding to losing info"
                     )
                     continue
                 self.results_dict[str(idx)][field] = self.other_meta_info_dict[field][
                     str(idx)
                 ]
-        save_path = f'{output_json_filepath}/{output_json_filename}.json'
+        save_path = f"{output_json_filepath}/{output_json_filename}.json"
         if not os.path.exists(output_json_filepath):
             os.makedirs(output_json_filepath)
-        with open(save_path, 'w', encoding='utf-8') as json_file:
+        with open(save_path, "w", encoding="utf-8") as json_file:
             json.dump(self.results_dict, json_file, indent=4, ensure_ascii=False)
             json_file.close()
 
