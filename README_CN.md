@@ -87,7 +87,7 @@ bash scripts/generate_data.sh vqa vqav2_online "[0,1,2,3]"
 
 ##### `generate_data.py` 参数设置
 对应参数文件位于：`configs/inference.yaml`
-1. `lvlm`: lvlm的模型种类，目前支持Open falamingo和IDEFICS-9B。具体参数细节参考xxx
+1. `infer_model`: infer_model的模型种类，目前支持Open falamingo和IDEFICS-9B。具体参数细节参考xxx
 2. `dataset`: 使用的数据集，可选值：`mscoco2017`, `mscoco2014`, `vqav2_local`, `vqav2_online`。具体参数细节参考xxx
 3. `task`: 具体的任务种类，目前可选值`caption`和`vqa`。具体参数细节参考xxx
 4. `sampler`: 获取sub-supporting set的sampler方法，目前支持`img_sim_sampler`, `text_sim_sampler`, `rand_sampler`。具体参数细节参考xxx
@@ -155,7 +155,7 @@ bash scripts/inference.sh vqa vqav2_local_sub 0 query_img_text_icd_img_text
 其他参数：
 - `dataset`: 使用的数据集，可选值：`mscoco2017`, `mscoco2014`, `vqav2_local`, `vqav2_online`。具体参数细节参考xxx
 - `task`：具体的任务种类，目前可选值`caption`和`vqa`。具体参数细节参考xxx
-- `lvlm`: lvlm的模型种类，目前支持Open falamingo和IDEFICS-9B。具体参数细节参考xxx
+- `infer_model`: infer_model的模型种类，目前支持Open falamingo和IDEFICS-9B。具体参数细节参考xxx
 - `index_data_num`：ICD训练集中的项目数量，-1表示全部。
 - `test_data_num`：测试集中的项目数量，-1表示全部。
 - `inference_bs`：推理的批处理大小。对于具有24G内存的3090显卡，设置为4适用于16shot。
