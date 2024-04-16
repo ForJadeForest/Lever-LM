@@ -17,7 +17,7 @@ from torch import optim
 from torch.utils.data import DataLoader
 from transformers import CLIPProcessor, get_cosine_schedule_with_warmup
 
-from icd_lm.utils import data_split
+from icd_lm.utils import data_split, collate_fn
 from utils import load_ds
 
 
@@ -25,21 +25,21 @@ from utils import load_ds
 class ICDLM(pl.LightningModule):
     def __init__(self, icd_lm, lr, weight_decay=1e-2, warm_steps=0.1):
         super().__init__()
-        self.save_hyperparameters(ignore=['icd_lm'])
+        self.save_hyperparameters(ignore=["icd_lm"])
         self.icd_lm = icd_lm
 
     def training_step(self, batch, batch_idx):
         output = self.icd_lm(**batch)
-        loss = output['loss']
+        loss = output["loss"]
         self.log(
-            "train_loss", loss, batch_size=len(batch['icd_seq_idx']), sync_dist=True
+            "train_loss", loss, batch_size=len(batch["icd_seq_idx"]), sync_dist=True
         )
         return loss
 
     def validation_step(self, batch, batch_idx):
         output = self.icd_lm(**batch)
-        loss = output['loss']
-        self.log("val_loss", loss, batch_size=len(batch['icd_seq_idx']), sync_dist=True)
+        loss = output["loss"]
+        self.log("val_loss", loss, batch_size=len(batch["icd_seq_idx"]), sync_dist=True)
         return loss
 
     def configure_optimizers(self):
@@ -56,7 +56,7 @@ class ICDLM(pl.LightningModule):
             warm_steps = self.hparams.warm_steps
         else:
             raise ValueError(
-                f'the warm_steps should be int or float, but got {type(self.hparams.warm_steps)}'
+                f"the warm_steps should be int or float, but got {type(self.hparams.warm_steps)}"
             )
         scheduler = get_cosine_schedule_with_warmup(
             optimizer, num_warmup_steps=warm_steps, num_training_steps=step_batches
@@ -78,18 +78,18 @@ class ICDSeqDataModule(pl.LightningDataModule):
         dataset_name: The dataset Class name
         """
         super().__init__()
-        data_files_path = os.path.join(cfg.result_dir, 'generated_data', cfg.data_files)
-        with open(data_files_path, 'r') as f:
+        data_files_path = os.path.join(cfg.result_dir, "generated_data", cfg.data_files)
+        with open(data_files_path, "r") as f:
             data = json.load(f)
         self.train_data_list, self.val_data_list = data_split(data, cfg.train_ratio)
         self.ds_factory = hydra.utils.instantiate(cfg.train.icd_lm_ds, _partial_=True)
-        self.index_ds = load_ds(cfg, 'train')
+        self.index_ds = load_ds(cfg, "train")
         self.processor = CLIPProcessor.from_pretrained(cfg.train.icd_lm.clip_name)
 
         self.save_hyperparameters()
 
     def setup(self, stage: str) -> None:
-        if stage == 'fit' or stage is None:
+        if stage == "fit" or stage is None:
             self.trainset = self.ds_factory(
                 data_list=self.train_data_list, index_ds=self.index_ds
             )
@@ -125,19 +125,19 @@ def main(cfg: DictConfig):
 
     logger = WandbLogger(**cfg.wandb_args)
     tl_model_cpk_callback = ModelCheckpoint(
-        filename='min_tl-{epoch}-{train_loss:.5f}-{val_loss:.5f}',
-        monitor='train_loss',
+        filename="min_tl-{epoch}-{train_loss:.5f}-{val_loss:.5f}",
+        monitor="train_loss",
         save_last=False,
         save_top_k=1,
-        mode='min',
+        mode="min",
         dirpath=cfg.dirpath,
     )
     vl_model_cpk_callback = ModelCheckpoint(
-        filename='min_vl-{epoch}-{train_loss:.5f}-{val_loss:.5f}',
-        monitor='val_loss',
+        filename="min_vl-{epoch}-{train_loss:.5f}-{val_loss:.5f}",
+        monitor="val_loss",
         save_last=True,
         save_top_k=1,
-        mode='min',
+        mode="min",
         dirpath=cfg.dirpath,
     )
     trainer = pl.Trainer(
@@ -157,6 +157,6 @@ def main(cfg: DictConfig):
     trainer.fit(model, data_module)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     load_dotenv()
     main()
