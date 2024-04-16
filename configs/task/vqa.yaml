@@ -1,7 +1,7 @@
 task_name: vqa
 # use for get prompt for flamingo
 # for get prompt of openicl
-template: "${lvlm.vqa_prompt_template}"
+template: "${infer_model.vqa_prompt_template}"
 icd_token: "</E>"
 column_token_map:
   question: "<Q>"
@@ -9,7 +9,7 @@ column_token_map:
 
 input_columns: ["question", "answer"]
 output_column: "answer"
-instruction: ${lvlm.vqa_instruction}
+instruction: ${infer_model.vqa_instruction}
 
 image_field: "image"
 
@@ -31,4 +31,4 @@ gen_args:
 other_save_field: ['question', 'answer', 'image_id', 'answers', 'question_id']
 
 
-split_token: "${lvlm.vqa_split_token}"
+split_token: "${infer_model.vqa_split_token}"

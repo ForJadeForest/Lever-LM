@@ -4,9 +4,9 @@
 # order of defaults determines the order in which configs override each other
 defaults:
   - _self_
-  - lvlm: flamingo_9B
-  - dataset: coco2017
-  - task: caption
+  - infer_model: qwen1.5_1.8B
+  - dataset: sst2
+  - task: sst2
   - sampler: rand_sampler
 
 
@@ -16,7 +16,7 @@ few_shot_num: 2
 batch_size: 32
 device: "cuda"
 precision: bf16
-sample_num: 5000
+sample_num: 100
 cand_num: 64
 construct_order: "left"
 

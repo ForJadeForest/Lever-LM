@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - dataset: coco2017
-  - lvlm: flamingo_9B
+  - infer_model: flamingo_9B
   - train: query_img_icd_text
   - task: caption
 
