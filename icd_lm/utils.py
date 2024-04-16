@@ -16,63 +16,61 @@ from transformers import (
     CLIPVisionModelWithProjection,
 )
 
-from open_mmicl.interface import FlamingoInterface, IDEFICSInterface
+from open_mmicl.interface import FlamingoInterface, IDEFICSInterface, LLMInterface
 
 
-def init_lvlm(cfg, **kwargs):
-    if "flamingo" in cfg.lvlm.name:
+def init_interface(cfg, **kwargs):
+    if "flamingo" in cfg.infer_model.name:
         return FlamingoInterface(
-            lang_encoder_path=cfg.lvlm.lang_encoder_path,
-            tokenizer_path=cfg.lvlm.tokenizer_path,
-            flamingo_checkpoint_dir=cfg.lvlm.flamingo_checkpoint_dir,
-            cross_attn_every_n_layers=cfg.lvlm.cross_attn_every_n_layers,
-            hf_root=cfg.lvlm.hf_root,
+            lang_encoder_path=cfg.infer_model.lang_encoder_path,
+            tokenizer_path=cfg.infer_model.tokenizer_path,
+            flamingo_checkpoint_dir=cfg.infer_model.flamingo_checkpoint_dir,
+            cross_attn_every_n_layers=cfg.infer_model.cross_attn_every_n_layers,
+            hf_root=cfg.infer_model.hf_root,
             precision=cfg.precision,
             device=kwargs["device"],
             prompt_template=cfg.task.template,
             column_token_map=cfg.task.column_token_map,
-            icd_join_char=cfg.lvlm.icd_join_char,
-            load_from_local=cfg.lvlm.load_from_local,
+            icd_join_char=cfg.infer_model.icd_join_char,
+            load_from_local=cfg.infer_model.load_from_local,
             instruction=cfg.task.instruction,
-            init_device=cfg.lvlm.init_device,
+            init_device=cfg.infer_model.init_device,
             image_field=cfg.task.image_field,
             label_field=cfg.task.output_column,
         )
-    elif "idefics" in cfg.lvlm.name:
+    elif "idefics" in cfg.infer_model.name:
         return IDEFICSInterface(
-            hf_root=cfg.lvlm.hf_root,
-            load_from_local=cfg.lvlm.load_from_local,
+            hf_root=cfg.infer_model.hf_root,
+            load_from_local=cfg.infer_model.load_from_local,
             precision=cfg.precision,
             device=kwargs["device"],
             prompt_template=cfg.task.template,
             column_token_map=cfg.task.column_token_map,
             instruction=cfg.task.instruction,
-            icd_join_char=cfg.lvlm.icd_join_char,
+            icd_join_char=cfg.infer_model.icd_join_char,
             image_field=cfg.task.image_field,
             label_field=cfg.task.output_column,
         )
-    elif "Qwen" in cfg.lvlm.name:
+    elif "Qwen" in cfg.infer_model.name:
         from open_mmicl.interface.llm_interface import LLMInterface
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-
-        model = AutoModelForCausalLM.from_pretrained(cfg.lvlm.model_name)
-        tokenizer = AutoTokenizer.from_pretrained(cfg.lvlm.model_name)
 
         return LLMInterface(
-            model,
-            tokenizer,
+            cfg.infer_model.model_name,
+            cfg.infer_model.model_name,
             precision=cfg.precision,
             input_ids_field_name="input_ids",
             prompt_template=cfg.task.template,
             column_token_map=cfg.task.column_token_map,
             instruction=cfg.task.instruction,
-            icd_join_char=cfg.lvlm.icd_join_char,
+            icd_join_char=cfg.infer_model.icd_join_char,
             label_field=cfg.task.output_column,
             device=kwargs["device"],
         )
 
     else:
-        raise ValueError("LVLM name error, now only support ['flamingo, idefics']")
+        raise ValueError(
+            "infer_model name error, now only support ['flamingo, idefics']"
+        )
 
 
 def recall_sim_feature(test_vec, train_vec, top_k=200):
