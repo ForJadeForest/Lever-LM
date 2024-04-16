@@ -1,2 +1,2 @@
-# LVLM Interface
+# infer_model Interface
 

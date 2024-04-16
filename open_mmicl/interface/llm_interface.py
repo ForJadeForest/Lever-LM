@@ -9,12 +9,13 @@ from PIL import Image
 
 from .utils import cast_type, get_autocast, is_url
 from .base_interface import BaseInterface
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 class LLMInterface(BaseInterface):
     def __init__(
         self,
-        model,
+        model_or_model_name,
         tokenizer,
         precision,
         device,
@@ -35,13 +36,37 @@ class LLMInterface(BaseInterface):
             icd_join_char=icd_join_char,
             label_field=label_field,
         )
-
         self.tokenizer = tokenizer
-        self.model = model.to(self.device, self.data_type)
+        if isinstance(self.tokenizer, str):
+            self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer)
 
-        if not tokenizer.pad_token:
-            tokenizer.pad_token = tokenizer.eos_token
-        self.pad_token_id = tokenizer.pad_token_id
+        self.model = model_or_model_name
+        if isinstance(self.model, str):
+            self.model = AutoModelForCausalLM.from_pretrained(model_or_model_name)
+        self.model = self.model.to(self.device, self.data_type)
+
+        if not self.tokenizer.pad_token:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.pad_token_id = self.tokenizer.pad_token_id
+
+    def transfer_prompts(self, batch_data_sample_list, is_last_for_generation=True):
+        if not any(isinstance(i, list) for i in batch_data_sample_list):
+            batch_data_sample_list = [batch_data_sample_list]
+
+        prompts = []
+        for data_sample_list in batch_data_sample_list:
+            prompt = []
+            for data_sample in data_sample_list[:-1]:
+                prompt.append(
+                    self.gen_ice_prompt(data_sample),
+                )
+            if is_last_for_generation:
+                prompt.append(self.gen_query_prompt(data_sample_list[-1]))
+            else:
+                prompt.append(self.gen_ice_prompt(data_sample_list[-1]))
+
+            prompts.append(prompt)
+        return prompts
 
     def concat_prompt(
         self,
@@ -90,9 +115,18 @@ class LLMInterface(BaseInterface):
         if not any(isinstance(i, list) for i in batch_prompts):
             batch_prompts = [batch_prompts]
         prompts = []
-        for sample in batch_prompts:
-            prompt = self.concat_prompt(sample, add_eos_token, is_last_for_generation)
+        for sample_list in batch_prompts:
+            prompt = ""
+            for i, p in enumerate(sample_list):
+                prompt += p.strip(" ")
+                if i != len(sample_list) - 1 or not is_last_for_generation:
+                    prompt += self.icd_join_char
+            if add_eos_token and not is_last_for_generation:
+                prompt += self.tokenizer.eos_token
+
             if debug:
                 print(f"{prompt=}")
             prompts.append(prompt)
-        return self.tokenizer(prompts, return_tensors="pt", padding=True)
+        return self.tokenizer(
+            prompts, return_tensors="pt", padding=True, truncation=True
+        )

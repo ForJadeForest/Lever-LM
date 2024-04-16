@@ -122,27 +122,7 @@ class BaseInterface:
         return len(self.tokenizer(input_tokens, add_special_tokens=False)["input_ids"])
 
     def transfer_prompts(self, batch_data_sample_list, is_last_for_generation=True):
-        if not any(isinstance(i, list) for i in batch_data_sample_list):
-            batch_data_sample_list = [batch_data_sample_list]
-
-        prompts = []
-        for data_sample_list in batch_data_sample_list:
-            prompt = []
-            for data_sample in data_sample_list[:-1]:
-                prompt.append(
-                    self.gen_ice_prompt(data_sample, add_image_token=False),
-                )
-            if is_last_for_generation:
-                prompt.append(
-                    self.gen_query_prompt(data_sample_list[-1], add_image_token=False)
-                )
-            else:
-                prompt.append(
-                    self.gen_ice_prompt(data_sample_list[-1], add_image_token=False)
-                )
-
-            prompts.append(prompt)
-        return prompts
+        raise NotImplemented
 
     def generate(self, *args, **kwargs):
         with self.autocast_context:
