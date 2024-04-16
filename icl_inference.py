@@ -15,7 +15,7 @@ from transformers import AutoProcessor
 from open_mmicl.metrics.cider_calculator import compute_cider
 from open_mmicl.metrics.vqa_metrics import compute_vqa_accuracy
 from open_mmicl.retriever import *
-from icd_lm.utils import init_lvlm
+from icd_lm.utils import init_interface
 from open_mmicl.vl_icl_inferencer import VLICLInferecer
 from utils import caption_postprocess, load_ds, vqa_postprocess
 
@@ -90,7 +90,7 @@ def evaluate_retriever(
                 icd_idx_list=icd_idx_list,
                 val_ann_path=cfg.dataset.val_coco_annotation_file,
                 output_json_filename=output_files,
-                model_name=cfg.lvlm.name,
+                model_name=cfg.infer_model.name,
             )
         elif cfg.task.task_name == "vqa":
             metric = inference_vqa(
@@ -100,7 +100,7 @@ def evaluate_retriever(
                 val_ques_path=cfg.dataset.val_ques_path,
                 val_ann_path=cfg.dataset.val_ann_path,
                 output_json_filename=output_files,
-                model_name=cfg.lvlm.name,
+                model_name=cfg.infer_model.name,
             )
         retriever_res[f"{shot_num=}"] = metric
         logger.info(f"{output_files}: {metric=}")
@@ -239,7 +239,7 @@ def main(cfg: DictConfig):
     result_dir = os.path.join(
         cfg.result_dir,
         "icl_inference",
-        cfg.lvlm.name,
+        cfg.infer_model.name,
         cfg.task.task_name,
         cfg.ex_name,
     )
@@ -257,7 +257,7 @@ def main(cfg: DictConfig):
     if test_data_num != -1:
         ds["validation"] = ds["validation"].select(range(test_data_num))
 
-    interface = init_lvlm(cfg, device=cfg.device)
+    interface = init_interface(cfg, device=cfg.device)
 
     inferencer = VLICLInferecer(
         interface=interface,

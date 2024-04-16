@@ -4,7 +4,7 @@ import more_itertools
 import torch
 
 from icd_lm.load_ds_utils import load_coco_ds, load_vqav2_ds, load_sst2_ds
-from open_mmicl.interface import FlamingoInterface, IDEFICSInterface
+from open_mmicl.interface import FlamingoInterface, IDEFICSInterface, LLMInterface
 from open_mmicl.metrics.cider_calculator import compute_cider
 from open_mmicl.metrics.vqa_metrics import postprocess_vqa_generation
 
@@ -42,7 +42,7 @@ def load_ds(cfg, split=None):
 
 @torch.inference_mode()
 def get_info_score(
-    interface: Union[FlamingoInterface, IDEFICSInterface],
+    interface: Union[FlamingoInterface, IDEFICSInterface, LLMInterface],
     choosed_icd_seq_list: List,
     candidate_set: Dict,
     batch_size: int,
@@ -51,9 +51,10 @@ def get_info_score(
 ):
     # 1. 计算P(y|x)
     # 1.1 拼接文本输入
-    test_lang_x_input = interface.gen_ice_prompt(
-        choosed_icd_seq_list[-1], add_image_token=True
-    )
+    kwargs = dict(add_image_token=True)
+    if isinstance(interface, LLMInterface):
+        kwargs = dict()
+    test_lang_x_input = interface.gen_ice_prompt(choosed_icd_seq_list[-1], **kwargs)
     prompts = interface.transfer_prompts(
         choosed_icd_seq_list, is_last_for_generation=False
     )
@@ -65,8 +66,8 @@ def get_info_score(
     icd_mask_prompt = interface.concat_prompt(
         choosed_icd_seq_list[:-1],
         add_eos_token=False,
-        add_image_token=True,
         is_last_for_generation=False,
+        **kwargs,
     )
     query_mask_part = test_lang_x_input.split(split_token)[0] + split_token
 
@@ -109,8 +110,8 @@ def get_info_score(
             interface.concat_prompt(
                 t[:-1],
                 add_eos_token=False,
-                add_image_token=True,
                 is_last_for_generation=False,
+                **kwargs,
             )
             for t in add_new_icd_seq_list
         ]
