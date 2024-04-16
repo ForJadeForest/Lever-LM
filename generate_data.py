@@ -13,7 +13,7 @@ from omegaconf import DictConfig
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from icd_lm.utils import beam_filter, init_lvlm
+from icd_lm.utils import beam_filter, init_interface
 from open_mmicl.interface import BaseInterface
 from utils import get_cider_score, get_info_score, load_ds
 
@@ -58,6 +58,9 @@ def generate_single_sample_icd(
                     construct_order=cfg.construct_order,
                 )
             elif cfg.scorer == "cider":
+                assert (
+                    "coco" in cfg.dataset.name
+                ), f"Now CIDEr scorer only support mscoco task"
                 scores = get_cider_score(
                     interface,
                     choosed_icd_seq_list,
@@ -66,7 +69,7 @@ def generate_single_sample_icd(
                     train_ann_path=cfg.dataset.train_coco_annotation_file,
                     construct_order=cfg.construct_order,
                     gen_kwargs=cfg.task.gen_args,
-                    model_name=cfg.lvlm.name,
+                    model_name=cfg.infer_model.name,
                 )
 
             # 选出最高的InfoScore
@@ -115,7 +118,7 @@ def gen_data(
     # load several models will cost large memory at the same time.
     # use sleep to load one by one.
     sleep(cfg.sleep_time * rank)
-    interface = init_lvlm(cfg, device=process_device)
+    interface = init_interface(cfg, device=process_device)
     if cfg.scorer == "infoscore":
         interface.tokenizer.padding_side = "right"
     elif cfg.scorer == "cider":
@@ -177,7 +180,7 @@ def main(cfg: DictConfig):
 
     save_file_name = (
         f"{cfg.task.task_name}-{cfg.dataset.name}-"
-        f"{cfg.lvlm.name}-{cfg.sampler.sampler_name}-scorer:{cfg.scorer}-construct_order:{cfg.construct_order}-"
+        f"{cfg.infer_model.name}-{cfg.sampler.sampler_name}-scorer:{cfg.scorer}-construct_order:{cfg.construct_order}-"
         f"beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-"
         f"candidate_num:{cfg.sampler.candidate_num}-sample_num:{cfg.sample_num}.json"
     )
