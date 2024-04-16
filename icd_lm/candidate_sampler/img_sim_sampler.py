@@ -33,19 +33,23 @@ class ImgSimSampler(BaseSampler):
             index_ds_len=index_ds_len,
             cache_dir=cache_dir,
             overwrite=overwrite,
-            other_info=feature_cache_filename.replace('openai/', ''),
+            other_info=feature_cache_filename.replace("openai/", ""),
             anchor_idx_list=anchor_idx_list,
         )
         self.clip_model_name = clip_model_name
-        self.feature_cache_filename = feature_cache_filename.replace('openai/', '')
+        self.feature_cache_filename = feature_cache_filename.replace("openai/", "")
         self.feature_cache = os.path.join(self.cache_dir, self.feature_cache_filename)
         self.img_field_name = img_field_name
         self.device = device
         self.bs = candidate_set_encode_bs
 
     def sample(self, anchor_set, train_ds):
+        if self.img_field_name not in train_ds.keys():
+            raise ValueError(
+                f'dataset\'s keys {train_ds.keys()} do not include "{self.img_field_name}".'
+            )
         if os.path.exists(self.feature_cache):
-            logger.info(f'feature cache {self.feature_cache} exists, loding...')
+            logger.info(f"feature cache {self.feature_cache} exists, loding...")
             features = torch.load(self.feature_cache)
         else:
             features = encode_image(
@@ -55,7 +59,7 @@ class ImgSimSampler(BaseSampler):
                 self.clip_model_name,
                 self.bs,
             )
-            logger.info(f'saving the features cache in {self.feature_cache} ...')
+            logger.info(f"saving the features cache in {self.feature_cache} ...")
             torch.save(features, self.feature_cache)
         test_feature = features[anchor_set]
         _, sim_sample_idx = recall_sim_feature(
