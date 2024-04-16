@@ -1,8 +1,8 @@
 name: flamingo_9B_v1
 hf_root: OpenFlamingo-9B-deprecated
-flamingo_checkpoint_dir: ${oc.env:CHECKPOINT_PATH}/${lvlm.hf_root}/
+flamingo_checkpoint_dir: ${oc.env:CHECKPOINT_PATH}/${infer_model.hf_root}/
 lang_encoder_path: huggyllama/llama-7b
-tokenizer_path: ${lvlm.lang_encoder_path}
+tokenizer_path: ${infer_model.lang_encoder_path}
 cross_attn_every_n_layers: 4
 load_from_local: true
 

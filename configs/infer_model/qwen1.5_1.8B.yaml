@@ -1,0 +1,15 @@
+name: Qwen1.5-1.8B
+
+model_name: Qwen/Qwen1.5-1.8B
+load_from_local: true
+
+sst2_prompt_template: "<X> It's <label>"
+
+
+icd_join_char: "\n"
+
+sst2_split_token: "It's"
+
+init_device: "cuda"
+
+query_text_feature_field: "text"

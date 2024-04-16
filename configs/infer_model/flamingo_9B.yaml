@@ -1,13 +1,14 @@
 name: flamingo_9B
 hf_root: OpenFlamingo-9B-vitl-mpt7b
-flamingo_checkpoint_dir: ${oc.env:CHECKPOINT_PATH}/${lvlm.hf_root}/
+flamingo_checkpoint_dir: ${oc.env:CHECKPOINT_PATH}/${infer_model.hf_root}/
 lang_encoder_path: anas-awadalla/mpt-7b
-tokenizer_path: ${lvlm.lang_encoder_path}
+tokenizer_path: ${infer_model.lang_encoder_path}
 cross_attn_every_n_layers: 4
 load_from_local: true
 
 caption_prompt_template: "Output:<X>"
 vqa_prompt_template: "Question:<Q> Short answer:<A>"
+sst2_prompt_template: "<X> It's <label>"
 
 caption_instruction: ""
 vqa_instruction: ""
@@ -16,5 +17,6 @@ icd_join_char: "<|endofchunk|>"
 
 caption_split_token: "Output:"
 vqa_split_token: "Short answer:"
+sst2_split_token: "It's "
 
 init_device: "meta"

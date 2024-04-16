@@ -1,8 +1,8 @@
 name: flamingo_3B
 hf_root: OpenFlamingo-3B-vitl-mpt1b
-flamingo_checkpoint_dir: ${oc.env:CHECKPOINT_PATH}/${lvlm.hf_root}/
+flamingo_checkpoint_dir: ${oc.env:CHECKPOINT_PATH}/${infer_model.hf_root}/
 lang_encoder_path: anas-awadalla/mpt-1b-redpajama-200b
-tokenizer_path: ${lvlm.lang_encoder_path}
+tokenizer_path: ${infer_model.lang_encoder_path}
 cross_attn_every_n_layers: 1
 load_from_local: true
 
