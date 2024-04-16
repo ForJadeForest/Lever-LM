@@ -15,7 +15,7 @@ from transformers import AutoProcessor
 from open_mmicl.metrics.cider_calculator import compute_cider
 from open_mmicl.metrics.vqa_metrics import compute_vqa_accuracy
 from open_mmicl.retriever import *
-from icd_lm.utils import init_lvlm
+from icd_lm.utils import init_interface
 from open_mmicl.vl_icl_inferencer import VLICLInferecer
 from utils import caption_postprocess, load_ds, vqa_postprocess
 
@@ -200,7 +200,7 @@ def main(cfg: DictConfig):
     result_dir = os.path.join(
         cfg.result_dir,
         "icl_inference",
-        cfg.lvlm.name,
+        cfg.infer_model.name,
         cfg.task.task_name,
         cfg.ex_name,
     )
@@ -218,7 +218,7 @@ def main(cfg: DictConfig):
     if test_data_num != -1:
         ds["validation"] = ds["validation"].select(range(test_data_num))
 
-    interface = init_lvlm(cfg, device=cfg.device)
+    interface = init_interface(cfg, device=cfg.device)
 
     base_info = f"{str(datetime.datetime.now())}-{test_data_num=}-"
 
