@@ -1,9 +1,13 @@
+import os
 from typing import Dict, List, Optional, Union
 
+import hydra
 import more_itertools
 import torch
+from loguru import logger
+from transformers import AutoProcessor
 
-from icd_lm.load_ds_utils import load_coco_ds, load_vqav2_ds, load_sst2_ds
+from icd_lm.load_ds_utils import load_coco_ds, load_hf_ds, load_vqav2_ds
 from open_mmicl.interface import FlamingoInterface, IDEFICSInterface, LLMInterface
 from open_mmicl.metrics.cider_calculator import compute_cider
 from open_mmicl.metrics.vqa_metrics import postprocess_vqa_generation
@@ -33,10 +37,11 @@ def load_ds(cfg, split=None):
             val_coco_dataset_root=cfg.dataset.val_coco_dataset_root,
             split=split,
         )
-    elif cfg.task.task_name == "sst2":
-        ds = load_sst2_ds(split=split)
     else:
-        raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
+        try:
+            ds = load_hf_ds(cfg.dataset.hf_ds_name, split=split)
+        except Exception as e:
+            raise ValueError(f"dataset load fail with error: {e}")
     return ds
 
 
@@ -54,7 +59,9 @@ def get_info_score(
     kwargs = dict(add_image_token=True)
     if isinstance(interface, LLMInterface):
         kwargs = dict()
-    test_lang_x_input = interface.gen_ice_prompt(choosed_icd_seq_list[-1], **kwargs)
+    test_lang_x_input = interface.gen_text_with_label(
+        choosed_icd_seq_list[-1], **kwargs
+    )
     prompts = interface.transfer_prompts(
         choosed_icd_seq_list, is_last_for_generation=False
     )
@@ -251,3 +258,36 @@ def vqa_postprocess(text, model_name):
         return postprocess_vqa_generation(text)
     elif "idefics" in model_name:
         return postprocess_vqa_generation(text).replace("\n", "")
+
+
+def get_icd_lm_path(cfg):
+    if cfg.icd_lm_path is None:
+        logger.info(
+            f"detect icd_lm_path is None, now try to find in {cfg.result_dir}/model_cpk/{cfg.ex_name}"
+        )
+        cpk_dir = os.path.join(
+            cfg.result_dir, "model_cpk", cfg.task.task_name, cfg.ex_name
+        )
+        cpk_list = []
+        for f in os.listdir(cpk_dir):
+            cpk_list.append(os.path.join(cpk_dir, f))
+        cpk_list = list(filter(lambda x: cfg.default_cpk_key in x, cpk_list))
+        if cpk_list:
+            logger.info(f"Detect {cpk_list[0]}, now begin to load cpk...")
+            icd_lm_path = cpk_list[0]
+        else:
+            raise ValueError(
+                f"The icd_lm_path is None and detect no checkpoint can use in {cpk_dir}"
+            )
+    else:
+        icd_lm_path = cfg.icd_lm_path
+    return icd_lm_path
+
+
+def init_icd_lm(cfg, icd_lm_path):
+    icd_lm = hydra.utils.instantiate(cfg.train.icd_lm)
+    state_dict = torch.load(icd_lm_path)["state_dict"]
+    state_dict = {k.replace("icd_lm.", ""): v for k, v in state_dict.items()}
+    icd_lm.load_state_dict(state_dict)
+    processor = AutoProcessor.from_pretrained(cfg.train.icd_lm.clip_name)
+    return icd_lm, processor

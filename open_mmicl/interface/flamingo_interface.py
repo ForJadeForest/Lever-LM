@@ -1,4 +1,5 @@
 import os
+from typing import List, Optional
 
 import open_clip
 import torch
@@ -85,6 +86,7 @@ class FlamingoInterface(LVLMInterface):
         add_eos_token: bool = False,
         add_image_token: bool = True,
         is_last_for_generation: bool = True,
+        query_label: Optional[int] = None,
     ):
         """Return the concatenated prompt: <Instruction>[<IMAGE_TOKEN>]text1<icd_join_char> ... textn[<icd_join_char>][</s>]
 
@@ -98,16 +100,22 @@ class FlamingoInterface(LVLMInterface):
             str: Concatenated prompt string.
         """
         prompt = self.instruction
-        if is_last_for_generation:
-            query_prompt = self.gen_query_prompt(
-                data_sample_list[-1], add_image_token=add_image_token
-            )
-            ice_sample_list = data_sample_list[:-1]
-        else:
-            ice_sample_list = data_sample_list
-            query_prompt = ""
+        ice_data_sample_list = data_sample_list[:-1]
+        query_data_sample = data_sample_list[-1]
 
-        ice_prompt_list = self.gen_ice_list_prompts(ice_sample_list, add_image_token)
+        if is_last_for_generation:
+            query_prompt = self.gen_text_without_label(
+                query_data_sample, add_image_token=add_image_token
+            )
+        else:
+            query_prompt = self.gen_text_with_label(
+                query_data_sample, query_label, add_image_token
+            )
+
+        ice_prompt_list = [
+            self.gen_text_with_label(item, add_image_token=add_image_token)
+            for item in ice_data_sample_list
+        ]
         for ice_prompt in ice_prompt_list:
             prompt += ice_prompt.strip(" ") + self.icd_join_char
 

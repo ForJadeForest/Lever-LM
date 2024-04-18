@@ -1,15 +1,10 @@
 from io import BytesIO
-from typing import List
+from typing import List, Optional
 
-import requests
-import torch
 from loguru import logger
-from openicl import PromptTemplate
-from PIL import Image
-
-from .utils import cast_type, get_autocast, is_url
-from .base_interface import BaseInterface
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from .base_interface import BaseInterface
 
 
 class LLMInterface(BaseInterface):
@@ -49,7 +44,9 @@ class LLMInterface(BaseInterface):
             self.tokenizer.pad_token = self.tokenizer.eos_token
         self.pad_token_id = self.tokenizer.pad_token_id
 
-    def transfer_prompts(self, batch_data_sample_list, is_last_for_generation=True):
+    def transfer_prompts(
+        self, batch_data_sample_list, is_last_for_generation=True, query_label=None
+    ):
         if not any(isinstance(i, list) for i in batch_data_sample_list):
             batch_data_sample_list = [batch_data_sample_list]
 
@@ -58,12 +55,14 @@ class LLMInterface(BaseInterface):
             prompt = []
             for data_sample in data_sample_list[:-1]:
                 prompt.append(
-                    self.gen_ice_prompt(data_sample),
+                    self.gen_text_with_label(data_sample),
                 )
             if is_last_for_generation:
-                prompt.append(self.gen_query_prompt(data_sample_list[-1]))
+                prompt.append(self.gen_text_without_label(data_sample_list[-1]))
             else:
-                prompt.append(self.gen_ice_prompt(data_sample_list[-1]))
+                prompt.append(
+                    self.gen_text_with_label(data_sample_list[-1], label=query_label)
+                )
 
             prompts.append(prompt)
         return prompts
@@ -73,6 +72,7 @@ class LLMInterface(BaseInterface):
         data_sample_list: list,
         add_eos_token: bool = False,
         is_last_for_generation: bool = True,
+        query_label: Optional[int] = None,
     ):
         """Return the concatenated prompt: <Instruction>text1<icd_join_char> ... textn[<icd_join_char>][</s>]
 
@@ -84,15 +84,19 @@ class LLMInterface(BaseInterface):
         Returns:
             str: Concatenated prompt string.
         """
+        if len(data_sample_list) == 0:
+            return ""
         prompt = self.instruction
+        ice_data_sample_list = data_sample_list[:-1]
+        query_data_sample = data_sample_list[-1]
         if is_last_for_generation:
-            query_prompt = self.gen_query_prompt(data_sample_list[-1])
-            ice_sample_list = data_sample_list[:-1]
+            query_prompt = self.gen_text_without_label(query_data_sample)
         else:
-            ice_sample_list = data_sample_list
-            query_prompt = ""
+            query_prompt = self.gen_text_with_label(query_data_sample, query_label)
 
-        ice_prompt_list = self.gen_ice_list_prompts(ice_sample_list)
+        ice_prompt_list = [
+            self.gen_text_with_label(item) for item in ice_data_sample_list
+        ]
         for ice_prompt in ice_prompt_list:
             prompt += ice_prompt.strip(" ") + self.icd_join_char
 

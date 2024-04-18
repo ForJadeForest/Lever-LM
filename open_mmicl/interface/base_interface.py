@@ -26,7 +26,8 @@ class BaseInterface:
         self.autocast_context = get_autocast(precision)
         self.device = device
         self.input_ids_field_name = input_ids_field_name
-
+        if not isinstance(prompt_template, str):
+            prompt_template = dict(prompt_template)
         self.pt = PromptTemplate(
             prompt_template,
             column_token_map=dict(column_token_map),
@@ -37,45 +38,14 @@ class BaseInterface:
         self.tokenizer = None
         self.label_field = label_field
 
-    def gen_query_prompt(self, query) -> str:
-        """Generate a query prompt without a label. Includes an image token if specified.
+    def gen_text_with_label(self, item, label=None):
+        if label is None and isinstance(self.pt.template, dict):
+            label = item[self.label_field]
 
-        For a Caption example with add_image_token=True, the format would be:
-        [<IMAGE_TOKEN>]Caption:
+        return self.pt.generate_ice_item(item, label)
 
-        Args:
-            query (DataSample): Query data sample.
-            add_image_token (bool, optional): Whether to add an image token. Defaults to True.
-
-        Returns:
-            str: Query sample prompt.
-        """
-        query_prompt = self.pt.generate_item(query, output_field=self.label_field)
-
-        return query_prompt
-
-    def gen_ice_prompt(self, ice) -> str:
-        """Generate an In-context Example (ICE) prompt with a label.
-        Args:
-            ice (DataSample): ICE data sample.
-
-        Returns:
-            str: In-context Example sample prompt.
-        """
-        ice_prompt = self.pt.generate_item(ice)
-        return ice_prompt
-
-    def gen_ice_list_prompts(self, ice_list: list) -> List[str]:
-        """Generate a list of In-context Example (ICE) prompts from a list of ICE data samples.
-
-        Args:
-            ice_list (List[YourDataType]): List of ICE data samples.
-            add_image_token (bool, optional): Whether to add an image token to each prompt. Defaults to True.
-
-        Returns:
-            List[str]: List of ICE sample prompts.
-        """
-        return [self.gen_ice_prompt(ice) for ice in ice_list]
+    def gen_text_without_label(self, item):
+        return self.pt.generate_item(item, output_field=self.label_field)
 
     def concat_prompt(self, *args, **kwargs):
         raise NotImplemented
@@ -85,6 +55,15 @@ class BaseInterface:
 
     @torch.inference_mode()
     def get_cond_prob(
+        self,
+        model_input,
+        mask_length=None,
+    ):
+        ce_loss = self.get_ppl(model_input, mask_length)
+        return (-ce_loss).exp()
+
+    @torch.inference_mode()
+    def get_ppl(
         self,
         model_input,
         mask_length=None,
@@ -116,12 +95,14 @@ class BaseInterface:
                 lens -= torch.tensor(mask_length, device=lens.device)
             # logger.debug(f'{lens=}')
             ce_loss = loss.sum(-1) / lens
-        return (-ce_loss).exp()
+        return ce_loss
 
     def get_input_token_num(self, input_tokens: str) -> int:
         return len(self.tokenizer(input_tokens, add_special_tokens=False)["input_ids"])
 
-    def transfer_prompts(self, batch_data_sample_list, is_last_for_generation=True):
+    def transfer_prompts(
+        self, batch_data_sample_list, is_last_for_generation=True, query_label=None
+    ):
         raise NotImplemented
 
     def generate(self, *args, **kwargs):
@@ -178,57 +159,24 @@ class LVLMInterface(BaseInterface):
                 except:
                     return None
 
-    def gen_query_prompt(self, query, add_image_token=False) -> str:
-        """Generate a query prompt without a label. Includes an image token if specified.
-
-        For a Caption example with add_image_token=True, the format would be:
-        [<IMAGE_TOKEN>]Caption:
-
-        Args:
-            query (DataSample): Query data sample.
-            add_image_token (bool, optional): Whether to add an image token. Defaults to True.
-
-        Returns:
-            str: Query sample prompt.
-        """
-        query_prompt = super().gen_query_prompt(query)
+    def gen_text_with_label(self, item, label=None, add_image_token=False):
+        prompt = super().gen_text_with_label(item, label)
         if add_image_token:
-            return self.add_image_token(query_prompt)
-        return query_prompt
+            return self.add_image_token(prompt)
+        return prompt
 
-    def gen_ice_prompt(self, ice, add_image_token=False) -> str:
-        """Generate an In-context Example (ICE) prompt with a label. Includes an image token if specified.
-
-        For a Caption example with add_image_token=True, the format would be:
-        <IMAGE_TOKEN>Caption: This is a cat.
-
-        Args:
-            ice (DataSample): ICE data sample.
-            add_image_token (bool, optional): Whether to add an image token. Defaults to True.
-
-        Returns:
-            str: In-context Example sample prompt.
-        """
-        ice_prompt = super().gen_ice_prompt(ice)
+    def gen_text_without_label(self, item, add_image_token=False):
+        prompt = self.pt.generate_item(item, output_field=self.label_field)
         if add_image_token:
-            return self.add_image_token(ice_prompt)
-        return ice_prompt
+            return self.add_image_token(prompt)
+        return prompt
 
-    def gen_ice_list_prompts(self, ice_list: list, add_image_token=False) -> List[str]:
-        """Generate a list of In-context Example (ICE) prompts from a list of ICE data samples.
-
-        Args:
-            ice_list (List[YourDataType]): List of ICE data samples.
-            add_image_token (bool, optional): Whether to add an image token to each prompt. Defaults to True.
-
-        Returns:
-            List[str]: List of ICE sample prompts.
-        """
-        return [self.gen_ice_prompt(ice, add_image_token) for ice in ice_list]
-
-    def transfer_prompts(self, batch_data_sample_list, is_last_for_generation=True):
+    def transfer_prompts(
+        self, batch_data_sample_list, is_last_for_generation=True, query_label=None
+    ):
         """
         transfer data sample list to text input.
+        Note: Only support one image and one text pair.
         """
         if not any(isinstance(i, list) for i in batch_data_sample_list):
             batch_data_sample_list = [batch_data_sample_list]
@@ -240,14 +188,16 @@ class LVLMInterface(BaseInterface):
                 prompt.extend(
                     [
                         data_sample[self.image_field],
-                        self.gen_ice_prompt(data_sample),
+                        self.gen_text_with_label(data_sample),
                     ]
                 )
             prompt.append(data_sample_list[-1][self.image_field])
             if is_last_for_generation:
-                prompt.append(self.gen_query_prompt(data_sample_list[-1]))
+                prompt.append(self.gen_text_without_label(data_sample_list[-1]))
             else:
-                prompt.append(self.gen_ice_prompt(data_sample_list[-1]))
+                prompt.append(
+                    self.gen_text_with_label(data_sample_list[-1], label=query_label)
+                )
 
             prompts.append(prompt)
         return prompts
