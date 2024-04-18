@@ -2,7 +2,7 @@ task_name: vqa
 # use for get prompt for flamingo
 # for get prompt of openicl
 template: "${infer_model.vqa_prompt_template}"
-icd_token: "</E>"
+
 column_token_map:
   question: "<Q>"
   answer: "<A>"

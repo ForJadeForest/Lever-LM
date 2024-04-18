@@ -4,7 +4,7 @@ task_name: caption
 image_field: "image"
 
 template: "${infer_model.caption_prompt_template}"
-icd_token: "</E>"
+
 column_token_map:
   single_caption: <X>
 input_columns: ["single_caption"]

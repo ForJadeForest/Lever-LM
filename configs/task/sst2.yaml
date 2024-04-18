@@ -3,10 +3,9 @@ task_name: sst2
 # for get prompt of openicl
 
 template: "${infer_model.sst2_prompt_template}"
-icd_token: "</E>"
+
 column_token_map:
-  label_text: "<label>"
-  text: "<X>"
+  text: "</text>"
 
 input_columns: ["text"]
 output_column: "label"

@@ -3,8 +3,9 @@ name: Qwen1.5-1.8B
 model_name: Qwen/Qwen1.5-1.8B
 load_from_local: true
 
-sst2_prompt_template: "<X> It's <label>"
-
+sst2_prompt_template: 
+    0: "</text> It's negative movie review."
+    1: "</text> It's positive movie review."
 
 icd_join_char: "\n"
 

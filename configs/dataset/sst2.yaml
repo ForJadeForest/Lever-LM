@@ -1,2 +1,3 @@
-name: sst2
+name: "sst2"
+hf_ds_name: "SetFit/sst2"
 train_ds_len: 6920

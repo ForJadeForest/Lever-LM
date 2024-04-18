@@ -199,26 +199,26 @@ def main(cfg: DictConfig):
     candidate_set_idx = [
         sampler_result["candidate_set"][k] for k in sampler_result["anchor_set"]
     ]
-    spawn(
-        gen_data,
-        args=(
-            cfg,
-            anchor_data,
-            train_ds,
-            candidate_set_idx,
-            sub_save_path,
-        ),
-        nprocs=len(cfg.gpu_ids),
-        join=True,
-    )
-    # gen_data(
-    #     0,
-    #     cfg,
-    #     anchor_data,
-    #     train_ds,
-    #     candidate_set_idx,
-    #     sub_save_path,
+    # spawn(
+    #     gen_data,
+    #     args=(
+    #         cfg,
+    #         anchor_data,
+    #         train_ds,
+    #         candidate_set_idx,
+    #         sub_save_path,
+    #     ),
+    #     nprocs=len(cfg.gpu_ids),
+    #     join=True,
     # )
+    gen_data(
+        0,
+        cfg,
+        anchor_data,
+        train_ds,
+        candidate_set_idx,
+        sub_save_path,
+    )
 
     world_size = len(cfg.gpu_ids)
     subset_size = len(anchor_data) // world_size
