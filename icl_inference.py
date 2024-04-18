@@ -9,48 +9,22 @@ import torch
 from dotenv import load_dotenv
 from loguru import logger
 from omegaconf import DictConfig
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from tqdm import tqdm
 from transformers import AutoProcessor
 
+from icd_lm.utils import init_interface
+from open_mmicl.icl_inferencer import ICLInferecer
 from open_mmicl.metrics.cider_calculator import compute_cider
 from open_mmicl.metrics.vqa_metrics import compute_vqa_accuracy
 from open_mmicl.retriever import *
-from icd_lm.utils import init_interface
-from open_mmicl.vl_icl_inferencer import VLICLInferecer
-from utils import caption_postprocess, load_ds, vqa_postprocess
-
-
-def get_icd_lm_path(cfg):
-    if cfg.icd_lm_path is None:
-        logger.info(
-            f"detect icd_lm_path is None, now try to find in {cfg.result_dir}/model_cpk/{cfg.ex_name}"
-        )
-        cpk_dir = os.path.join(
-            cfg.result_dir, "model_cpk", cfg.task.task_name, cfg.ex_name
-        )
-        cpk_list = []
-        for f in os.listdir(cpk_dir):
-            cpk_list.append(os.path.join(cpk_dir, f))
-        cpk_list = list(filter(lambda x: cfg.default_cpk_key in x, cpk_list))
-        if cpk_list:
-            logger.info(f"Detect {cpk_list[0]}, now begin to load cpk...")
-            icd_lm_path = cpk_list[0]
-        else:
-            raise ValueError(
-                f"The icd_lm_path is None and detect no checkpoint can use in {cpk_dir}"
-            )
-    else:
-        icd_lm_path = cfg.icd_lm_path
-    return icd_lm_path
-
-
-def init_icd_lm(cfg, icd_lm_path):
-    icd_lm = hydra.utils.instantiate(cfg.train.icd_lm)
-    state_dict = torch.load(icd_lm_path)["state_dict"]
-    state_dict = {k.replace("icd_lm.", ""): v for k, v in state_dict.items()}
-    icd_lm.load_state_dict(state_dict)
-    processor = AutoProcessor.from_pretrained(cfg.train.icd_lm.clip_name)
-    return icd_lm, processor
+from utils import (
+    caption_postprocess,
+    get_icd_lm_path,
+    init_icd_lm,
+    load_ds,
+    vqa_postprocess,
+)
 
 
 def record(result_json_path: str, new_data: dict):
@@ -102,9 +76,46 @@ def evaluate_retriever(
                 output_json_filename=output_files,
                 model_name=cfg.infer_model.name,
             )
+        else:
+            metric = inference_cls(
+                inferencer=inferencer,
+                ds=ds,
+                icd_idx_list=icd_idx_list,
+                output_json_filename=output_files,
+            )
         retriever_res[f"{shot_num=}"] = metric
         logger.info(f"{output_files}: {metric=}")
         record(result_json_path, {info: retriever_res})
+
+
+def inference_cls(
+    inferencer,
+    ds,
+    icd_idx_list,
+    output_json_filename,
+):
+    output_dict = inferencer.ppl_inference(
+        ds["train"],
+        ds["validation"],
+        icd_idx_list,
+        output_json_filename=output_json_filename,
+    )
+    predictions = [v["prediction"] for k, v in output_dict.items()]
+    targets = ds["validation"]["label"]
+    metrics = {}
+
+    # 计算并存储准确率
+    metrics["accuracy"] = accuracy_score(targets, predictions)
+
+    # 计算并存储宏平均和加权平均精确率
+    metrics["precision_macro"] = precision_score(targets, predictions, average="macro")
+
+    # 计算并存储宏平均和加权平均召回率
+    metrics["recall_macro"] = recall_score(targets, predictions, average="macro")
+
+    # 计算并存储宏平均和加权平均F1分数
+    metrics["f1_macro"] = f1_score(targets, predictions, average="macro")
+    return metrics["accuracy"]
 
 
 def init_retriever(retriever_name, ds, cfg):
@@ -259,7 +270,7 @@ def main(cfg: DictConfig):
 
     interface = init_interface(cfg, device=cfg.device)
 
-    inferencer = VLICLInferecer(
+    inferencer = ICLInferecer(
         interface=interface,
         train_ds=ds["train"],
         test_ds=ds["validation"],
