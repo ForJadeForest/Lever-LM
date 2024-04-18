@@ -6,11 +6,14 @@ from datasets import DatasetDict, load_dataset
 from icd_lm.dataset_module import CocoDataset
 
 
-def load_sst2_ds(
+def load_hf_ds(
+    name,
     split=None,
 ):
-    ds = load_dataset("SetFit/sst2", split=split)
-    if not isinstance(ds, DatasetDict):
+    ds = load_dataset(name, split=split)
+    if isinstance(ds, DatasetDict):
+        ds["train"] = ds["train"].add_column("idx", list(range(len(ds["train"]))))
+    else:
         ds = ds.add_column("idx", list(range(len(ds))))
     return ds
 
