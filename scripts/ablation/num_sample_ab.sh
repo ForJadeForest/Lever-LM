@@ -27,13 +27,13 @@ run_vqa_train() {
     local ex_name_suffix=$3
     local ex_name_prefix="ab_vqa"
 
-    iclm_model="query_img_text_ice_img_text"
-    echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
+    lever_lm_model="query_img_text_ice_img_text"
+    echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${lever_lm_model}==========" 
     python train.py train="query_img_text_ice_img_text" \
         data_files="${data_file}" \
         epochs=20 \
         val_step=${val_step} \
-        ex_name="${ex_name_prefix}_${ex_name_suffix}_${iclm_model}" \
+        ex_name="${ex_name_prefix}_${ex_name_suffix}_${lever_lm_model}" \
         device_num=${device_num} \
         dataset="vqav2_local_sub" \
         task="vqa"
@@ -44,20 +44,20 @@ run_caption_train(){
     local val_step=$2
     local ex_name_suffix=$3
     local ex_name_prefix="ab_caption"
-    iclm_model="query_img_ice_img_text"
+    lever_lm_model="query_img_ice_img_text"
     
-    echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
+    echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${lever_lm_model}==========" 
     python train.py train="query_img_ice_img_text" \
         data_files="${data_file}" \
         epochs=20 \
         val_step=${val_step} \
-        ex_name="${ex_name_prefix}_${ex_name_suffix}_freeze_adapter_non_norm_${iclm_model}" \
+        ex_name="${ex_name_prefix}_${ex_name_suffix}_freeze_adapter_non_norm_${lever_lm_model}" \
         device_num=${device_num} \
         dataset="coco2017" \
         task="caption" \
-        train.iclm_model.norm=false \
-        train.iclm_model.freeze_prefix_list="[img_model,sen_model]" \
-        train.iclm_model.adpter=true
+        train.lever_lm_model.norm=false \
+        train.lever_lm_model.freeze_prefix_list="[img_model,sen_model]" \
+        train.lever_lm_model.adpter=true
 }
 
 
@@ -67,25 +67,25 @@ run_inference() {
     local ex_name_prefix="ab_${task}"
     
     if [ "${task}" == "vqa" ]; then
-        iclm_model="query_img_text_ice_img_text"
-        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
-        python inference_flamingo_fast.py   train="${iclm_model}" \
-                                            ex_name="${ex_name_prefix}_${ex_name_suffix}_${iclm_model}" \
+        lever_lm_model="query_img_text_ice_img_text"
+        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${lever_lm_model}==========" 
+        python inference_flamingo_fast.py   train="${lever_lm_model}" \
+                                            ex_name="${ex_name_prefix}_${ex_name_suffix}_${lever_lm_model}" \
                                             dataset=vqav2_local_sub \
                                             task=${task} \
-                                            test_iclm=true
+                                            test_lever_lm=true
 
     elif [ "${task}" == "caption" ]; then
-        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
-        iclm_model="query_img_ice_img_text"
-        python inference_flamingo_fast.py   train="${iclm_model}" \
-                                            ex_name="${ex_name_prefix}_${ex_name_suffix}_freeze_adapter_non_norm_${iclm_model}" \
+        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${lever_lm_model}==========" 
+        lever_lm_model="query_img_ice_img_text"
+        python inference_flamingo_fast.py   train="${lever_lm_model}" \
+                                            ex_name="${ex_name_prefix}_${ex_name_suffix}_freeze_adapter_non_norm_${lever_lm_model}" \
                                             dataset=coco2017 \
                                             task=${task}\
-                                            test_iclm=true\
-                                            train.iclm_model.norm=false \
-                                            train.iclm_model.freeze_prefix_list="[img_model,sen_model]" \
-                                            train.iclm_model.adpter=true
+                                            test_lever_lm=true\
+                                            train.lever_lm_model.norm=false \
+                                            train.lever_lm_model.freeze_prefix_list="[img_model,sen_model]" \
+                                            train.lever_lm_model.adpter=true
     fi
 }
 

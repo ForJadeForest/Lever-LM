@@ -2,7 +2,7 @@ from typing import List
 
 import datasets
 
-from .base_iclm_ds import BaseICLMDataset
+from .base_lever_lm_ds import BaseICLMDataset
 
 
 class IdxICLMDataset(BaseICLMDataset):
@@ -29,7 +29,7 @@ class IdxICLMDataset(BaseICLMDataset):
 
     def __getitem__(self, index):
         data_dict = super().__getitem__(index)
-        data_dict['ice_input'] = data_dict['ice_seq_idx']
+        data_dict["ice_input"] = data_dict["ice_seq_idx"]
         return data_dict
 
     def __len__(self):

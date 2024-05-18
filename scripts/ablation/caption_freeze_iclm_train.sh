@@ -4,7 +4,7 @@
 task=${1:-caption}
 dataset=${2:-coco2017}
 device_num=${3:-1}
-iclm_model=${4:-query_img_ice_text}
+lever_lm_model=${4:-query_img_ice_text}
 
 which python
 export CUDA_VISIBLE_DEVICES="2,3"
@@ -17,18 +17,18 @@ run_train() {
     local ex_name_prefix="ab_${task}"
 
 
-    echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
-    python train.py train="${iclm_model}" \
+    echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${lever_lm_model}==========" 
+    python train.py train="${lever_lm_model}" \
         data_files="${data_file}" \
         epochs=20 \
         val_step=${val_step} \
-        ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_freeze_adapter_${iclm_model}" \
+        ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_freeze_adapter_${lever_lm_model}" \
         device_num=${device_num} \
         dataset=${dataset} \
         task=${task} \
-        train.iclm_model.norm=false \
-        train.iclm_model.freeze_prefix_list="[img_model,sen_model]" \
-        train.iclm_model.adpter=true
+        train.lever_lm_model.norm=false \
+        train.lever_lm_model.freeze_prefix_list="[img_model,sen_model]" \
+        train.lever_lm_model.adpter=true
     
 }
 
@@ -37,16 +37,16 @@ run_inference() {
     local ex_name_suffix=$1
     local ex_name_prefix="ab_${task}"
 
-    echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
-    python inference_flamingo_fast.py   train="${iclm_model}" \
-                                        ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_freeze_adapter_${iclm_model}" \
+    echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${lever_lm_model}==========" 
+    python inference_flamingo_fast.py   train="${lever_lm_model}" \
+                                        ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_freeze_adapter_${lever_lm_model}" \
                                         dataset=${dataset} \
                                         task=${task}\
                                         inference_bs=4\
-                                        test_iclm=true\
-                                        train.iclm_model.norm=false \
-                                        train.iclm_model.freeze_prefix_list="[img_model,sen_model]" \
-                                        train.iclm_model.adpter=true
+                                        test_lever_lm=true\
+                                        train.lever_lm_model.norm=false \
+                                        train.lever_lm_model.freeze_prefix_list="[img_model,sen_model]" \
+                                        train.lever_lm_model.adpter=true
 }
 
 

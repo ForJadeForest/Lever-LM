@@ -1,4 +1,4 @@
-_target_: src.models.gpt2_iclm.GPT2ICLM
+_target_: src.models.gpt2_lever_lm.GPT2ICLM
 
 lm_config: 
   n_embd: 512
@@ -11,4 +11,4 @@ freeze_prefix_list: null
 adpter: False
 norm: true
 query_encoding_flag: ["image"]
-ice_encoding_flag: null
+ice_encoding_flag: ["text"]

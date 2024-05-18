@@ -1,6 +1,7 @@
-_target_: src.dataset_module.iclm_ds.ICLMDataset
+_target_: src.dataset_module.ice_text_image_lever_lm_ds.ICETextImageICLMDataset
 
 
+clip_processor_name: ${train.lever_lm_model.clip_name}
 index_set_length: ${dataset.train_ds_len}
 
 query_image_field: ${task.image_field}

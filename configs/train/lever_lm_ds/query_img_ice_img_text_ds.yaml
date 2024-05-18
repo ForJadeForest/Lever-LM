@@ -1,9 +1,9 @@
-_target_: src.dataset_module.iclm_ds.ICLMDataset
+_target_: src.dataset_module.lever_lm_ds.ICLMDataset
 
 
 index_set_length: ${dataset.train_ds_len}
 
 query_image_field: ${task.image_field}
 query_text_field: null
-ice_image_field: null
+ice_image_field: ${task.image_field}
 ice_text_field: ${task.ice_text_feature_field}

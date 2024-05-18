@@ -2,7 +2,7 @@ from typing import List
 
 import datasets
 
-from .base_iclm_ds import BaseICLMDataset
+from .base_lever_lm_ds import BaseICLMDataset
 
 
 class ICLMDataset(BaseICLMDataset):
@@ -37,14 +37,14 @@ class ICLMDataset(BaseICLMDataset):
         ice_input = {}
         if self.ice_text_field:
             ice_text_list = [self.index_ds[i][self.ice_text_field] for i in ice_seq_idx]
-            ice_input['text'] = ice_text_list
+            ice_input["text"] = ice_text_list
         if self.ice_image_field:
             ice_img_input = [
                 self.index_ds[i][self.ice_image_field] for i in ice_seq_idx
             ]
-            ice_input['images'] = ice_img_input
+            ice_input["images"] = ice_img_input
 
-        data_dict['ice_input'] = ice_input
+        data_dict["ice_input"] = ice_input
         return data_dict
 
     def __len__(self):

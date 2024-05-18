@@ -4,7 +4,7 @@
 task=${1:-caption}
 dataset=${2:-coco2017}
 device_num=${3:-1}
-iclm_model=${4:-query_img_ice_text}
+lever_lm_model=${4:-query_img_ice_text}
 
 which python
 check_command_status() {
@@ -30,29 +30,29 @@ run_train() {
     local ex_name_prefix="ab_${task}"
 
     if [ "${task}" == "vqa" ]; then
-        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
-        python train.py train="${iclm_model}" \
+        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${lever_lm_model}==========" 
+        python train.py train="${lever_lm_model}" \
             data_files="${data_file}" \
             epochs=20 \
             val_step=${val_step} \
-            ex_name="${ex_name_prefix}_${ex_name_suffix}_${iclm_model}" \
+            ex_name="${ex_name_prefix}_${ex_name_suffix}_${lever_lm_model}" \
             device_num=${device_num} \
             dataset=${dataset} \
             task=${task}
 
     elif [ "${task}" == "caption" ]; then
-        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
-        python train.py train="${iclm_model}" \
+        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${lever_lm_model}==========" 
+        python train.py train="${lever_lm_model}" \
             data_files="${data_file}" \
             epochs=20 \
             val_step=${val_step} \
-            ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_freeze_adapter_${iclm_model}" \
+            ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_freeze_adapter_${lever_lm_model}" \
             device_num=${device_num} \
             dataset=${dataset} \
             task=${task} \
-            train.iclm_model.norm=false \
-            train.iclm_model.freeze_prefix_list="[img_model,sen_model]" \
-            train.iclm_model.adpter=true
+            train.lever_lm_model.norm=false \
+            train.lever_lm_model.freeze_prefix_list="[img_model,sen_model]" \
+            train.lever_lm_model.adpter=true
     fi
 }
 

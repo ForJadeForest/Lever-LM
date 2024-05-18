@@ -4,7 +4,7 @@
 task=${1:-caption}
 dataset=${2:-coco2017}
 device=${3:-0}
-iclm_model=${4:-query_img_ice_text}
+lever_lm_model=${4:-query_img_ice_text}
 inference_bs=${5:-4}
 flamingo=${6:-flamingo_9B}
 
@@ -17,26 +17,26 @@ run_inference() {
     local ex_name_suffix=$1
     local ex_name_prefix="ab_${task}"
     if [ "${task}" == "vqa" ]; then
-        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
-        python inference_flamingo_fast.py   train="${iclm_model}" \
-                                            ex_name="${ex_name_prefix}_${ex_name_suffix}_${iclm_model}" \
+        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${lever_lm_model}==========" 
+        python inference_flamingo_fast.py   train="${lever_lm_model}" \
+                                            ex_name="${ex_name_prefix}_${ex_name_suffix}_${lever_lm_model}" \
                                             dataset=${dataset} \
                                             task=${task}\
                                             inference_bs=${inference_bs}\
-                                            test_iclm=true\
+                                            test_lever_lm=true\
                                             flamingo=${flamingo}
     elif [ "${task}" == "caption" ]; then
-        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${iclm_model}==========" 
-        python inference_flamingo_fast.py   train="${iclm_model}" \
-                                            ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_freeze_adapter_${iclm_model}" \
+        echo "==========Begin: ${ex_name_prefix}_${ex_name_suffix}-ICLM: ${lever_lm_model}==========" 
+        python inference_flamingo_fast.py   train="${lever_lm_model}" \
+                                            ex_name="${ex_name_prefix}_${ex_name_suffix}_non_norm_freeze_adapter_${lever_lm_model}" \
                                             dataset=${dataset} \
                                             task=${task}\
                                             inference_bs=${inference_bs}\
-                                            test_iclm=true\
+                                            test_lever_lm=true\
                                             flamingo=${flamingo} \
-                                            train.iclm_model.norm=false \
-                                            train.iclm_model.freeze_prefix_list="[img_model,sen_model]" \
-                                            train.iclm_model.adpter=true
+                                            train.lever_lm_model.norm=false \
+                                            train.lever_lm_model.freeze_prefix_list="[img_model,sen_model]" \
+                                            train.lever_lm_model.adpter=true
     fi
 }
 

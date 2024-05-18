@@ -1,4 +1,4 @@
 
 defaults:
-  - iclm_ds: query_img_ice_img_ds
-  - iclm_model: query_img_ice_img_iclm
+  - lever_lm_ds: query_img_ice_img_ds
+  - lever_lm_model: query_img_ice_img_lever_lm
