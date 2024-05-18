@@ -5,8 +5,8 @@ Language Modeling
 ## Prepare
 ```
 git clone 
-conda create -n icdlm python=3.10
-conda activate icdlm
+conda create -n leverlm python=3.10
+conda activate leverlm
 pip install -r requirements.txt
 
 # install the openicl package
@@ -104,10 +104,10 @@ Args:
 - `seed`: Sets the seed for random number generation.
 
 #### 3. Use Flamingo Inference
-If test the iclm model, you should set:
+If test the lever_lm model, you should set:
 - `train`: Options are `query_img_ice_idx`, `query_img_ice_img_text`, `query_img_ice_img`, `query_img_ice_text`, `query_img_text_ice_img_text`. 'img' after 'query' indicates the addition of image information to the query sample. 'text' after 'query' indicates the addition of text information to the query sample. The same applies to 'ice'.
-- `iclm_path`: Path to the model checkpoint.
-- `test_iclm`: Set to true.
+- `lever_lm_path`: Path to the model checkpoint.
+- `test_lever_lm`: Set to true.
 
 Other args;
 - `dataset`: Defines the dataset for ICE. For caption tasks, choose either coco2017 or coco2014; for VQA tasks, choose between vqav2_local or vqav2_online.
@@ -140,16 +140,16 @@ bash ./scripts/ablation/generate_data.sh vqa vqav2_local "[0,1,2,3]"
 **for caption**
 ```sh
 # for one gpu defalut [0]
-bash ./scripts/ablation/train_iclm.sh caption coco2017 
+bash ./scripts/ablation/train_lever_lm.sh caption coco2017 
 # for multi gpu (4 gpus):
 bash ./scripts/ablation/generate_data.sh caption coco2017 4
 ```
 **for vqav2**
 ```sh
 # for one gpu defalut [0]
-bash ./scripts/ablation/train_iclm.sh vqa vqav2_local
+bash ./scripts/ablation/train_lever_lm.sh vqa vqav2_local
 # for multi gpu (4 gpus):
-bash ./scripts/ablation/train_iclm.sh vqa vqav2_local 4
+bash ./scripts/ablation/train_lever_lm.sh vqa vqav2_local 4
 ```
 
 
