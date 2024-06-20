@@ -16,7 +16,7 @@ from torch.multiprocessing import spawn
 from tqdm import tqdm
 
 from open_mmicl.interface import FlamingoInterface
-from icd_lm.utils import init_interface
+from lever_lm.utils import init_interface
 from utils import load_ds
 
 

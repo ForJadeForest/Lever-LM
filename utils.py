@@ -7,7 +7,7 @@ import torch
 from loguru import logger
 from transformers import AutoProcessor
 
-from icd_lm.load_ds_utils import load_coco_ds, load_hf_ds, load_vqav2_ds
+from lever_lm.load_ds_utils import load_coco_ds, load_hf_ds, load_vqav2_ds
 from open_mmicl.interface import FlamingoInterface, IDEFICSInterface, LLMInterface
 from open_mmicl.metrics.cider_calculator import compute_cider
 from open_mmicl.metrics.vqa_metrics import postprocess_vqa_generation
@@ -260,10 +260,10 @@ def vqa_postprocess(text, model_name):
         return postprocess_vqa_generation(text).replace("\n", "")
 
 
-def get_icd_lm_path(cfg):
-    if cfg.icd_lm_path is None:
+def get_lever_lm_path(cfg):
+    if cfg.lever_lm_path is None:
         logger.info(
-            f"detect icd_lm_path is None, now try to find in {cfg.result_dir}/model_cpk/{cfg.ex_name}"
+            f"detect lever_lm_path is None, now try to find in {cfg.result_dir}/model_cpk/{cfg.ex_name}"
         )
         cpk_dir = os.path.join(
             cfg.result_dir, "model_cpk", cfg.task.task_name, cfg.ex_name
@@ -274,20 +274,20 @@ def get_icd_lm_path(cfg):
         cpk_list = list(filter(lambda x: cfg.default_cpk_key in x, cpk_list))
         if cpk_list:
             logger.info(f"Detect {cpk_list[0]}, now begin to load cpk...")
-            icd_lm_path = cpk_list[0]
+            lever_lm_path = cpk_list[0]
         else:
             raise ValueError(
-                f"The icd_lm_path is None and detect no checkpoint can use in {cpk_dir}"
+                f"The lever_lm_path is None and detect no checkpoint can use in {cpk_dir}"
             )
     else:
-        icd_lm_path = cfg.icd_lm_path
-    return icd_lm_path
+        lever_lm_path = cfg.lever_lm_path
+    return lever_lm_path
 
 
-def init_icd_lm(cfg, icd_lm_path):
-    icd_lm = hydra.utils.instantiate(cfg.train.icd_lm)
-    state_dict = torch.load(icd_lm_path)["state_dict"]
-    state_dict = {k.replace("icd_lm.", ""): v for k, v in state_dict.items()}
-    icd_lm.load_state_dict(state_dict)
-    processor = AutoProcessor.from_pretrained(cfg.train.icd_lm.clip_name)
-    return icd_lm, processor
+def init_lever_lm(cfg, lever_lm_path):
+    lever_lm = hydra.utils.instantiate(cfg.train.lever_lm)
+    state_dict = torch.load(lever_lm_path)["state_dict"]
+    state_dict = {k.replace("lever_lm.", ""): v for k, v in state_dict.items()}
+    lever_lm.load_state_dict(state_dict)
+    processor = AutoProcessor.from_pretrained(cfg.train.lever_lm.clip_name)
+    return lever_lm, processor

@@ -26,12 +26,12 @@ mmtopk_reversed_order: true
 random_retrieval_fixed: false
 seed: 42
 
-# icd_lm config:
-icd_lm_path: null
+# lever_lm config:
+lever_lm_path: null
 default_cpk_key: "last"
-random_order_icd_lm: false
-icd_lm_bs: 20
-icd_lm_num_workers: 4
+random_order_lever_lm: false
+lever_lm_bs: 20
+lever_lm_num_workers: 4
 reverse_seq: false
 
 
@@ -43,7 +43,7 @@ ex_name: "debug"
 shot_num_list: [1, 2, 3, 4, 6, 8]
 test_zero_shot: false
 test_random: false
-test_icd_lm: false
+test_lever_lm: false
 test_t2t: false
 test_i2t: false
 test_i2i: false

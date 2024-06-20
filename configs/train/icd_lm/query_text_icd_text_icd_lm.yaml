@@ -1,4 +1,4 @@
-_target_: icd_lm.models.gpt2_icd_lm.GPT2ICDLM
+_target_: lever_lm.models.gpt2_lever_lm.GPT2LeverLM
 
 lm_config: 
   n_embd: 512

@@ -17,19 +17,19 @@ from torch import optim
 from torch.utils.data import DataLoader
 from transformers import CLIPProcessor, get_cosine_schedule_with_warmup
 
-from icd_lm.utils import data_split, collate_fn
+from lever_lm.utils import data_split, collate_fn
 from utils import load_ds
 
 
 # define the LightningModule
-class ICDLM(pl.LightningModule):
-    def __init__(self, icd_lm, lr, weight_decay=1e-2, warm_steps=0.1):
+class LeverLM(pl.LightningModule):
+    def __init__(self, lever_lm, lr, weight_decay=1e-2, warm_steps=0.1):
         super().__init__()
-        self.save_hyperparameters(ignore=["icd_lm"])
-        self.icd_lm = icd_lm
+        self.save_hyperparameters(ignore=["lever_lm"])
+        self.lever_lm = lever_lm
 
     def training_step(self, batch, batch_idx):
-        output = self.icd_lm(**batch)
+        output = self.lever_lm(**batch)
         loss = output["loss"]
         self.log(
             "train_loss", loss, batch_size=len(batch["icd_seq_idx"]), sync_dist=True
@@ -37,14 +37,14 @@ class ICDLM(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        output = self.icd_lm(**batch)
+        output = self.lever_lm(**batch)
         loss = output["loss"]
         self.log("val_loss", loss, batch_size=len(batch["icd_seq_idx"]), sync_dist=True)
         return loss
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(
-            self.icd_lm.parameters(),
+            self.lever_lm.parameters(),
             lr=self.hparams.lr,
             weight_decay=self.hparams.weight_decay,
         )
@@ -82,9 +82,9 @@ class ICDSeqDataModule(pl.LightningDataModule):
         with open(data_files_path, "r") as f:
             data = json.load(f)
         self.train_data_list, self.val_data_list = data_split(data, cfg.train_ratio)
-        self.ds_factory = hydra.utils.instantiate(cfg.train.icd_lm_ds, _partial_=True)
+        self.ds_factory = hydra.utils.instantiate(cfg.train.lever_lm_ds, _partial_=True)
         self.index_ds = load_ds(cfg, "train")
-        self.processor = CLIPProcessor.from_pretrained(cfg.train.icd_lm.clip_name)
+        self.processor = CLIPProcessor.from_pretrained(cfg.train.lever_lm.clip_name)
 
         self.save_hyperparameters()
 
@@ -151,8 +151,8 @@ def main(cfg: DictConfig):
         ],
         **cfg.trainer_args,
     )
-    icd_lm = hydra.utils.instantiate(cfg.train.icd_lm)
-    model = ICDLM(icd_lm, cfg.lr, cfg.weight_decay, cfg.warm_steps)
+    lever_lm = hydra.utils.instantiate(cfg.train.lever_lm)
+    model = LeverLM(lever_lm, cfg.lr, cfg.weight_decay, cfg.warm_steps)
     data_module = ICDSeqDataModule(cfg)
     trainer.fit(model, data_module)
 

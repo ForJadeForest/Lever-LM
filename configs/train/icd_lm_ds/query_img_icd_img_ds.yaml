@@ -1,4 +1,4 @@
-_target_: icd_lm.dataset_module.icd_lm_ds.ICDLMDataset
+_target_: lever_lm.dataset_module.lever_lm_ds.LeverLMDataset
 
 
 index_set_length: ${dataset.train_ds_len}

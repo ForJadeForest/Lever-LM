@@ -1,4 +1,4 @@
-_target_: icd_lm.candidate_sampler.img_sim_sampler.ImgSimSampler
+_target_: lever_lm.candidate_sampler.img_sim_sampler.ImgSimSampler
 
 sampler_name: ImgSimSampler
 candidate_num: ${candidate_set_num}

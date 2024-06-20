@@ -3,7 +3,7 @@ import os
 import datasets
 from datasets import DatasetDict, load_dataset
 
-from icd_lm.dataset_module import CocoDataset
+from lever_lm.dataset_module import CocoDataset
 
 
 def load_hf_ds(

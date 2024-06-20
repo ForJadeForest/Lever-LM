@@ -13,7 +13,7 @@ from omegaconf import DictConfig
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from icd_lm.utils import beam_filter, init_interface
+from lever_lm.utils import beam_filter, init_interface
 from open_mmicl.interface import BaseInterface
 from utils import get_cider_score, get_info_score, load_ds
 

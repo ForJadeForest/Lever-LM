@@ -1,11 +1,11 @@
-# ICD-LM
-ICD-LM: Configuring Vision-Language In-Context Demonstrations by Language Modeling
+# Lever-LM
+Lever-LM: Configuring Vision-Language In-Context Demonstrations by Language Modeling
 
 ## 环境配置
 ```
 git clone 
-conda create -n icdlm python=3.10
-conda activate icdlm
+conda create -n leverlm python=3.10
+conda activate leverlm
 pip install -r requirements.txt
 ```
 
@@ -73,7 +73,7 @@ python open_mmicl/dataset_module/preprocess/vqav2_hf.py --root_path /path/to/vqa
 
 
 
-#### 1. 构建ICD-LM训练数据集
+#### 1. 构建Lever-LM训练数据集
 
 ```shell
 # for coco2017 image captioning
@@ -104,15 +104,15 @@ bash scripts/generate_data.sh vqa vqav2_online "[0,1,2,3]"
 
 
 
-#### 2. Train the ICD-LM Mode
+#### 2. Train the Lever-LM Mode
 ```shell
 # for coco2017 image captioning
-bash scripts/train_icd_lm.sh caption coco2017 1 query_img_icd_img_text
+bash scripts/train_lever_lm.sh caption coco2017 1 query_img_icd_img_text
 
 # for vqav2
-bash scripts/train_icd_lm.sh vqa vqav2_local 1 query_img_text_icd_img_text
+bash scripts/train_lever_lm.sh vqa vqav2_local 1 query_img_text_icd_img_text
 # or use hf vqav2 dataset
-bash scripts/train_icd_lm.sh vqa vqav2_online 1 query_img_text_icd_img_text
+bash scripts/train_lever_lm.sh vqa vqav2_online 1 query_img_text_icd_img_text
 ```
 
 ##### `train.py` 参数设置
@@ -140,15 +140,15 @@ bash scripts/inference.sh vqa vqav2_local_sub 0 query_img_text_icd_img_text
 ```
 
 ##### Inference 参数设置
-如果要测试icd_lm模型，需要设置以下参数：
+如果要测试lever_lm模型，需要设置以下参数：
 - `train`：可选项为`query_img_icd_idx`、`query_img_icd_img_text`、`query_img_icd_img`、`query_img_icd_text`、`query_img_text_icd_img_text`。在"query"之后加上"img"表示将图像信息添加到查询样本中，加上"text"表示将文本信息添加到查询样本中。对于"icd"也是同样的规则。
-- `icd_lm_path`：模型checkpoint的路径。如果设置为null，则会在`model_cpk/task_name/ex_name`中寻找。
-- `default_cpk_key`: 当`icd_lm_path`为null的时候才有效。可选值为`last`, `min_vl`, `min_tl`。
+- `lever_lm_path`：模型checkpoint的路径。如果设置为null，则会在`model_cpk/task_name/ex_name`中寻找。
+- `default_cpk_key`: 当`lever_lm_path`为null的时候才有效。可选值为`last`, `min_vl`, `min_tl`。
     - `last` 会自动在`model_cpk/task_name/ex_name`搜寻最后一个epoch的checkpoint。
     - `min_vl`: 会自动在`model_cpk/task_name/ex_name`搜寻最小val loss版本。
     - `min_tl`: 会自动在`model_cpk/task_name/ex_name`搜寻最小train loss版本。
-- `test_icd_lm`：设置为true。
-- `random_order_icd_lm_iocd`：如果设置为`True`，ICD-LM生成的icd配置将被随机打乱。(暂时弃置)
+- `test_lever_lm`：设置为true。
+- `random_order_lever_lm_iocd`：如果设置为`True`，Lever-LM生成的icd配置将被随机打乱。(暂时弃置)
 - `default_cpk_key`：检查点关键字。可以设置为`last`或`min_loss`。
 - `ex_name`：当前实验的名称，也是保存推理结果的文件夹名称。
 

@@ -3,7 +3,7 @@ import os
 import torch
 from loguru import logger
 
-from icd_lm.utils import encode_image, recall_sim_feature
+from lever_lm.utils import encode_image, recall_sim_feature
 
 from .base_sampler import BaseSampler
 

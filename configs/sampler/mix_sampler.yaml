@@ -1,4 +1,4 @@
-_target_: icd_lm.candidate_sampler.mix_sampler.MixSimSampler
+_target_: lever_lm.candidate_sampler.mix_sampler.MixSimSampler
 
 sampler_name: MixSampler
 candidate_num: ${cand_num}

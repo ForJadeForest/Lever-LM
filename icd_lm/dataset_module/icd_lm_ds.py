@@ -2,10 +2,10 @@ from typing import List
 
 import datasets
 
-from .base_icd_lm_ds import BaseICDLMDataset
+from .base_lever_lm_ds import BaseLeverLMDataset
 
 
-class ICDLMDataset(BaseICDLMDataset):
+class LeverLMDataset(BaseLeverLMDataset):
     def __init__(
         self,
         data_list: List,
@@ -41,14 +41,14 @@ class ICDLMDataset(BaseICDLMDataset):
         icd_input = {}
         if self.icd_text_field:
             icd_text_list = [self.index_ds[i][self.icd_text_field] for i in icd_seq_idx]
-            icd_input['text'] = icd_text_list
+            icd_input["text"] = icd_text_list
         if self.icd_image_field:
             icd_img_input = [
                 self.index_ds[i][self.icd_image_field] for i in icd_seq_idx
             ]
-            icd_input['images'] = icd_img_input
+            icd_input["images"] = icd_img_input
 
-        data_dict['icd_input'] = icd_input
+        data_dict["icd_input"] = icd_input
         return data_dict
 
     def __len__(self):

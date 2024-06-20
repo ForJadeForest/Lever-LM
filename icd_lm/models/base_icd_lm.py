@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 
-class BaseICDLM(nn.Module):
+class BaseLeverLM(nn.Module):
     def __init__(
         self,
         adpter: bool = False,

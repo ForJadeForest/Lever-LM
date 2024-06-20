@@ -13,15 +13,15 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 from tqdm import tqdm
 from transformers import AutoProcessor
 
-from icd_lm.utils import init_interface
+from lever_lm.utils import init_interface
 from open_mmicl.icl_inferencer import ICLInferecer
 from open_mmicl.metrics.cider_calculator import compute_cider
 from open_mmicl.metrics.vqa_metrics import compute_vqa_accuracy
 from open_mmicl.retriever import *
 from utils import (
     caption_postprocess,
-    get_icd_lm_path,
-    init_icd_lm,
+    get_lever_lm_path,
+    init_lever_lm,
     load_ds,
     vqa_postprocess,
 )
@@ -160,21 +160,21 @@ def init_retriever(retriever_name, ds, cfg):
             batch_size=32,
             num_workers=8,
         )
-    elif retriever_name == "ICDLMRetriever":
-        icd_lm_path = get_icd_lm_path(cfg)
-        icd_lm, processor = init_icd_lm(cfg, icd_lm_path=icd_lm_path)
-        return ICDLMRetriever(
+    elif retriever_name == "LeverLMRetriever":
+        lever_lm_path = get_lever_lm_path(cfg)
+        lever_lm, processor = init_lever_lm(cfg, lever_lm_path=lever_lm_path)
+        return LeverLMRetriever(
             ds["train"],
             ds["validation"],
-            icd_lm=icd_lm,
+            lever_lm=lever_lm,
             processor=processor,
-            query_image_field=cfg.train.icd_lm_ds.query_image_field,
-            query_text_field=cfg.train.icd_lm_ds.query_text_field,
-            icd_image_field=cfg.train.icd_lm_ds.icd_image_field,
-            icd_text_field=cfg.train.icd_lm_ds.icd_text_field,
+            query_image_field=cfg.train.lever_lm_ds.query_image_field,
+            query_text_field=cfg.train.lever_lm_ds.query_text_field,
+            icd_image_field=cfg.train.lever_lm_ds.icd_image_field,
+            icd_text_field=cfg.train.lever_lm_ds.icd_text_field,
             device=cfg.device,
-            infer_batch_size=cfg.icd_lm_bs,
-            infer_num_workers=cfg.icd_lm_num_workers,
+            infer_batch_size=cfg.lever_lm_bs,
+            infer_num_workers=cfg.lever_lm_num_workers,
             reverse_seq=cfg.reverse_seq,
         )
 
@@ -300,8 +300,8 @@ def main(cfg: DictConfig):
             cfg.shot_num_list if cfg.test_t2t else [],
         ),
         (
-            "ICDLMRetriever",
-            cfg.shot_num_list if cfg.test_icd_lm else [],
+            "LeverLMRetriever",
+            cfg.shot_num_list if cfg.test_lever_lm else [],
         ),
     ]
 
