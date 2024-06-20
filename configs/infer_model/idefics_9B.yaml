@@ -1,0 +1,14 @@
+name: idefics_9B
+hf_root: "HuggingFaceM4/idefics-9b"
+load_from_local: true
+
+caption_prompt_template: "Caption:<X>"
+vqa_prompt_template: "Question:<Q> Short answer:<A>"
+
+caption_instruction: ""
+vqa_instruction: "Instruction: provide an answer to the question. Use the image to answer.\n"
+
+
+icd_join_char: "\n"
+caption_split_token: "Caption:"
+vqa_split_token: "Short answer:"

@@ -1,56 +1,33 @@
 import json
 import os
-import random
+import sys
 from time import sleep
-from typing import Dict, List
+from typing import Dict
 
 import hydra
 import torch
-from datasets import Dataset, DatasetDict
+from datasets import Dataset
 from dotenv import load_dotenv
 from loguru import logger
 from omegaconf import DictConfig
-from openicl import PromptTemplate
 from torch.multiprocessing import spawn
 from tqdm import tqdm
 
-from src.load_ds_utils import load_coco_ds, load_vqav2_ds
-from src.metrics.info_score import get_info_score
-from src.utils import beam_filter, init_flamingo
+from lever_lm.utils import beam_filter, init_interface
+from open_mmicl.interface import BaseInterface
+from utils import get_cider_score, get_info_score, load_ds
 
 
 @torch.inference_mode()
 def generate_single_sample_icd(
-    model,
-    tokenizer,
-    image_processor,
+    interface: BaseInterface,
     test_data: Dict,
     cfg: DictConfig,
     candidate_set: Dataset,
-    autocast_context,
-    device,
 ):
-    template = PromptTemplate(
-        cfg.task.template,
-        column_token_map=dict(cfg.task.column_token_map),
-        icd_token=cfg.task.icd_token,
-    )
-
-    # 构建test sample prompt
-    test_data_text = template.generate_item(test_data)
-
-    test_data_image = test_data[cfg.task.image_field]
-    test_data_id = test_data['idx']
-
+    test_data_id = test_data["idx"]
     # 构建candidate set
-    candidateidx2data = {
-        data['idx']: {
-            'text_input': template.generate_item(data),
-            'image': data[cfg.task.image_field],
-            'idx': data['idx'],
-        }
-        for data in candidate_set
-    }
+    candidateidx2data = {data["idx"]: data for data in candidate_set}
     test_data_id_list = [[test_data_id]]
 
     for _ in range(cfg.few_shot_num):
@@ -66,30 +43,37 @@ def generate_single_sample_icd(
 
             # 构建已经选好的icd + 测试样本的输入
             icd_id_seq = test_data_id_seq[:-1]
-            lang_x = [candidateidx2data[idx]['text_input'] for idx in icd_id_seq] + [
-                test_data_text
-            ]
-            image_x = [candidateidx2data[idx]['image'] for idx in icd_id_seq] + [
-                test_data_image
+            choosed_icd_seq_list = [candidateidx2data[idx] for idx in icd_id_seq] + [
+                test_data
             ]
 
             filtered_idx_list = sorted(list(filtered_candidateidx2data.keys()))
-            info_score = get_info_score(
-                model,
-                tokenizer,
-                image_processor,
-                device,
-                icd_join_char=cfg.task.icd_join_char,
-                lang_x=lang_x,
-                image_x=image_x,
-                candidate_set=filtered_candidateidx2data,
-                batch_size=cfg.batch_size,
-                autocast_context=autocast_context,
-                split_token=cfg.task.split_token,
-            )
+            if cfg.scorer == "infoscore":
+                scores = get_info_score(
+                    interface,
+                    choosed_icd_seq_list=choosed_icd_seq_list,
+                    candidate_set=filtered_candidateidx2data,
+                    batch_size=cfg.batch_size,
+                    split_token=cfg.task.split_token,
+                    construct_order=cfg.construct_order,
+                )
+            elif cfg.scorer == "cider":
+                assert (
+                    "coco" in cfg.dataset.name
+                ), f"Now CIDEr scorer only support mscoco task"
+                scores = get_cider_score(
+                    interface,
+                    choosed_icd_seq_list,
+                    candidate_set=filtered_candidateidx2data,
+                    batch_size=cfg.batch_size,
+                    train_ann_path=cfg.dataset.train_coco_annotation_file,
+                    construct_order=cfg.construct_order,
+                    gen_kwargs=cfg.task.gen_args,
+                    model_name=cfg.infer_model.name,
+                )
 
             # 选出最高的InfoScore
-            scores, indices = info_score.topk(cfg.beam_size)
+            topk_scores, indices = scores.topk(cfg.beam_size)
             indices = indices.tolist()
             indices = list(
                 map(
@@ -97,9 +81,9 @@ def generate_single_sample_icd(
                     indices,
                 )
             )
-            scores = scores.tolist()
+            topk_scores = topk_scores.tolist()
 
-            for idx, score in zip(indices, scores):
+            for idx, score in zip(indices, topk_scores):
                 new_test_data_id_list.append([idx, *test_data_id_seq])
                 new_test_score_list.append(score)
 
@@ -108,7 +92,7 @@ def generate_single_sample_icd(
         )
         test_data_id_list = new_test_data_id_list
     return {
-        test_data_id: {'id_list': test_data_id_list, 'score_list': new_test_score_list}
+        test_data_id: {"id_list": test_data_id_list, "score_list": new_test_score_list}
     }
 
 
@@ -121,7 +105,7 @@ def gen_data(
     save_path,
 ):
     world_size = len(cfg.gpu_ids)
-    process_device = f'cuda:{cfg.gpu_ids[rank]}'
+    process_device = f"cuda:{cfg.gpu_ids[rank]}"
 
     subset_size = len(sample_data) // world_size
     subset_start = rank * subset_size
@@ -134,37 +118,32 @@ def gen_data(
     # load several models will cost large memory at the same time.
     # use sleep to load one by one.
     sleep(cfg.sleep_time * rank)
-    model, image_processor, tokenizer, autocast_context = init_flamingo(
-        cfg.flamingo.lang_encoder_path,
-        cfg.flamingo.tokenizer_path,
-        cfg.flamingo.flamingo_checkpoint_dir,
-        cfg.flamingo.cross_attn_every_n_layers,
-        cfg.flamingo.hf_root,
-        cfg.precision,
-        process_device,
-        cfg.flamingo.load_from_local,
-    )
+    interface = init_interface(cfg, device=process_device)
+    if cfg.scorer == "infoscore":
+        interface.tokenizer.padding_side = "right"
+    elif cfg.scorer == "cider":
+        interface.tokenizer.padding_side = "left"
 
     final_res = {}
     sub_res_basename = (
-        os.path.basename(save_path).split('.')[0]
-        + f'_rank:{rank}_({subset_start}, {subset_end}).json'
+        os.path.basename(save_path).split(".")[0]
+        + f"_rank:{rank}_({subset_start}, {subset_end}).json"
     )
     save_path = save_path.replace(os.path.basename(save_path), sub_res_basename)
     if os.path.exists(save_path):
         final_res.update(json.load(open(save_path)))
         logger.info(
-            f'Rank: {rank} reloading data from {save_path}, begin from {len(final_res)}'
+            f"Rank: {rank} reloading data from {save_path}, begin from {len(final_res)}"
         )
     if len(final_res) == subset_size:
-        logger.info(f'Rank: {rank} task is Done.')
+        logger.info(f"Rank: {rank} task is Done.")
         return
 
     subset = subset.select(range(len(final_res), len(subset)))
     for i, test_data in enumerate(
         tqdm(
             subset,
-            disable=(rank != 0),
+            disable=(rank != world_size - 1),
             total=subset_size,
             initial=len(final_res),
             ncols=100,
@@ -172,17 +151,13 @@ def gen_data(
     ):
         candidate_set = train_ds.select(sub_cand_set_idx[i])
         res = generate_single_sample_icd(
-            model=model,
-            tokenizer=tokenizer,
-            image_processor=image_processor,
+            interface=interface,
             test_data=test_data,
             cfg=cfg,
             candidate_set=candidate_set,
-            device=process_device,
-            autocast_context=autocast_context,
         )
         final_res.update(res)
-        with open(save_path, 'w') as f:
+        with open(save_path, "w") as f:
             json.dump(final_res, f)
     return
 
@@ -191,66 +166,58 @@ def gen_data(
     version_base=None, config_path="./configs", config_name="generate_data.yaml"
 )
 def main(cfg: DictConfig):
-    logger.info(f'{cfg=}')
     if not os.path.exists(cfg.result_dir):
         os.makedirs(cfg.result_dir)
     cache_dir = cfg.sampler.cache_dir
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
-    save_dir = os.path.join(cfg.result_dir, 'generated_data')
+    save_dir = os.path.join(cfg.result_dir, "generated_data")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    sub_proc_save_dir = os.path.join(save_dir, 'sub_proc_data')
+    sub_proc_save_dir = os.path.join(save_dir, "sub_proc_data")
     if not os.path.exists(sub_proc_save_dir):
         os.makedirs(sub_proc_save_dir)
 
     save_file_name = (
-        f'{cfg.task.task_name}-{cfg.dataset.name}-'
-        f'{cfg.flamingo.hf_root}-{cfg.sampler.sampler_name}-'
-        f'beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-'
-        f'candidate_num:{cfg.sampler.candidate_num}-sample_num:{cfg.sample_num}.json'
+        f"{cfg.task.task_name}-{cfg.dataset.name}-"
+        f"{cfg.infer_model.name}-{cfg.sampler.sampler_name}-scorer:{cfg.scorer}-construct_order:{cfg.construct_order}-"
+        f"beam_size:{cfg.beam_size}-few_shot:{cfg.few_shot_num}-"
+        f"candidate_num:{cfg.sampler.candidate_num}-sample_num:{cfg.sample_num}.json"
     )
 
     sub_save_path = os.path.join(sub_proc_save_dir, save_file_name)
     save_path = os.path.join(save_dir, save_file_name)
 
     # 加载数据集
-    if cfg.task.task_name == 'caption':
-        train_ds = load_coco_ds(cfg, split='train')
-    elif cfg.task.task_name == 'vqa':
-        train_ds = load_vqav2_ds(cfg, split='train')
-    else:
-        raise ValueError(f'{cfg.task.task_name=} error, should in ["caption", "vqa"]')
+    train_ds = load_ds(cfg, "train")
 
     # sample from train idx
-    anchor_set_cache_filename = os.path.join(
-        cache_dir, f'{cfg.dataset.name}-anchor_sample_num:{cfg.sample_num}.json'
-    )
-    if os.path.exists(anchor_set_cache_filename):
-        logger.info('the anchor_set_cache_filename exists, loding...')
-        anchor_idx_list = json.load(open(anchor_set_cache_filename, 'r'))
-    else:
-        anchor_idx_list = random.sample(range(0, len(train_ds)), cfg.sample_num)
-        with open(anchor_set_cache_filename, 'w') as f:
-            logger.info(f'save {anchor_set_cache_filename}...')
-            json.dump(anchor_idx_list, f)
-    anchor_data = train_ds.select(anchor_idx_list)
+    sampler = hydra.utils.instantiate(cfg.sampler)
+    sampler_result = sampler(train_ds)
 
-    candidate_sampler = hydra.utils.instantiate(cfg.sampler)
-    candidate_set_idx = candidate_sampler(anchor_idx_list, train_ds)
-
-    candidate_set_idx = [candidate_set_idx[k] for k in anchor_idx_list]
-    spawn(
-        gen_data,
-        args=(
-            cfg,
-            anchor_data,
-            train_ds,
-            candidate_set_idx,
-            sub_save_path,
-        ),
-        nprocs=len(cfg.gpu_ids),
-        join=True,
+    anchor_data = train_ds.select(sampler_result["anchor_set"])
+    candidate_set_idx = [
+        sampler_result["candidate_set"][k] for k in sampler_result["anchor_set"]
+    ]
+    # spawn(
+    #     gen_data,
+    #     args=(
+    #         cfg,
+    #         anchor_data,
+    #         train_ds,
+    #         candidate_set_idx,
+    #         sub_save_path,
+    #     ),
+    #     nprocs=len(cfg.gpu_ids),
+    #     join=True,
+    # )
+    gen_data(
+        0,
+        cfg,
+        anchor_data,
+        train_ds,
+        candidate_set_idx,
+        sub_save_path,
     )
 
     world_size = len(cfg.gpu_ids)
@@ -262,21 +229,33 @@ def main(cfg: DictConfig):
             subset_start + subset_size if rank != world_size - 1 else len(anchor_data)
         )
         sub_res_basename = (
-            os.path.basename(save_path).split('.')[0]
-            + f'_rank:{rank}_({subset_start}, {subset_end}).json'
+            os.path.basename(save_path).split(".")[0]
+            + f"_rank:{rank}_({subset_start}, {subset_end}).json"
         )
         sub_save_path = sub_save_path.replace(
             os.path.basename(sub_save_path), sub_res_basename
         )
-        with open(sub_save_path, 'r') as f:
+        with open(sub_save_path, "r") as f:
             data = json.load(f)
-        logger.info(f'load the data from {sub_save_path}, the data length: {len(data)}')
+        logger.info(f"load the data from {sub_save_path}, the data length: {len(data)}")
         total_data.update(data)
-    with open(save_path, 'w') as f:
+    with open(save_path, "w") as f:
         json.dump(total_data, f)
-    logger.info(f'save the final data to {save_path}')
+    logger.info(f"save the final data to {save_path}")
 
 
-if __name__ == '__main__':
+@hydra.main(
+    version_base=None, config_path="./configs", config_name="generate_data.yaml"
+)
+def hydra_loguru_init(_) -> None:
+    hydra_path = hydra.core.hydra_config.HydraConfig.get().run.dir
+    job_name = hydra.core.hydra_config.HydraConfig.get().job.name
+    logger.remove()
+    logger.add(sys.stderr, level=hydra.core.hydra_config.HydraConfig.get().verbose)
+    logger.add(os.path.join(hydra_path, f"{job_name}.log"))
+
+
+if __name__ == "__main__":
     load_dotenv()
+    hydra_loguru_init()
     main()

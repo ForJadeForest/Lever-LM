@@ -1,0 +1,30 @@
+task_name: sst2
+# use for get prompt for flamingo
+# for get prompt of openicl
+
+template: "${infer_model.sst2_prompt_template}"
+
+column_token_map:
+  text: "</text>"
+
+input_columns: ["text"]
+output_column: "label"
+instruction: ""
+
+
+
+sim_text_field: "text"
+
+icd_text_feature_field: "text"  # use for as encoding data feature
+query_text_feature_field: "text"
+
+# for flamingo inference
+gen_args:
+  max_new_tokens: 20
+  num_beams: 3
+  length_penalty: 0.0
+  min_new_tokens: 0
+
+other_save_field: ['text', 'label_text']
+
+split_token: "${infer_model.sst2_split_token}"

@@ -4,7 +4,7 @@
 # order of defaults determines the order in which configs override each other
 defaults:
   - _self_
-  - train: query_img_icd_text
+  - train: query_img_icd_img_text
   - dataset: coco2017
   - task: caption
 
@@ -18,7 +18,7 @@ num_workers: 16
 
 # Trainer
 trainer_args:
-  devices: 2
+  devices: 1
   strategy: ddp
   accelerator: gpu
   precision: "16-mixed"
@@ -49,7 +49,7 @@ dirpath: "${oc.env:RESULT_DIR}/model_cpk/${task.task_name}/${ex_name}"
 wandb_args:
   save_dir: "${oc.env:RESULT_DIR}/wandb_logs"
   name: "${ex_name}"
-  project: "ICDLM"
+  project: "LeverLM"
   log_model: false
 
   

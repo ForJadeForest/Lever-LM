@@ -1,4 +1,4 @@
 
 defaults:
-  - icd_lm_ds: query_img_icd_img_text_ds
-  - icd_lm: query_img_icd_img_text_icd_lm
+  - lever_lm_ds: query_img_icd_img_text_ds
+  - lever_lm: query_img_icd_img_text_lever_lm

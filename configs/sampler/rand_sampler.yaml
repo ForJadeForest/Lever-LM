@@ -1,8 +1,10 @@
-_target_: src.candidate_sampler.random_sampler.RandSampler
+_target_: lever_lm.candidate_sampler.random_sampler.RandSampler
 
 sampler_name: RandSampler
-candidate_num: 64
+candidate_num: ${cand_num}
 cache_dir: "${result_dir}/cache"
 overwrite: false
 dataset_name: ${dataset.name}
 
+anchor_sample_num: ${sample_num}
+index_ds_len: ${dataset.train_ds_len}

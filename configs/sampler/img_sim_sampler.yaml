@@ -1,4 +1,4 @@
-_target_: src.candidate_sampler.img_sim_sampler.ImgSimSampler
+_target_: lever_lm.candidate_sampler.img_sim_sampler.ImgSimSampler
 
 sampler_name: ImgSimSampler
 candidate_num: ${candidate_set_num}
@@ -11,3 +11,6 @@ feature_cache_filename: "${task.task_name}-${dataset.name}-${clip_model_name}-Im
 img_field_name: "${task.sim_image_field}"
 device: ${device}
 candidate_set_encode_bs: 128
+
+anchor_sample_num: ${sample_num}
+index_ds_len: ${dataset.train_ds_len}

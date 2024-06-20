@@ -1,7 +1,7 @@
 task=${1:-caption}
 dataset=${2:-coco2017}
 device_num=${3:-1}
-icd_lm=${4:-query_img_icd_img_text}
+lever_lm=${4:-query_img_icd_img_text}
 
 
 run_train() {
@@ -10,29 +10,29 @@ run_train() {
     local ex_name_prefix="main_${task}"
 
     if [ "${task}" == "vqa" ]; then
-        echo "==========Begin: ${ex_name_prefix}-ICDLM: ${icd_lm}==========" 
-        python train.py train="${icd_lm}" \
-            data_files="${data_file}" \
-            epochs=20 \
-            val_step=80 \
-            ex_name="${ex_name_prefix}_${icd_lm}" \
-            device_num=${device_num} \
-            dataset=${dataset} \
-            task=${task}
+        echo "==========Begin: ${ex_name_prefix}-LeverLM: ${lever_lm}==========" 
+        python train.py train="${lever_lm}" \
+                        data_files="${data_file}" \
+                        epochs=20 \
+                        val_step=80 \
+                        ex_name="${ex_name_prefix}_${lever_lm}" \
+                        trainer_args.devices=${device_num} \
+                        dataset=${dataset} \
+                        task=${task}
 
     elif [ "${task}" == "caption" ]; then
-        echo "==========Begin: ${ex_name_prefix}-ICDLM: ${icd_lm}==========" 
-        python train.py train="${icd_lm}" \
-            data_files="${data_file}" \
-            epochs=20 \
-            val_step=80 \
-            ex_name="${ex_name_prefix}_freeze_adapter_non_norm_${icd_lm}" \
-            device_num=${device_num} \
-            dataset=${dataset} \
-            task=${task} \
-            train.icd_lm.norm=false \
-            train.icd_lm.freeze_prefix_list="[img_model,sen_model]" \
-            train.icd_lm.adpter=true
+        echo "==========Begin: ${ex_name_prefix}-LeverLM: ${lever_lm}==========" 
+        python train.py train="${lever_lm}" \
+                        data_files="${data_file}" \
+                        epochs=20 \
+                        val_step=80 \
+                        ex_name="${ex_name_prefix}_freeze_adapter_non_norm_${lever_lm}" \
+                        trainer_args.devices==${device_num} \
+                        dataset=${dataset} \
+                        task=${task} \
+                        train.lever_lm.norm=false \
+                        train.lever_lm.freeze_prefix_list="[img_model,sen_model]" \
+                        train.lever_lm.adpter=true
     fi
 }
 

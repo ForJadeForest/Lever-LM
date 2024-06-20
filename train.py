@@ -4,51 +4,47 @@ from functools import partial
 
 import hydra
 import pytorch_lightning as pl
-import torch
 from dotenv import load_dotenv
 from omegaconf import DictConfig
 from pytorch_lightning.callbacks import (
     LearningRateMonitor,
     ModelCheckpoint,
-    ModelSummary,
     RichModelSummary,
     RichProgressBar,
 )
 from pytorch_lightning.loggers.wandb import WandbLogger
-from torch import Tensor, nn, optim, utils
-from torch.optim import AdamW
+from torch import optim
 from torch.utils.data import DataLoader
-from torchvision.datasets import MNIST
-from torchvision.transforms import ToTensor
-from tqdm import tqdm
 from transformers import CLIPProcessor, get_cosine_schedule_with_warmup
 
-from src.load_ds_utils import load_coco_ds, load_vqav2_ds
-from src.utils import collate_fn, data_split
+from lever_lm.utils import data_split, collate_fn
+from utils import load_ds
 
 
 # define the LightningModule
-class ICDLM(pl.LightningModule):
-    def __init__(self, icd_lm, lr, weight_decay=1e-2, warm_steps=0.1):
+class LeverLM(pl.LightningModule):
+    def __init__(self, lever_lm, lr, weight_decay=1e-2, warm_steps=0.1):
         super().__init__()
-        self.save_hyperparameters(ignore=['icd_lm'])
-        self.icd_lm = icd_lm
+        self.save_hyperparameters(ignore=["lever_lm"])
+        self.lever_lm = lever_lm
 
     def training_step(self, batch, batch_idx):
-        output = self.icd_lm(**batch)
-        loss = output['loss']
-        self.log("train_loss", loss, batch_size=len(batch['icd_seq_idx']), sync_dist=True)
+        output = self.lever_lm(**batch)
+        loss = output["loss"]
+        self.log(
+            "train_loss", loss, batch_size=len(batch["icd_seq_idx"]), sync_dist=True
+        )
         return loss
 
     def validation_step(self, batch, batch_idx):
-        output = self.icd_lm(**batch)
-        loss = output['loss']
-        self.log("val_loss", loss, batch_size=len(batch['icd_seq_idx']), sync_dist=True)
+        output = self.lever_lm(**batch)
+        loss = output["loss"]
+        self.log("val_loss", loss, batch_size=len(batch["icd_seq_idx"]), sync_dist=True)
         return loss
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(
-            self.icd_lm.parameters(),
+            self.lever_lm.parameters(),
             lr=self.hparams.lr,
             weight_decay=self.hparams.weight_decay,
         )
@@ -60,7 +56,7 @@ class ICDLM(pl.LightningModule):
             warm_steps = self.hparams.warm_steps
         else:
             raise ValueError(
-                f'the warm_steps should be int or float, but got {type(self.hparams.warm_steps)}'
+                f"the warm_steps should be int or float, but got {type(self.hparams.warm_steps)}"
             )
         scheduler = get_cosine_schedule_with_warmup(
             optimizer, num_warmup_steps=warm_steps, num_training_steps=step_batches
@@ -82,21 +78,18 @@ class ICDSeqDataModule(pl.LightningDataModule):
         dataset_name: The dataset Class name
         """
         super().__init__()
-        data_files_path = os.path.join(cfg.result_dir, 'generated_data', cfg.data_files)
-        with open(data_files_path, 'r') as f:
+        data_files_path = os.path.join(cfg.result_dir, "generated_data", cfg.data_files)
+        with open(data_files_path, "r") as f:
             data = json.load(f)
         self.train_data_list, self.val_data_list = data_split(data, cfg.train_ratio)
-        self.ds_factory = hydra.utils.instantiate(cfg.train.icd_lm_ds, _partial_=True)
-        if cfg.task.task_name == 'caption':
-            self.index_ds = load_coco_ds(cfg, split='train')
-        elif cfg.task.task_name == 'vqa':
-            self.index_ds = load_vqav2_ds(cfg, split='train')
-        self.processor = CLIPProcessor.from_pretrained(cfg.train.icd_lm.clip_name)
-        
+        self.ds_factory = hydra.utils.instantiate(cfg.train.lever_lm_ds, _partial_=True)
+        self.index_ds = load_ds(cfg, "train")
+        self.processor = CLIPProcessor.from_pretrained(cfg.train.lever_lm.clip_name)
+
         self.save_hyperparameters()
 
     def setup(self, stage: str) -> None:
-        if stage == 'fit' or stage is None:
+        if stage == "fit" or stage is None:
             self.trainset = self.ds_factory(
                 data_list=self.train_data_list, index_ds=self.index_ds
             )
@@ -126,28 +119,26 @@ class ICDSeqDataModule(pl.LightningDataModule):
         )
 
 
-@hydra.main(
-    version_base=None, config_path="./configs", config_name="train.yaml"
-)
+@hydra.main(version_base=None, config_path="./configs", config_name="train.yaml")
 def main(cfg: DictConfig):
     pl.seed_everything(cfg.seed)
 
     logger = WandbLogger(**cfg.wandb_args)
     tl_model_cpk_callback = ModelCheckpoint(
-        filename='min_tl-{epoch}-{train_loss:.5f}-{val_loss:.5f}',
-        monitor='train_loss',
-        save_last=True,
+        filename="min_tl-{epoch}-{train_loss:.5f}-{val_loss:.5f}",
+        monitor="train_loss",
+        save_last=False,
         save_top_k=1,
-        mode='min',
-        dirpath=cfg.dirpath
+        mode="min",
+        dirpath=cfg.dirpath,
     )
     vl_model_cpk_callback = ModelCheckpoint(
-        filename='min_vl-{epoch}-{train_loss:.5f}-{val_loss:.5f}',
-        monitor='val_loss',
+        filename="min_vl-{epoch}-{train_loss:.5f}-{val_loss:.5f}",
+        monitor="val_loss",
         save_last=True,
         save_top_k=1,
-        mode='min',
-        dirpath=cfg.dirpath
+        mode="min",
+        dirpath=cfg.dirpath,
     )
     trainer = pl.Trainer(
         logger=logger,
@@ -160,12 +151,12 @@ def main(cfg: DictConfig):
         ],
         **cfg.trainer_args,
     )
-    icd_lm = hydra.utils.instantiate(cfg.train.icd_lm)
-    model = ICDLM(icd_lm, cfg.lr, cfg.weight_decay, cfg.warm_steps)
+    lever_lm = hydra.utils.instantiate(cfg.train.lever_lm)
+    model = LeverLM(lever_lm, cfg.lr, cfg.weight_decay, cfg.warm_steps)
     data_module = ICDSeqDataModule(cfg)
     trainer.fit(model, data_module)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     load_dotenv()
     main()
