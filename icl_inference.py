@@ -76,7 +76,7 @@ def evaluate_retriever(
                 output_json_filename=output_files,
                 model_name=cfg.infer_model.name,
             )
-        else:
+        elif cfg.task.task_name == "sst2":
             metric = inference_cls(
                 inferencer=inferencer,
                 ds=ds,
