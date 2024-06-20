@@ -1,5 +1,5 @@
 # Lever-LM
-Lever-LM: Configuring Vision-Language In-Context Demonstrations by Language Modeling
+Lever LM: Configuring In-Context Sequence to Lever Large Vision Language Models
 
 ## 环境配置
 ```
