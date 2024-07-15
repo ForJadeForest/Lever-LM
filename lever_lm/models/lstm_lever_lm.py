@@ -13,14 +13,14 @@ class LSTMLeverLM(BaseLeverLM):
         dropout,
         index_ds_size,
         clip_name="openai/clip-vit-base-patch32",
-        adpter=False,
+        adapter=False,
         norm=False,
         freeze_prefix_list=None,
         query_encoding_flag: list = None,
         icd_encoding_flag: list = None,
     ):
         super().__init__(
-            adpter,
+            adapter,
             norm,
             query_encoding_flag,
             icd_encoding_flag,
@@ -46,15 +46,15 @@ class LSTMLeverLM(BaseLeverLM):
         if "text" in need_encoder:
             self.sen_model = CLIPTextModelWithProjection.from_pretrained(clip_name)
 
-        if self._adpter:
+        if self._adapter:
             if "image" in need_encoder:
-                self.img_adpter = nn.Sequential(
+                self.img_adapter = nn.Sequential(
                     nn.Linear(self.img_model.config.projection_dim, emb_dim),
                     nn.ReLU(),
                     nn.Linear(emb_dim, emb_dim),
                 )
             if "text" in need_encoder:
-                self.sen_adpter = nn.Sequential(
+                self.sen_adapter = nn.Sequential(
                     nn.Linear(self.sen_model.config.projection_dim, emb_dim),
                     nn.ReLU(),
                     nn.Linear(emb_dim, emb_dim),
@@ -69,8 +69,8 @@ class LSTMLeverLM(BaseLeverLM):
         # add query feature
         if "image" in self.query_encoding_flag:
             image_embeds = self.img_model(query_input["pixel_values"])["image_embeds"]
-            if self._adpter:
-                image_embeds = self.img_adpter(image_embeds)
+            if self._adapter:
+                image_embeds = self.img_adapter(image_embeds)
             if self._norm:
                 image_embeds = image_embeds / image_embeds.norm(dim=-1, keepdim=True)
             inputs_embeds[:, 1] += image_embeds
@@ -79,8 +79,8 @@ class LSTMLeverLM(BaseLeverLM):
                 input_ids=query_input["input_ids"],
                 attention_mask=query_input["attention_mask"],
             )["text_embeds"]
-            if self._adpter:
-                text_embeds = self.sen_adpter(text_embeds)
+            if self._adapter:
+                text_embeds = self.sen_adapter(text_embeds)
             if self._norm:
                 text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
             inputs_embeds[:, 1] += text_embeds
@@ -101,8 +101,8 @@ class LSTMLeverLM(BaseLeverLM):
                 input_ids=icd_input["input_ids"],
                 attention_mask=icd_input["attention_mask"],
             )["text_embeds"]
-            if self._adpter:
-                icd_text_features = self.sen_adpter(icd_text_features)
+            if self._adapter:
+                icd_text_features = self.sen_adapter(icd_text_features)
             if self._norm:
                 icd_text_features = icd_text_features / icd_text_features.norm(
                     dim=-1, keepdim=True
@@ -115,8 +115,8 @@ class LSTMLeverLM(BaseLeverLM):
             icd_input["pixel_values"] = icd_input["pixel_values"].view(-1, *img_shape)
             icd_img_features = self.img_model(icd_input["pixel_values"])["image_embeds"]
 
-            if self._adpter:
-                icd_img_features = self.img_adpter(icd_img_features)
+            if self._adapter:
+                icd_img_features = self.img_adapter(icd_img_features)
             if self._norm:
                 icd_img_features = icd_img_features / icd_img_features.norm(
                     dim=-1, keepdim=True

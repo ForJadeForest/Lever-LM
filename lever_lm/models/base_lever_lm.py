@@ -5,7 +5,7 @@ from torch import nn
 class BaseLeverLM(nn.Module):
     def __init__(
         self,
-        adpter: bool = False,
+        adapter: bool = False,
         norm: bool = False,
         query_encoding_flag: list = None,
         icd_encoding_flag: list = None,
@@ -14,7 +14,7 @@ class BaseLeverLM(nn.Module):
         if query_encoding_flag is None:
             query_encoding_flag = []
 
-        self._adpter = adpter
+        self._adapter = adapter
         self._norm = norm
         self.query_encoding_flag = query_encoding_flag
         self.icd_encoding_flag = icd_encoding_flag

@@ -27,7 +27,7 @@ run_inference() {
                                 test_lever_lm=true\
                                 train.lever_lm.norm=false \
                                 train.lever_lm.freeze_prefix_list="[img_model,sen_model]" \
-                                train.lever_lm.adpter=true
+                                train.lever_lm.adapter=true
     fi
 }
 run_inference
