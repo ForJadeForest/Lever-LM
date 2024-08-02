@@ -4,7 +4,7 @@ from typing import List
 import requests
 import torch
 from loguru import logger
-from openicl import PromptTemplate
+from open_mmicl.prompt_manager import PromptTemplate
 from PIL import Image
 
 from .utils import cast_type, get_autocast, is_url
