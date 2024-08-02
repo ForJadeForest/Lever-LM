@@ -2,7 +2,7 @@ from typing import Optional
 
 import torch
 from loguru import logger
-from transformers import BatchFeature, IdeficsForVisionText2Text, IdeficsProcessor
+from transformers import BatchFeature
 
 from .base_interface import LVLMInterface
 
@@ -21,6 +21,8 @@ class IDEFICSInterface(LVLMInterface):
         label_field,
         icd_join_char="\n",
     ):
+        from transformers import IdeficsForVisionText2Text, IdeficsProcessor
+
         super().__init__(
             precision=precision,
             device=device,

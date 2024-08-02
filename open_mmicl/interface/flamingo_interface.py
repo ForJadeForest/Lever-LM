@@ -5,10 +5,6 @@ import open_clip
 import torch
 from huggingface_hub import hf_hub_download
 from loguru import logger
-from open_flamingo.src.factory import _infer_decoder_layers_attr_name
-from open_flamingo.src.flamingo import Flamingo
-from open_flamingo.src.flamingo_lm import FlamingoLMMixin
-from open_flamingo.src.utils import extend_instance
 from transformers import AutoModelForCausalLM, AutoTokenizer, BatchFeature
 
 from .base_interface import LVLMInterface
@@ -33,6 +29,7 @@ class FlamingoInterface(LVLMInterface):
         load_from_local=False,
         init_device="cpu",
     ) -> None:
+
         super().__init__(
             precision=precision,
             device=device,
@@ -99,6 +96,8 @@ class FlamingoInterface(LVLMInterface):
         Returns:
             str: Concatenated prompt string.
         """
+        if len(data_sample_list) == 0:
+            return ""
         prompt = self.instruction
         ice_data_sample_list = data_sample_list[:-1]
         query_data_sample = data_sample_list[-1]
@@ -244,6 +243,11 @@ def create_model_and_transforms(
         Image processor: Pipeline to preprocess input images
         Tokenizer: A tokenizer for the language model
     """
+    from open_flamingo.src.factory import _infer_decoder_layers_attr_name
+    from open_flamingo.src.flamingo import Flamingo
+    from open_flamingo.src.flamingo_lm import FlamingoLMMixin
+    from open_flamingo.src.utils import extend_instance
+
     vision_encoder, _, image_processor = open_clip.create_model_and_transforms(
         clip_vision_encoder_path, pretrained=clip_vision_encoder_pretrained
     )
