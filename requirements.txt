@@ -12,5 +12,5 @@ tqdm
 pycocotools
 pycocoevalcap
 tensorboard
-transformers==4.32.0
+transformers==4.33.2
 loguru
