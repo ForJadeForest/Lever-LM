@@ -158,7 +158,7 @@ def get_cider_score(
     )
 
     x_input = interface.prepare_input(
-        prompts, is_last_for_generation=True, add_eos_token=True
+        prompts, is_last_for_generation=True, add_eos_token=False
     ).to(interface.device)
 
     origin_outputs = interface.generate(
@@ -206,7 +206,7 @@ def get_cider_score(
         add_new_icd_input = interface.prepare_input(
             prompts,
             is_last_for_generation=True,
-            add_eos_token=True,
+            add_eos_token=False,
         ).to(interface.device)
 
         outputs = interface.generate(
