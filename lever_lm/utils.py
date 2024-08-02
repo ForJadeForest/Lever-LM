@@ -16,7 +16,12 @@ from transformers import (
     CLIPVisionModelWithProjection,
 )
 
-from open_mmicl.interface import FlamingoInterface, IDEFICSInterface, LLMInterface
+from open_mmicl.interface import (
+    FlamingoInterface,
+    IDEFICSInterface,
+    LLMInterface,
+    IDEFICS2Interface,
+)
 
 
 def init_interface(cfg, **kwargs):
@@ -38,6 +43,19 @@ def init_interface(cfg, **kwargs):
             image_field=cfg.task.image_field,
             label_field=cfg.task.output_column,
         )
+    elif "idefics2" in cfg.infer_model.name:
+        return IDEFICS2Interface(
+            model_name_or_path=cfg.infer_model.model_name_or_path,
+            precision=cfg.precision,
+            prompt_template=cfg.task.template,
+            column_token_map=cfg.task.column_token_map,
+            instruction=cfg.task.instruction,
+            image_field=cfg.task.image_field,
+            label_field=cfg.task.output_column,
+            icd_join_char=cfg.infer_model.icd_join_char,
+            device=kwargs["device"],
+        )
+
     elif "idefics" in cfg.infer_model.name:
         return IDEFICSInterface(
             hf_root=cfg.infer_model.hf_root,
