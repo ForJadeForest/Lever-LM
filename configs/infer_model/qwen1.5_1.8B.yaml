@@ -1,6 +1,6 @@
 name: Qwen1.5-1.8B
 
-model_name: Qwen/Qwen1.5-1.8B
+model_name: ${oc.env:INFER_MODEL_CPK_DIR}/Qwen1.5-1.8B
 load_from_local: true
 
 sst2_prompt_template: 

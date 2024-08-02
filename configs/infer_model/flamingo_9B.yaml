@@ -1,7 +1,7 @@
 name: flamingo_9B
 hf_root: OpenFlamingo-9B-vitl-mpt7b
 flamingo_checkpoint_dir: ${oc.env:CHECKPOINT_PATH}/${infer_model.hf_root}/
-lang_encoder_path: anas-awadalla/mpt-7b
+lang_encoder_path: ${oc.env:INFER_MODEL_CPK_DIR}/anas-awadalla-mpt-7b
 tokenizer_path: ${infer_model.lang_encoder_path}
 cross_attn_every_n_layers: 4
 load_from_local: true
