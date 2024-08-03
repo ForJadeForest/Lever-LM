@@ -1,6 +1,7 @@
 result
 temp
 requirements_repo
+data
 *result
 *.pyc
 .vscode
