@@ -1,0 +1,33 @@
+task_name: vqa
+# use for get prompt for flamingo
+# for get prompt of openicl
+template: "${infer_model.ocr_vqa_prompt_template}"
+
+column_token_map:
+  answer: "<A>"
+
+input_columns: ["answer"]
+output_column: "answer"
+instruction: ${infer_model.ocr_vqa_instruction}
+
+image_field: "image"
+
+# use for train model and inference icd feature field
+icd_text_feature_field: null
+query_text_feature_field: null
+
+# sim fields:
+sim_text_field: null
+sim_image_field: "image"
+
+# for flamingo inference
+gen_args:
+  max_new_tokens: 10
+  num_beams: 3
+  length_penalty: 0.0
+  min_new_tokens: 0
+
+other_save_field: ['question', 'answer', 'img_id', 'id']
+
+
+split_token: "${infer_model.ocr_vqa_split_token}"
