@@ -159,3 +159,19 @@ def load_karpathy_split(
     )
     ds = ds.cast_column("image", datasets.Image(decode=True))
     return ds
+
+
+def load_vlicl_textocr(root_dir, split):
+    ds = load_dataset(
+        os.path.join(root_dir, "textocr"),
+        data_files={"train": "support.json", "test": "query.json"},
+    )
+
+    def preprocess(data, idx):
+        data["image"] = [os.path.join(root_dir, d[0]) for d in data["image"]]
+        data["idx"] = idx
+        return data
+
+    ds = ds.map(preprocess, batched=True, with_indices=True)
+    ds = ds.cast_column("image", datasets.Image(decode=True))
+    return ds[split]

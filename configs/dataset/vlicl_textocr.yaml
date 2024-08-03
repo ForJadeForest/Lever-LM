@@ -1,0 +1,4 @@
+name: vlicl_textocr
+root_dir: ${oc.env:VCICL_PATH}
+
+train_ds_len: 800
