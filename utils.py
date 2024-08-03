@@ -7,7 +7,12 @@ import torch
 from loguru import logger
 from transformers import AutoProcessor
 
-from lever_lm.load_ds_utils import load_coco_ds, load_hf_ds, load_vqav2_ds
+from lever_lm.load_ds_utils import (
+    load_coco_ds,
+    load_hf_ds,
+    load_vqav2_ds,
+    load_vlicl_textocr,
+)
 from open_mmicl.interface import FlamingoInterface, IDEFICSInterface, LLMInterface
 from open_mmicl.metrics.cider_calculator import compute_cider
 from open_mmicl.metrics.vqa_metrics import postprocess_vqa_generation
@@ -29,14 +34,21 @@ def load_ds(cfg, split=None):
             split=split,
         )
     elif cfg.task.task_name == "vqa":
-        ds = load_vqav2_ds(
-            version=cfg.dataset.version,
-            train_path=cfg.dataset.train_path,
-            val_path=cfg.dataset.val_path,
-            train_coco_dataset_root=cfg.dataset.train_coco_dataset_root,
-            val_coco_dataset_root=cfg.dataset.val_coco_dataset_root,
-            split=split,
-        )
+        if cfg.dataset.name == "vlicl_textocr":
+            ds = load_vlicl_textocr(
+                root_dir=cfg.dataset.root_dir,
+                split=split,
+            )
+        elif cfg.dataset.name == "vqav2":
+            ds = load_vqav2_ds(
+                version=cfg.dataset.version,
+                train_path=cfg.dataset.train_path,
+                val_path=cfg.dataset.val_path,
+                train_coco_dataset_root=cfg.dataset.train_coco_dataset_root,
+                val_coco_dataset_root=cfg.dataset.val_coco_dataset_root,
+                split=split,
+            )
+
     else:
         try:
             ds = load_hf_ds(cfg.dataset.hf_ds_name, split=split)
