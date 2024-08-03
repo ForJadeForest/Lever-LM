@@ -76,6 +76,8 @@ class IDEFICSInterface(LVLMInterface):
         Returns:
             str: Concatenated prompt string.
         """
+        if len(data_sample_list) == 0:
+            return ""
         prompt = self.tokenizer.bos_token + self.instruction
         ice_data_sample_list = data_sample_list[:-1]
         query_data_sample = data_sample_list[-1]
