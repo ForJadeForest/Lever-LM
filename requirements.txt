@@ -14,3 +14,4 @@ pycocoevalcap
 tensorboard
 transformers==4.33.2
 loguru
+scikit-learn
