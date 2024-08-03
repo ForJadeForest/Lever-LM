@@ -303,3 +303,24 @@ def init_lever_lm(cfg, lever_lm_path):
     lever_lm.load_state_dict(state_dict)
     processor = AutoProcessor.from_pretrained(cfg.train.lever_lm.clip_name)
     return lever_lm, processor
+
+
+def exact_match(results):
+    import numpy as np
+
+    acc = []
+    for result in results:
+        prediction = result["prediction"].strip()
+        prediction = prediction.strip("\n")
+        trunc_index = prediction.find("\n")
+        if trunc_index <= 0:
+            trunc_index = prediction.find(".")
+        if trunc_index > 0:
+            prediction = prediction[:trunc_index]
+
+        if str(prediction).lower() == str(result["answer"]).lower():
+            acc.append(1)
+        else:
+            acc.append(0)
+    avg_acc = np.average(acc)
+    return avg_acc

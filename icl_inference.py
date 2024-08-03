@@ -24,6 +24,7 @@ from utils import (
     init_lever_lm,
     load_ds,
     vqa_postprocess,
+    exact_match,
 )
 
 
@@ -67,15 +68,23 @@ def evaluate_retriever(
                 model_name=cfg.infer_model.name,
             )
         elif cfg.task.task_name == "vqa":
-            metric = inference_vqa(
-                inferencer=inferencer,
-                ds=ds,
-                icd_idx_list=icd_idx_list,
-                val_ques_path=cfg.dataset.val_ques_path,
-                val_ann_path=cfg.dataset.val_ann_path,
-                output_json_filename=output_files,
-                model_name=cfg.infer_model.name,
-            )
+            if cfg.dataset.name == "vlicl_textocr":
+                metric = inference_ocr_vqa(
+                    inferencer=inferencer,
+                    ds=ds,
+                    icd_idx_list=icd_idx_list,
+                    output_json_filename=output_files,
+                )
+            elif cfg.dataset.name == "vqav2":
+                metric = inference_vqa(
+                    inferencer=inferencer,
+                    ds=ds,
+                    icd_idx_list=icd_idx_list,
+                    val_ques_path=cfg.dataset.val_ques_path,
+                    val_ann_path=cfg.dataset.val_ann_path,
+                    output_json_filename=output_files,
+                    model_name=cfg.infer_model.name,
+                )
         elif cfg.task.task_name == "sst2":
             metric = inference_cls(
                 inferencer=inferencer,
@@ -86,6 +95,25 @@ def evaluate_retriever(
         retriever_res[f"{shot_num=}"] = metric
         logger.info(f"{output_files}: {metric=}")
         record(result_json_path, {info: retriever_res})
+
+
+def inference_ocr_vqa(inferencer, ds, icd_idx_list, output_json_filename):
+    output_dict = inferencer.inference(
+        ds["train"],
+        ds["validation"],
+        icd_idx_list,
+        output_json_filename=output_json_filename,
+    )
+    preds = []
+    for idx in output_dict:
+        preds.append(
+            {
+                "prediction": output_dict[idx]["prediction"],
+                "answer": output_dict[idx]["answer"],
+            }
+        )
+    acc = exact_match(preds)
+    return acc
 
 
 def inference_cls(
